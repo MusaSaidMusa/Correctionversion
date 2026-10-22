@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+/* 
+  Global Requirement:
+  1. Every component hover with light blue (sky-50 / sky-950/40, border-sky-300 / border-sky-700, text-sky-900 / text-sky-100)
+  2. Actively selected component turn green (emerald-600 / emerald-500, white text or subtle green ring)
+*/
+
+@layer utilities {
+  /* Light blue hover utility */
+  .hover-light-blue {
+    transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
+  }
+  .hover-light-blue:hover {
+    background-color: #f0f9ff !important;
+    border-color: #7dd3fc !important;
+    color: #0c4a6e !important;
+  }
+  .dark .hover-light-blue:hover {
+    background-color: rgba(8, 47, 73, 0.45) !important;
+    border-color: #0369a1 !important;
+    color: #e0f2fe !important;
+  }
+
+  /* Actively selected green utility */
+  .active-green {
+    background-color: #059669 !important;
+    border-color: #10b981 !important;
+    color: #ffffff !important;
+  }
+  .active-green-subtle {
+    background-color: #ecfdf5 !important;
+    border-color: #10b981 !important;
+    color: #064e3b !important;
+    box-shadow: 0 0 0 2px #10b981 !important;
+  }
+  .dark .active-green-subtle {
+    background-color: rgba(6, 78, 59, 0.4) !important;
+    border-color: #059669 !important;
+    color: #a7f3d0 !important;
+    box-shadow: 0 0 0 2px #059669 !important;
+  }
+}
