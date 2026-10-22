@@ -1,0 +1,12 @@
+{
+  "name": "ExamGuard Pro",
+  "description": "Comprehensive institutional examination management, real-time proctoring, SEB browser security, and marks audit governance.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "display-capture"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
