@@ -190,13 +190,13 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
     existingExam?.questions || []
   );
 
-  // Generation mode: 'prompt_sequential' | 'automap' | 'rules' | 'manual' | 'create_custom'
-  const [selectionMode, setSelectionMode] = useState<'prompt_sequential' | 'automap' | 'rules' | 'manual' | 'create_custom'>('prompt_sequential');
+  // Generation mode: 'prompt_sequential' | 'create_custom'
+  const [selectionMode, setSelectionMode] = useState<'prompt_sequential' | 'create_custom'>('prompt_sequential');
 
   // Custom Question Form State
   const [customPrompt, setCustomPrompt] = useState('');
   const [customType, setCustomType] = useState<QuestionType>('essay');
-  const [customTopic, setCustomTopic] = useState('Curriculum Subject');
+  const [customTopic, setCustomTopic] = useState('Core Subject');
   const [customDifficulty, setCustomDifficulty] = useState<DifficultyLevel>('medium');
   const [customPoints, setCustomPoints] = useState(5);
   const [customSampleAnswer, setCustomSampleAnswer] = useState('');
@@ -631,6 +631,16 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
     setTimeout(() => setMappingAppliedSuccess(false), 3000);
   };
 
+  const isAllPredefinedQuestionsSet =
+    targetQuestionCount > 0 &&
+    selectedQuestions.length === targetQuestionCount &&
+    selectedQuestions.every(
+      (question) =>
+        String(question.prompt || '').trim().length > 0 &&
+        Number.isFinite(Number(question.points)) &&
+        Number(question.points) > 0
+    );
+
   // Prepare the question set and show its marks for a final review before publishing.
   const handleSave = () => {
     setValidationError(null);
@@ -648,43 +658,44 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
       return;
     }
 
-    let finalQuestions = [...selectedQuestions];
-
-    if (finalQuestions.length === 0) {
-      setValidationError('Add or import at least one question before reviewing and publishing.');
-      setActiveTab('questions');
-      return;
-    }
-
-    // Automatically align the target count to the active question count
-    if (finalQuestions.length !== targetQuestionCount) {
-      setTargetQuestionCount(finalQuestions.length);
-    }
-
-    setSelectedQuestions(finalQuestions);
-    setIsPublishPreviewOpen(true);
-  };
-
-  const handleConfirmPublish = () => {
     if (selectedQuestions.length === 0) {
-      setValidationError('Add at least one question before publishing the examination.');
-      setIsPublishPreviewOpen(false);
+      setValidationError('Add or prompt questions before reviewing and publishing.');
       setActiveTab('questions');
       return;
     }
 
     if (selectedQuestions.length !== targetQuestionCount) {
-      setTargetQuestionCount(selectedQuestions.length);
+      setValidationError(
+        `Publishing is activated only when all ${targetQuestionCount} predefined questions are set. Currently ${selectedQuestions.length} of ${targetQuestionCount} questions are set.`
+      );
+      setActiveTab('questions');
+      return;
     }
 
-    const invalidQuestion = selectedQuestions.some(
+    const incompleteQuestion = selectedQuestions.find(
       (question) =>
         !String(question.prompt || '').trim() ||
         !Number.isFinite(Number(question.points)) ||
         Number(question.points) <= 0
     );
-    if (invalidQuestion) {
-      setValidationError('Every question needs prompt text and a mark allocation greater than zero before publishing.');
+    if (incompleteQuestion) {
+      setValidationError(
+        'Every question requires a problem prompt statement and a mark allocation greater than zero before publishing.'
+      );
+      setActiveTab('questions');
+      return;
+    }
+
+    setIsPublishPreviewOpen(true);
+  };
+
+  const handleConfirmPublish = () => {
+    if (!isAllPredefinedQuestionsSet) {
+      setValidationError(
+        `Publishing is only permitted when all ${targetQuestionCount} predefined questions are fully set.`
+      );
+      setIsPublishPreviewOpen(false);
+      setActiveTab('questions');
       return;
     }
 
@@ -1261,7 +1272,7 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
                 </div>
               )}
 
-              {/* Selection Mode tabs */}
+              {/* Question Creation Mode tabs */}
               <div className="flex flex-wrap gap-1.5 p-1 bg-slate-100 rounded-lg border border-slate-200">
                 <button
                   type="button"
@@ -1269,8 +1280,8 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
                   onClick={() => setSelectionMode('prompt_sequential')}
                   className={`flex-1 min-w-[170px] py-2 rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                     selectionMode === 'prompt_sequential'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-200'
+                      ? 'bg-emerald-600 text-white shadow-xs active-green'
+                      : 'text-slate-700 hover:text-slate-900 hover:bg-sky-50'
                   }`}
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-300" />
@@ -1279,48 +1290,11 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
                 <button
                   type="button"
                   disabled={isLocked}
-                  onClick={() => setSelectionMode('automap')}
-                  className={`flex-1 min-w-[170px] py-2 rounded text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
-                    selectionMode === 'automap'
-                      ? 'bg-white text-indigo-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <ClipboardPaste className="w-3.5 h-3.5" />
-                  <span>Paste / Upload Questions & Scheme</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={isLocked}
-                  onClick={() => setSelectionMode('rules')}
-                  className={`flex-1 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer ${
-                    selectionMode === 'rules'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Rule-Based Matrix
-                </button>
-                <button
-                  type="button"
-                  disabled={isLocked}
-                  onClick={() => setSelectionMode('manual')}
-                  className={`flex-1 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer ${
-                    selectionMode === 'manual'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Manual Bank Picker
-                </button>
-                <button
-                  type="button"
-                  disabled={isLocked}
                   onClick={() => setSelectionMode('create_custom')}
                   className={`flex-1 py-1.5 rounded text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
                     selectionMode === 'create_custom'
-                      ? 'bg-white text-indigo-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-emerald-600 text-white shadow-xs active-green'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-sky-50'
                   }`}
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -1332,7 +1306,7 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
               {selectionMode === 'prompt_sequential' && (
                 <PromptedQuestionBatchBuilder
                   initialQuestions={selectedQuestions}
-                  defaultTopic={courseTitle || 'Curriculum Subject'}
+                  defaultTopic={courseTitle || 'Core Subject'}
                   courseTitle={courseTitle || title}
                   isLocked={isLocked}
                   targetQuestionCount={targetQuestionCount}
@@ -1349,590 +1323,6 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
                 />
               )}
 
-              {/* DYNAMIC PASTE & UPLOAD ENGINE TAB */}
-              {selectionMode === 'automap' && (
-                <div className="p-4 rounded-xl border border-indigo-200 bg-indigo-50/20 space-y-4">
-                  {/* Top Controls: Mode Switcher & Template Loaders */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-100">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-800 text-xs">Input Format:</span>
-                      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs">
-                        <button
-                          type="button"
-                          onClick={() => setPasteMode('unified')}
-                          className={`px-3 py-1 rounded-md font-semibold transition-all cursor-pointer ${
-                            pasteMode === 'unified'
-                              ? 'bg-indigo-600 text-white shadow-2xs'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          Unified Document (Questions + Inline Schemes)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPasteMode('separate')}
-                          className={`px-3 py-1 rounded-md font-semibold transition-all cursor-pointer ${
-                            pasteMode === 'separate'
-                              ? 'bg-indigo-600 text-white shadow-2xs'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          Separate Inputs (Questions & Scheme)
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleLoadSampleExam}
-                        className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-lg font-semibold transition-colors cursor-pointer"
-                        title="Load comprehensive sample exam with MCQs, True/False, Essay with rubric, and LaTeX equation"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Load Academic Sample Paper</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={downloadSampleExamDocument}
-                        className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 font-medium"
-                      >
-                        <Download className="w-3 h-3" />
-                        <span>Sample Questions Doc</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={downloadSampleAnswerKeySheet}
-                        className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 font-medium"
-                      >
-                        <Download className="w-3 h-3" />
-                        <span>Sample Marking Scheme</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleClearExamText}
-                        className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-lg font-medium transition-colors cursor-pointer"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>Clear</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* UNIFIED INPUT MODE */}
-                  {pasteMode === 'unified' ? (
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="font-semibold text-slate-700 text-xs flex items-center gap-1.5">
-                          <FileText className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>Paste Examination Questions & Marking Schemes Document:</span>
-                        </label>
-                        <label className="cursor-pointer text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 hover:border-indigo-300 flex items-center gap-1 shadow-2xs">
-                          <Upload className="w-3 h-3" />
-                          <span>{isImportingDoc ? 'Reading File...' : 'Upload Text / Document (.txt, .docx, .pdf, .md, .csv)'}</span>
-                          <input
-                            type="file"
-                            disabled={isLocked || isImportingDoc}
-                            accept=".txt, .text, .md, .markdown, .docx, .doc, .pdf, .csv, .json"
-                            className="hidden"
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                await handleUploadQuestionsFile(file);
-                                e.target.value = '';
-                              }
-                            }}
-                          />
-                        </label>
-                      </div>
-
-                      <textarea
-                        rows={10}
-                        disabled={isLocked}
-                        value={examDocText}
-                        onChange={(e) => handleQuestionsTextChange(e.target.value)}
-                        placeholder={`Paste your entire examination paper here. Format example:
-
-1. Which architectural layer in the OSI standard model guarantees end-to-end transport reliability? [5 Marks]
-A) Network Layer
-B) Transport Layer (TCP/UDP)
-C) Data Link Layer
-D) Application Layer
-Answer: B
-Marking Scheme: Award 5 marks for option B. Transport Layer handles end-to-end communication and port multiplexing.
-
-2. True or False: In public-key cryptography, the private key is shared with peers. [4 Marks]
-Answer: FALSE
-Marking Scheme: Award 4 marks for FALSE. Private key must remain confidential.
-
-3. Explain the mechanism of the Two-Phase Commit (2PC) protocol in distributed databases. [15 Marks]
-Marking Scheme:
-- Prepare Phase (5 marks): Coordinator sends PREPARE to cohorts; cohorts reply VOTE_COMMIT or VOTE_ABORT.
-- Commit Phase (5 marks): If all vote commit, sends GLOBAL_COMMIT; otherwise GLOBAL_ABORT.
-- Failure Mitigation (5 marks): Detail timeout handling, recovery coordinator, and write-ahead logging (WAL).`}
-                        className="w-full p-3 bg-white border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-2xs leading-relaxed"
-                      />
-                    </div>
-                  ) : (
-                    /* SEPARATE INPUTS MODE */
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Box 1: Questions Document */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="font-semibold text-slate-700 text-xs flex items-center gap-1.5">
-                            <FileText className="w-3.5 h-3.5 text-indigo-600" />
-                            <span>1. Examination Questions Document:</span>
-                          </label>
-                          <label className="cursor-pointer text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 bg-white px-2 py-0.5 rounded border border-indigo-200 flex items-center gap-1 shadow-2xs">
-                            <Upload className="w-3 h-3" />
-                            <span>Upload Questions (.txt, .docx, .pdf, .md)</span>
-                            <input
-                              type="file"
-                              disabled={isLocked || isImportingDoc}
-                              accept=".txt, .text, .md, .markdown, .docx, .doc, .pdf, .csv, .json"
-                              className="hidden"
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  await handleUploadQuestionsFile(file);
-                                  e.target.value = '';
-                                }
-                              }}
-                            />
-                          </label>
-                        </div>
-                        <textarea
-                          rows={8}
-                          disabled={isLocked}
-                          value={examDocText}
-                          onChange={(e) => handleQuestionsTextChange(e.target.value)}
-                          placeholder={`1. In distributed systems, which protocol guarantees consensus? [5 Marks]
-A) Paxos or Raft Consensus Protocol
-B) Simple Mail Transfer Protocol
-C) Address Resolution Protocol
-
-2. True or False: In 3NF, transitive dependencies are eliminated. [5 Marks]
-
-3. Discuss the theoretical principles of Safe Exam Browser (SEB). [15 Marks]`}
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-
-                      {/* Box 2: Marking Scheme / Key */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="font-semibold text-slate-700 text-xs flex items-center gap-1.5">
-                            <Key className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>2. Official Marking Scheme / Answer Key:</span>
-                          </label>
-                          <label className="cursor-pointer text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 bg-white px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 shadow-2xs">
-                            <Upload className="w-3 h-3" />
-                            <span>Upload Scheme (.txt, .xlsx, .csv)</span>
-                            <input
-                              type="file"
-                              disabled={isLocked || isImportingDoc}
-                              accept=".txt, .text, .md, .docx, .doc, .xlsx, .xls, .csv"
-                              className="hidden"
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  await handleUploadSchemeFile(file);
-                                  e.target.value = '';
-                                }
-                              }}
-                            />
-                          </label>
-                        </div>
-                        <textarea
-                          rows={8}
-                          disabled={isLocked}
-                          value={answerKeyText}
-                          onChange={(e) => handleSchemeTextChange(e.target.value)}
-                          placeholder={`Question 1: Answer: A [5 Marks] - Paxos and Raft are standard distributed consensus algorithms.
-
-Question 2: Answer: TRUE [5 Marks] - Eliminates transitive functional dependencies.
-
-Question 3: Model Answer & Marking Scheme: [15 Marks]
-- Browser Exam Key formulation (5 marks): Hash computed over application binary and configuration file.
-- Request verification (5 marks): Backend verifies request headers match expected BEK.
-- Kiosk mode security (5 marks): Disables task-switching and virtual machines.`}
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-emerald-500"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Parse Statistics & Warning Badges */}
-                  {parseStats && (
-                    <div className="p-3 bg-white rounded-xl border border-indigo-200 shadow-2xs space-y-2">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-bold text-slate-900 text-xs flex items-center gap-1">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                            <span>{parseStats.total} Questions Extracted</span>
-                          </span>
-                          <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-                            {parseStats.totalMarks} Total Marks
-                          </span>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-mono">
-                          <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium">
-                            {parseStats.mcq + parseStats.trueFalse + parseStats.essay} Written Response
-                          </span>
-                          <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium">
-                            {parseStats.essay} Essay / Long
-                          </span>
-                          {parseStats.fillBlank > 0 && (
-                            <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium">
-                              {parseStats.fillBlank} Fill Blank
-                            </span>
-                          )}
-                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded font-bold">
-                            {parseStats.hasMarkingScheme} with Verified Marking Schemes
-                          </span>
-                        </div>
-                      </div>
-
-                      {parseWarnings.length > 0 && (
-                        <div className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded border border-amber-200 flex items-start gap-1.5">
-                          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-600" />
-                          <div className="space-y-0.5">
-                            {parseWarnings.map((w, idx) => (
-                              <div key={idx}>{w}</div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Mapping Errors if any */}
-                  {mappingErrors.length > 0 && (
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-1">
-                      <div className="font-semibold flex items-center gap-1">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
-                        <span>Parser Feedback / Guidance:</span>
-                      </div>
-                      <ul className="list-disc list-inside space-y-0.5 text-[11px]">
-                        {mappingErrors.map((err, i) => (
-                          <li key={i}>{err}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* DYNAMIC POPULATED QUESTIONS CARDS EXPLORER */}
-                  {selectedQuestions.length > 0 && (
-                    <div className="space-y-3 pt-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                          <span>Dynamically Populated Examination Questions ({selectedQuestions.length} Items):</span>
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setIsPreviewPaperOpen(true)}
-                            className="text-xs font-semibold text-indigo-700 hover:text-indigo-900 flex items-center gap-1 underline cursor-pointer"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span>Preview Official Paper</span>
-                          </button>
-                          <span className="text-slate-300">|</span>
-                          <button
-                            type="button"
-                            onClick={() => setIsPreviewSchemeOpen(true)}
-                            className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 underline cursor-pointer"
-                          >
-                            <FileCheck className="w-3.5 h-3.5" />
-                            <span>Preview Marking Scheme</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                        {selectedQuestions.map((q, idx) => (
-                          <div
-                            key={q.id || idx}
-                            className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2 hover:border-indigo-300 transition-colors"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded text-xs">
-                                  Q{idx + 1}
-                                </span>
-                                <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                                  {q.type.replace('_', ' ')}
-                                </span>
-                                <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                  {q.points} Marks
-                                </span>
-                                {q.topic && (
-                                  <span className="text-[11px] text-slate-500 font-medium">
-                                    Section: {q.topic}
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenDiagramModal(q)}
-                                  className="px-2 py-1 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                                  title="Attach or modify diagram / illustration for this question"
-                                >
-                                  <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
-                                  <span>{q.imageUrl ? 'Edit Diagram' : '+ Diagram'}</span>
-                                </button>
-
-                                {!isLocked && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleQuestion(q)}
-                                    className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
-                                    title="Remove question from exam"
-                                  >
-                                    Remove
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="text-xs font-medium text-slate-900 leading-relaxed">
-                              {q.prompt}
-                            </div>
-
-                            {/* Attached Diagram / Illustration Preview (Mapped neatly in middle) */}
-                            {q.imageUrl && (
-                              <div className="my-2.5 flex flex-col items-center justify-center w-full text-center">
-                                <TechnicalDiagram
-                                  imageUrl={q.imageUrl}
-                                  caption={q.imageCaption}
-                                  type={q.imageUrl}
-                                  transform={q.imageTransform}
-                                  inExamPaper={true}
-                                />
-                              </div>
-                            )}
-
-                            {q.mathEquation && (
-                              <div className="p-2 bg-indigo-50/50 rounded-lg border border-indigo-100">
-                                <MathRenderer equation={q.mathEquation} />
-                              </div>
-                            )}
-
-                            {q.subQuestions?.map((part, partIndex) => (
-                              <div key={part.id} className="rounded-lg bg-indigo-50/70 p-2 text-xs text-slate-700">
-                                Part {partIndex + 1}: {part.prompt}
-                              </div>
-                            ))}
-
-                            {/* Essay Model Solution & Rubric Criteria */}
-                            {(q.sampleAnswer || q.rubric) && (
-                              <div className="p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-200 text-[11px] space-y-1">
-                                <div className="font-bold text-emerald-900 flex items-center gap-1.5">
-                                  <Key className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>Official Marking Scheme & Model Rubric:</span>
-                                </div>
-                                <div className="text-emerald-950 whitespace-pre-wrap font-sans leading-relaxed">
-                                  {q.sampleAnswer || q.rubric}
-                                </div>
-                              </div>
-                            )}
-
-                            {q.explanation && (
-                              <div className="text-[11px] text-slate-600 italic bg-slate-50 p-2 rounded border border-slate-200">
-                                <strong>Examiner Note:</strong> {q.explanation}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Rule Based Matrix */}
-              {selectionMode === 'rules' && (
-                <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-800">
-                      Rule Matrix (e.g. "Pick 5 Easy, 10 Medium from Topic A")
-                    </span>
-                    <button
-                      type="button"
-                      disabled={isLocked}
-                      onClick={handleAddRule}
-                      className="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Add Rule</span>
-                    </button>
-                  </div>
-
-                  <div className="space-y-2">
-                    {rules.map((rule, idx) => (
-                      <div key={rule.id} className="flex items-center gap-3 p-2 bg-slate-50 rounded border">
-                        <span className="text-slate-400 font-mono">#{idx + 1}</span>
-                        <select
-                          disabled={isLocked}
-                          value={rule.topic}
-                          onChange={(e) => {
-                            const updated = [...rules];
-                            updated[idx].topic = e.target.value;
-                            setRules(updated);
-                          }}
-                          className="p-1 border rounded bg-white text-xs"
-                        >
-                          {topics.map((t) => (
-                            <option key={t} value={t}>
-                              {t}
-                            </option>
-                          ))}
-                        </select>
-
-                        <select
-                          disabled={isLocked}
-                          value={rule.difficulty}
-                          onChange={(e) => {
-                            const updated = [...rules];
-                            updated[idx].difficulty = e.target.value as DifficultyLevel;
-                            setRules(updated);
-                          }}
-                          className="p-1 border rounded bg-white capitalize text-xs"
-                        >
-                          <option value="easy">Easy</option>
-                          <option value="medium">Medium</option>
-                          <option value="hard">Hard</option>
-                        </select>
-
-                        <div className="flex items-center gap-1">
-                          <span className="text-slate-500">Count:</span>
-                          <input
-                            type="number"
-                            min="1"
-                            disabled={isLocked}
-                            value={rule.count}
-                            onChange={(e) => {
-                              const updated = [...rules];
-                              updated[idx].count = Math.max(1, Number(e.target.value));
-                              setRules(updated);
-                            }}
-                            className="w-16 p-1 border rounded bg-white text-center font-mono text-xs"
-                          />
-                        </div>
-
-                        <button
-                          type="button"
-                          disabled={isLocked}
-                          onClick={() => handleRemoveRule(rule.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 ml-auto"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <button
-                      type="button"
-                      disabled={isLocked}
-                      onClick={handleApplyRules}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-medium shadow-xs cursor-pointer"
-                    >
-                      Generate Questions From Matrix
-                    </button>
-                    {ruleMessage && (
-                      <span className="text-emerald-700 font-medium">{ruleMessage}</span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* MANUAL BANK PICKER TAB */}
-              {selectionMode === 'manual' && (
-                <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                    <div>
-                      <span className="font-semibold text-slate-900 text-xs">
-                        Institutional Question Bank ({questionBank.length} Items Available)
-                      </span>
-                      <p className="text-[11px] text-slate-500">
-                        Check questions to include in this examination.
-                      </p>
-                    </div>
-                    <span className="text-xs font-mono font-bold text-indigo-600">
-                      {selectedQuestions.length} selected
-                    </span>
-                  </div>
-
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {questionBank.length === 0 ? (
-                      <div className="text-center py-6 text-slate-400 text-xs">
-                        No questions in repository. Use "Set Variety of Questions" to write questions.
-                      </div>
-                    ) : (
-                      questionBank.map((q) => {
-                        const isIncluded = selectedQuestions.some((sq) => sq.id === q.id);
-                        return (
-                          <label
-                            key={q.id}
-                            className={`p-3 rounded-lg border flex items-start gap-3 cursor-pointer transition-all ${
-                              isIncluded
-                                ? 'bg-indigo-50/60 border-indigo-300'
-                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              disabled={isLocked}
-                              checked={isIncluded}
-                              onChange={() => handleToggleQuestion(q)}
-                              className="mt-0.5 rounded text-indigo-600"
-                            />
-                            <div className="flex-1 text-xs space-y-1">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-bold text-slate-800 uppercase font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-200">
-                                    {q.type.replace('_', ' ')}
-                                  </span>
-                                  {q.imageUrl && (
-                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold flex items-center gap-1">
-                                      <ImageIcon className="w-2.5 h-2.5 text-emerald-600" />
-                                      <span>Diagram Attached</span>
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      handleOpenDiagramModal(q);
-                                    }}
-                                    className="text-[10px] text-indigo-700 hover:text-indigo-900 font-bold underline flex items-center gap-0.5 cursor-pointer"
-                                  >
-                                    <ImageIcon className="w-3 h-3 text-indigo-600" />
-                                    <span>{q.imageUrl ? 'Edit Diagram' : '+ Diagram'}</span>
-                                  </button>
-                                  <span className="font-mono font-bold text-indigo-600">{q.points} Marks</span>
-                                </div>
-                              </div>
-                              <p className="text-slate-800 font-medium">{q.prompt}</p>
-                            </div>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
 
               {/* CREATE VARIETY OF QUESTIONS TAB (Essay, Multichoice, etc.) */}
               {selectionMode === 'create_custom' && (
@@ -2449,13 +1839,23 @@ Question 3: Model Answer & Marking Scheme: [15 Marks]
             <button
               type="button"
               onClick={handleSave}
-              disabled={isImportingDoc || selectedQuestions.length === 0}
-              className="px-5 py-2.5 rounded-xl font-bold shadow-md transition-all cursor-pointer flex items-center gap-2 text-xs bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Review questions, marks, and publish examination"
+              disabled={isImportingDoc || !isAllPredefinedQuestionsSet}
+              className={`px-5 py-2.5 rounded-xl font-bold shadow-md transition-all flex items-center gap-2 text-xs ${
+                isAllPredefinedQuestionsSet
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-emerald-600/20'
+                  : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-300 dark:border-slate-700'
+              }`}
+              title={
+                !isAllPredefinedQuestionsSet
+                  ? `Publishing locked: All ${targetQuestionCount} predefined questions must be set (${selectedQuestions.length}/${targetQuestionCount} ready with valid marks)`
+                  : 'Review questions, marks, and publish examination'
+              }
             >
               <Eye className="w-4 h-4" />
               <span>
-                Review & Publish Examination ({selectedQuestions.length} {selectedQuestions.length === 1 ? 'Question' : 'Questions'})
+                {isAllPredefinedQuestionsSet
+                  ? `Review & Publish Examination (${selectedQuestions.length} Questions)`
+                  : `Publish Locked (${selectedQuestions.length}/${targetQuestionCount} Questions)`}
               </span>
             </button>
           </div>
@@ -2689,18 +2089,19 @@ Question 3: Model Answer & Marking Scheme: [15 Marks]
               <button
                 type="button"
                 onClick={handleConfirmPublish}
-                disabled={
-                  selectedQuestions.length === 0 ||
-                  selectedQuestions.some(
-                    (question) =>
-                      !String(question.prompt || '').trim() ||
-                      !Number.isFinite(Number(question.points)) ||
-                      Number(question.points) <= 0
-                  )
+                disabled={!isAllPredefinedQuestionsSet}
+                className={`rounded-lg px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md ${
+                  isAllPredefinedQuestionsSet
+                    ? 'bg-emerald-600 hover:bg-emerald-500 cursor-pointer shadow-emerald-600/20'
+                    : 'bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed'
+                }`}
+                title={
+                  !isAllPredefinedQuestionsSet
+                    ? `Cannot publish: Requires all ${targetQuestionCount} questions to be defined with positive marks.`
+                    : 'Publish examination'
                 }
-                className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
-                {existingExam ? 'Confirm Update' : 'Confirm & Publish'}
+                {existingExam ? 'Confirm & Update Examination' : `Confirm & Publish Examination (${selectedQuestions.length}/${targetQuestionCount})`}
               </button>
             </div>
           </div>

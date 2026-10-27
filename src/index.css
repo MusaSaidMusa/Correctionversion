@@ -2,28 +2,39 @@
 
 /* 
   Global Requirement:
-  1. Every component hover with light blue (sky-50 / sky-950/40, border-sky-300 / border-sky-700, text-sky-900 / text-sky-100)
-  2. Actively selected component turn green (emerald-600 / emerald-500, white text or subtle green ring)
+  1. Hover all items using blue (sky-50 / sky-950/40, border-sky-400 / border-sky-600, text-sky-900 / text-sky-100)
+  2. Selected items turn green (emerald-600 / emerald-500, white text or emerald ring)
 */
+
+@layer base {
+  /* Generic buttons and interactive controls default to blue hover unless overridden */
+  button:not(:disabled):hover {
+    transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
+  }
+}
 
 @layer utilities {
   /* Light blue hover utility */
-  .hover-light-blue {
+  .hover-light-blue,
+  .hover-blue {
     transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
   }
-  .hover-light-blue:hover {
+  .hover-light-blue:hover,
+  .hover-blue:hover {
     background-color: #f0f9ff !important;
-    border-color: #7dd3fc !important;
-    color: #0c4a6e !important;
+    border-color: #38bdf8 !important;
+    color: #0369a1 !important;
   }
-  .dark .hover-light-blue:hover {
-    background-color: rgba(8, 47, 73, 0.45) !important;
-    border-color: #0369a1 !important;
+  .dark .hover-light-blue:hover,
+  .dark .hover-blue:hover {
+    background-color: rgba(8, 47, 73, 0.5) !important;
+    border-color: #0284c7 !important;
     color: #e0f2fe !important;
   }
 
   /* Actively selected green utility */
-  .active-green {
+  .active-green,
+  .selected-green {
     background-color: #059669 !important;
     border-color: #10b981 !important;
     color: #ffffff !important;
@@ -39,5 +50,30 @@
     border-color: #059669 !important;
     color: #a7f3d0 !important;
     box-shadow: 0 0 0 2px #059669 !important;
+  }
+
+  /* Orange outline separator utility */
+  .outline-separator-orange {
+    border-color: #fb923c !important;
+  }
+}
+
+/* Security Print Restriction for Student Role */
+@media print {
+  .student-print-restricted {
+    display: none !important;
+  }
+  .student-print-warning {
+    display: block !important;
+    font-family: serif;
+    font-size: 16pt;
+    text-align: center;
+    padding: 100px 20px;
+    color: #dc2626;
+  }
+}
+@media screen {
+  .student-print-warning {
+    display: none !important;
   }
 }

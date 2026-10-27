@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, Printer, Download, FileText, CheckCircle2 } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { X, Printer, Download, FileText, CheckCircle2, Lock, ShieldAlert } from 'lucide-react';
 import { Exam } from '../../types';
 
 interface ExaminationPaperModalProps {
@@ -16,15 +16,30 @@ export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
   isOpen,
   onClose,
   exam,
+  userRole,
   canDownload = true,
   faculty,
   department,
 }) => {
   if (!isOpen) return null;
 
+  const isStudent = userRole === 'student' || canDownload === false;
   const totalPoints = exam.questions.reduce((sum, q) => sum + (q.points || 0), 0);
 
+  useEffect(() => {
+    if (!isOpen || !isStudent) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, isStudent]);
+
   const handlePrint = () => {
+    if (isStudent) return;
     window.print();
   };
 
@@ -36,11 +51,11 @@ export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-indigo-600" />
             <span className="font-bold text-sm text-slate-800">
-              Official Examination Paper — {exam.courseCode}
+              Official Examination Paper — {exam.courseCode}: {exam.courseTitle || exam.title}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {canDownload && (
+            {!isStudent && canDownload ? (
               <button
                 onClick={handlePrint}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
@@ -48,6 +63,11 @@ export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
                 <Printer className="w-4 h-4" />
                 <span>Print / Save as PDF</span>
               </button>
+            ) : (
+              <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-300 flex items-center gap-1">
+                <Lock className="w-3.5 h-3.5 text-amber-600" />
+                <span>Candidate View (Print Prohibited)</span>
+              </span>
             )}
             <button
               onClick={onClose}
@@ -58,8 +78,19 @@ export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
           </div>
         </div>
 
+        {/* Print Warning for Student Attempts */}
+        {isStudent && (
+          <div className="student-print-warning hidden print:flex fixed inset-0 bg-white z-[99999] flex-col items-center justify-center p-12 text-center font-sans">
+            <ShieldAlert className="w-16 h-16 text-rose-600 mb-4" />
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">Printing Prohibited</h2>
+            <p className="text-sm text-slate-600 max-w-md">
+              In accordance with academic integrity and institutional examination regulations, candidates are strictly prohibited from printing or exporting examination papers.
+            </p>
+          </div>
+        )}
+
         {/* Paper Document Container (Standard Times New Roman 12pt Academic Styling) */}
-        <div className="p-8 sm:p-12 overflow-y-auto flex-1 font-serif text-[12pt] leading-relaxed text-black bg-white select-text">
+        <div className={`p-8 sm:p-12 overflow-y-auto flex-1 font-serif text-[12pt] leading-relaxed text-black bg-white select-text ${isStudent ? 'student-print-restricted' : ''}`}>
           {/* Official University Header with Uploaded Institutional Logo */}
           <div className="text-center border-b-2 border-black pb-4 mb-6">
             <div className="flex justify-center mb-3">

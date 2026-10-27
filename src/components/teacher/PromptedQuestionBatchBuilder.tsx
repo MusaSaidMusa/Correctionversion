@@ -46,7 +46,7 @@ export const PromptedQuestionBatchBuilder: React.FC<PromptedQuestionBatchBuilder
     const count = Math.max(1, targetQuestionCount || 5);
     return Array.from({ length: count }, (_, idx) => ({
       id: `q-seq-${Date.now()}-${idx + 1}`,
-      prompt: `Question ${idx + 1}: Analyze and explain the fundamental concepts, theoretical models, and practical implementations relevant to ${courseTitle || defaultTopic || 'the curriculum'}.`,
+      prompt: `Question ${idx + 1}: Analyze and explain the fundamental concepts, theoretical models, and practical implementations relevant to ${courseTitle || defaultTopic || 'the course material'}.`,
       points: 10,
       type: 'essay' as QuestionType,
       topic: defaultTopic || 'Core Subject',
@@ -370,20 +370,6 @@ export const PromptedQuestionBatchBuilder: React.FC<PromptedQuestionBatchBuilder
             </div>
           </div>
 
-          {/* Subject / Topic Field */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-              Curriculum Section / Topic:
-            </label>
-            <input
-              type="text"
-              disabled={isLocked}
-              placeholder="e.g. Asymmetric Key Cryptography, Algorithm Analysis, Database Normalization..."
-              value={activeQ.topic || ''}
-              onChange={(e) => handleUpdateQuestion(currentStep, { topic: e.target.value })}
-              className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 bg-slate-50/50 text-slate-800 font-medium focus:bg-white focus:ring-1 focus:ring-indigo-500"
-            />
-          </div>
 
           {/* Question Prompt Field */}
           <div>

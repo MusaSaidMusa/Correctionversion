@@ -22,6 +22,18 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
     exam.questions.reduce((sum, q) => sum + (q.points || 0), 0) ||
     100;
   const score = submission.score ?? 0;
+  const percentage = Math.min(100, Math.max(0, Math.round((score / totalPoints) * 100)));
+  const isMarked = submission.status === 'graded' || (submission.score !== undefined && submission.score !== null);
+
+  const getAcademicGrade = (pct: number) => {
+    if (pct >= 80) return { letter: 'A', label: 'Distinction / Excellent', color: 'text-emerald-700 bg-emerald-50 border-emerald-300' };
+    if (pct >= 70) return { letter: 'B', label: 'Very Good / Merit', color: 'text-blue-700 bg-blue-50 border-blue-300' };
+    if (pct >= 60) return { letter: 'C', label: 'Good / Credit', color: 'text-teal-700 bg-teal-50 border-teal-300' };
+    if (pct >= 50) return { letter: 'D', label: 'Pass', color: 'text-amber-700 bg-amber-50 border-amber-300' };
+    return { letter: 'F', label: 'Fail / Unsatisfactory', color: 'text-rose-700 bg-rose-50 border-rose-300' };
+  };
+
+  const gradeInfo = isMarked ? getAcademicGrade(percentage) : null;
 
   const handlePrint = () => {
     window.print();
@@ -35,7 +47,7 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-indigo-600" />
             <span className="font-bold text-sm text-slate-800">
-              Candidate Examination Answer Sheet — {exam.courseCode} ({submission.studentName || submission.studentId})
+              Candidate Examination Answer Sheet — {exam.courseCode}: {exam.courseTitle || exam.title}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -74,6 +86,27 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
             </h3>
           </div>
 
+          {/* Graded Result Banner when marked by faculty */}
+          {isMarked && gradeInfo && (
+            <div className={`mb-6 p-4 rounded-xl border-2 flex flex-col sm:flex-row items-center justify-between gap-3 font-sans ${gradeInfo.color}`}>
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-6 h-6 shrink-0" />
+                <div>
+                  <h4 className="font-bold text-sm">Faculty Evaluation Complete</h4>
+                  <p className="text-xs opacity-90">Official marks verified and certified by course instructor.</p>
+                </div>
+              </div>
+              <div className="text-center sm:text-right">
+                <div className="font-mono text-2xl font-black tracking-tight">
+                  Grade {gradeInfo.letter}
+                </div>
+                <div className="text-xs font-semibold uppercase tracking-wider">
+                  {gradeInfo.label} ({percentage}%)
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-y-2 text-sm border-b border-slate-300 pb-4 mb-6">
             <div>
               <strong>Candidate Name:</strong> {submission.studentName || submission.studentId}
@@ -82,10 +115,25 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
               <strong>Date of Sitting:</strong> {submission.submittedAt ? new Date(submission.submittedAt).toLocaleDateString() : 'Active Session'}
             </div>
             <div>
-              <strong>Course:</strong> {exam.courseCode} - {exam.courseTitle || exam.title}
+              <strong>Course Code:</strong> {exam.courseCode}
             </div>
             <div>
-              <strong>Awarded Marks:</strong> {score} / {totalPoints} ({submission.percentage ?? Math.round((score/totalPoints)*100)}%)
+              <strong>Course Title:</strong> {exam.courseTitle || exam.title}
+            </div>
+            <div>
+              <strong>Awarded Marks:</strong> {score} / {totalPoints} ({percentage}%)
+            </div>
+            <div>
+              <strong>Official Grade:</strong>{' '}
+              {isMarked && gradeInfo ? (
+                <span className={`inline-flex items-center px-2 py-0.5 rounded font-mono font-bold border text-xs ${gradeInfo.color}`}>
+                  Grade {gradeInfo.letter} ({gradeInfo.label})
+                </span>
+              ) : (
+                <span className="italic text-slate-500">
+                  Pending Faculty Evaluation
+                </span>
+              )}
             </div>
             <div>
               <strong>Integrity Score:</strong> {submission.integrityScore ?? 100}%

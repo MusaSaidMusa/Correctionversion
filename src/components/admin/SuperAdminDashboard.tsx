@@ -1629,7 +1629,8 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
               </div>
             </div>
 
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {/* Orange outline separated faculty governance items */}
+            <div className="p-4 space-y-3.5 bg-slate-50/50 dark:bg-slate-950/20">
               {filteredTeachers.length === 0 ? (
                 <div className="p-12 text-center text-slate-400">
                   <Users className="w-10 h-10 mx-auto mb-2 text-slate-300 dark:text-slate-700" />
@@ -1648,7 +1649,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                   return (
                     <div
                       key={teacher.id}
-                      className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors text-xs"
+                      className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-xl border-2 border-orange-400 dark:border-orange-500 bg-white dark:bg-slate-900 shadow-xs hover:border-orange-500 hover:shadow-md transition-all text-xs"
                     >
                       <div className="flex items-start sm:items-center gap-3.5">
                         <img

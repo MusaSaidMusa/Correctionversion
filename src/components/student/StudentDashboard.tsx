@@ -579,10 +579,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               <div
                 key={exam.id}
                 onClick={() => setSelectedExamId(isSelected ? null : exam.id)}
-                className={`rounded-2xl border p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all cursor-pointer ${
+                className={`rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all cursor-pointer ${
                   isSelected
-                    ? 'bg-indigo-50/40 dark:bg-indigo-950/30 border-orange-500 dark:border-orange-400 ring-2 ring-orange-400 shadow-md'
-                    : 'bg-white dark:bg-slate-900 border-orange-300 dark:border-orange-700 hover:border-orange-500 dark:hover:border-orange-500'
+                    ? 'border-2 border-emerald-500 dark:border-emerald-400 ring-2 ring-emerald-400/50 bg-emerald-50/25 dark:bg-emerald-950/20 shadow-md'
+                    : 'border-2 border-orange-400 dark:border-orange-500/80 bg-white dark:bg-slate-900 hover:border-sky-500 hover:bg-sky-50/30 dark:hover:bg-sky-950/20 hover:shadow-sky-500/10'
                 }`}
               >
                 <div className="space-y-2 flex-1">
@@ -594,14 +594,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                         e.stopPropagation();
                         setSelectedExamId(isSelected ? null : exam.id);
                       }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
                         isSelected
-                          ? 'bg-indigo-600 text-white shadow-xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                          ? 'bg-emerald-600 text-white border-emerald-500 shadow-xs'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-sky-100 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/50 dark:hover:text-sky-200'
                       }`}
                       title="Click to select this examination"
                     >
-                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${isSelected ? 'border-white bg-indigo-600' : 'border-slate-400'}`}>
+                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${isSelected ? 'border-white bg-emerald-600' : 'border-slate-400'}`}>
                         {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                       </span>
                       <span>{isSelected ? 'Selected Examination' : 'Select Examination'}</span>
