@@ -485,9 +485,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             <span className="text-slate-300">·</span>
             <span className="text-indigo-200 font-bold drop-shadow-xs">{teacherBackendInfo.staffId}</span>
             <span className="text-slate-300">·</span>
-            <span className="text-slate-100 drop-shadow-xs">{teacherBackendInfo.department}</span>
-            <span className="text-slate-300">·</span>
-            <span className="text-indigo-200 font-medium drop-shadow-xs">{teacherBackendInfo.office}</span>
+            <span className="text-amber-300 font-medium drop-shadow-xs italic">"Impacting lives since 1953"</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -827,7 +825,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               return (
                 <div
                   key={exam.id}
-                  className="bg-white dark:bg-slate-900 rounded-2xl border border-orange-300 dark:border-orange-700 p-5 sm:p-6 shadow-xs hover:border-orange-500 dark:hover:border-orange-500 hover:shadow-md transition-all flex flex-col gap-4 sm:gap-5"
+                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-xs hover:border-sky-400 dark:hover:border-sky-500 hover:bg-sky-50/20 dark:hover:bg-sky-950/20 hover:shadow-md transition-all flex flex-col gap-4 sm:gap-5 border-l-4 border-l-indigo-600 dark:border-l-indigo-500"
                 >
                   {/* Top Bar: Metadata Badges & Utility Controls */}
                   <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-slate-100 dark:border-slate-800/80">

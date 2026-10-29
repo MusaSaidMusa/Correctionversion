@@ -94,7 +94,7 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
             <div>
               <h3 className="font-bold text-base">Virtual Examination Waiting Room</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {exam.courseCode} — {exam.title}
+                {exam.courseCode} &bull; Rifkins Education College &bull; <span className="italic">"Impacting lives since 1953"</span>
               </p>
             </div>
           </div>

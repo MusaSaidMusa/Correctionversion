@@ -84,7 +84,10 @@ export const OfficialMarkingSchemeModal: React.FC<OfficialMarkingSchemeModalProp
             <ShieldAlert className="w-16 h-16 text-rose-600 mb-4" />
             <h2 className="text-2xl font-bold text-slate-900 mb-2">Printing Prohibited</h2>
             <p className="text-sm text-slate-600 max-w-md">
-              In accordance with university examination board security protocols, candidate printing and exporting of official marking schemes is strictly restricted.
+              In accordance with Rifkins Education College examination security protocols, candidate printing and exporting of official marking schemes is strictly restricted.
+            </p>
+            <p className="text-xs text-slate-400 mt-4 italic font-medium">
+              Rifkins Education College &bull; "Impacting lives since 1953"
             </p>
           </div>
         )}
@@ -95,18 +98,19 @@ export const OfficialMarkingSchemeModal: React.FC<OfficialMarkingSchemeModalProp
             <div className="flex justify-center mb-3">
               <img
                 src="/institution-logo.jpg"
-                alt="Institutional Examination Board Logo"
+                alt="Rifkins Education College Logo"
                 className="h-16 max-w-[200px] object-contain"
               />
             </div>
-            <h1 className="text-xl font-bold uppercase tracking-wide">Institutional Examination Board</h1>
-            <h2 className="text-sm font-semibold uppercase tracking-wider mt-0.5">
+            <h1 className="text-xl font-bold uppercase tracking-wide">Rifkins Education College</h1>
+            <p className="text-xs italic tracking-wide text-slate-700">"Impacting lives since 1953"</p>
+            <h2 className="text-sm font-semibold uppercase tracking-wider mt-1">
               {faculty || exam.faculty || 'Faculty of Computing & Information Technologies'}
             </h2>
             <h3 className="text-xs uppercase tracking-wider text-slate-700 mt-0.5">
               Official Marking Scheme & Solution Key
             </h3>
-            <p className="text-xs italic mt-1 font-sans">
+            <p className="text-xs italic mt-1 font-sans text-slate-600">
               Strictly for Internal Examination Evaluation & Candidate Performance Audit
             </p>
           </div>

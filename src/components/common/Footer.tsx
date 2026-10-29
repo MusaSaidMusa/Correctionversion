@@ -13,10 +13,11 @@ export const Footer: React.FC<FooterProps> = ({ currentUser, onOpenHelp }) => {
   return (
     <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xs py-4 px-4 sm:px-6 text-xs text-slate-500 dark:text-slate-400">
       <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Shield className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-          <span className="font-semibold text-slate-700 dark:text-slate-300">ExamGuard Pro</span>
-          <span>&copy; {new Date().getFullYear()} Institutional Academic Standards & Examination Council.</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <Shield className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+          <span className="font-semibold text-slate-700 dark:text-slate-300">Rifkins Education College</span>
+          <span className="italic text-slate-500 dark:text-slate-400">"Impacting lives since 1953"</span>
+          <span>&bull; &copy; {new Date().getFullYear()} Academic Examination Board.</span>
         </div>
 
         <div className="flex items-center gap-4 text-[11px]">

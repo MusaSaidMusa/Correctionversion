@@ -522,7 +522,7 @@ export default function App() {
           showFlash({
             text: 'You have logged out',
             subtext: 'Your academic session has been safely closed.',
-            type: 'info',
+            type: 'error',
           });
         }}
         onResetData={handleResetData}

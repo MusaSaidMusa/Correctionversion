@@ -28,11 +28,11 @@ export const AuthView: React.FC<AuthViewProps> = ({
   students,
   onOpenHelp,
 }) => {
-  const [activeRole, setActiveRole] = useState<UserRole>('teacher');
-  const [email, setEmail] = useState(teacher.email);
+  const [activeRole, setActiveRole] = useState<UserRole>('student');
+  const [selectedStudentId, setSelectedStudentId] = useState(students[0]?.id || 'student-alex');
+  const [email, setEmail] = useState(students[0]?.email || 'alex.rivera@student.edu');
   const [password, setPassword] = useState('password123');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [selectedStudentId, setSelectedStudentId] = useState(students[0]?.id || 'student-alex');
 
   // Handle Role selection
   const handleSelectRole = (role: UserRole) => {
@@ -111,35 +111,25 @@ export const AuthView: React.FC<AuthViewProps> = ({
         <div className="h-16 flex items-center justify-center mx-auto mb-2">
           <img
             src="/institution-logo.jpg"
-            alt="Institutional Examination Logo"
+            alt="Rifkins Education College Logo"
             className="h-14 max-w-[180px] object-contain drop-shadow-md"
           />
         </div>
-        <h2 className="mt-4 text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
-          ExamGuard<span className="text-indigo-600 dark:text-indigo-400"> Pro</span>
+        <h2 className="mt-4 text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
+          Rifkins Education College
         </h2>
-        <p className="mt-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-          Institutional Examination & Proctoring Gate
+        <p className="mt-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 italic">
+          "Impacting lives since 1953"
+        </p>
+        <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+          Examination Management & Proctoring Portal
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
         <div className="bg-white dark:bg-slate-900 py-8 px-6 shadow-xl border border-slate-200 dark:border-slate-800 rounded-3xl sm:px-10">
-          {/* Role selector tabs */}
+          {/* Role selector tabs in order: Student, Teacher, Admin */}
           <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-6">
-            <button
-              type="button"
-              onClick={() => handleSelectRole('teacher')}
-              className={`py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                activeRole === 'teacher'
-                  ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
-              }`}
-            >
-              <GraduationCap className="w-4 h-4" />
-              <span>Teacher</span>
-            </button>
-
             <button
               type="button"
               onClick={() => handleSelectRole('student')}
@@ -151,6 +141,19 @@ export const AuthView: React.FC<AuthViewProps> = ({
             >
               <User className="w-4 h-4" />
               <span>Student</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectRole('teacher')}
+              className={`py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeRole === 'teacher'
+                  ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+              }`}
+            >
+              <GraduationCap className="w-4 h-4" />
+              <span>Teacher</span>
             </button>
 
             <button

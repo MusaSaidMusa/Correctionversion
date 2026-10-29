@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Printer, FileText, CheckCircle2 } from 'lucide-react';
+import { X, Printer, FileText, CheckCircle2, Lock, ShieldAlert } from 'lucide-react';
 import { Exam, ExamSubmission } from '../../types';
 
 interface StudentAnswerSheetModalProps {
@@ -7,6 +7,7 @@ interface StudentAnswerSheetModalProps {
   onClose: () => void;
   exam: Exam;
   submission: ExamSubmission;
+  isStudent?: boolean;
 }
 
 export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = ({
@@ -14,6 +15,7 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
   onClose,
   exam,
   submission,
+  isStudent = false,
 }) => {
   if (!isOpen) return null;
 
@@ -36,6 +38,7 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
   const gradeInfo = isMarked ? getAcademicGrade(percentage) : null;
 
   const handlePrint = () => {
+    if (isStudent) return;
     window.print();
   };
 
@@ -51,13 +54,20 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-            >
-              <Printer className="w-4 h-4" />
-              <span>Print / Save as PDF</span>
-            </button>
+            {!isStudent ? (
+              <button
+                onClick={handlePrint}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print / Save as PDF</span>
+              </button>
+            ) : (
+              <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-300 flex items-center gap-1.5 shadow-xs">
+                <Lock className="w-3.5 h-3.5 text-amber-600" />
+                <span>Candidate Protected View (Download Prohibited)</span>
+              </span>
+            )}
             <button
               onClick={onClose}
               className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
@@ -67,22 +77,37 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
           </div>
         </div>
 
+        {/* Print Warning for Student Attempts */}
+        {isStudent && (
+          <div className="student-print-warning hidden print:flex fixed inset-0 bg-white z-[99999] flex-col items-center justify-center p-12 text-center font-sans">
+            <ShieldAlert className="w-16 h-16 text-rose-600 mb-4" />
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">Download &amp; Printing Prohibited</h2>
+            <p className="text-sm text-slate-600 max-w-md">
+              In accordance with Rifkins Education College examination security and integrity protocols, candidates are strictly prohibited from downloading, printing, or exporting official answer sheets.
+            </p>
+            <p className="text-xs text-slate-400 mt-4 italic font-medium">
+              Rifkins Education College &bull; "Impacting lives since 1953"
+            </p>
+          </div>
+        )}
+
         {/* Answer Sheet Script (Official Times New Roman 12pt Academic Format) */}
-        <div className="p-8 sm:p-12 overflow-y-auto flex-1 font-serif text-[12pt] leading-relaxed text-black bg-white select-text">
+        <div className={`p-8 sm:p-12 overflow-y-auto flex-1 font-serif text-[12pt] leading-relaxed text-black bg-white select-text ${isStudent ? 'student-print-restricted' : ''}`}>
           <div className="text-center border-b-2 border-black pb-4 mb-6">
             <div className="flex justify-center mb-3">
               <img
                 src="/institution-logo.jpg"
-                alt="Institutional Examination Board Logo"
+                alt="Rifkins Education College Logo"
                 className="h-16 max-w-[200px] object-contain"
               />
             </div>
-            <h1 className="text-xl font-bold uppercase tracking-wide">University Academic Examination Board</h1>
-            <h2 className="text-sm font-semibold uppercase tracking-wider mt-0.5">
+            <h1 className="text-xl font-bold uppercase tracking-wide">Rifkins Education College</h1>
+            <p className="text-xs italic tracking-wide text-slate-700">"Impacting lives since 1953"</p>
+            <h2 className="text-sm font-semibold uppercase tracking-wider mt-1">
               {exam.faculty || 'Faculty of Computing & Information Technologies'}
             </h2>
             <h3 className="text-xs uppercase tracking-wider text-slate-700 mt-0.5">
-              Official Candidate Script & Graded Answer Sheet
+              Official Candidate Script &amp; Graded Answer Sheet
             </h3>
           </div>
 
@@ -130,53 +155,46 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
                   Grade {gradeInfo.letter} ({gradeInfo.label})
                 </span>
               ) : (
-                <span className="italic text-slate-500">
-                  Pending Faculty Evaluation
-                </span>
+                <span className="text-amber-600 font-semibold italic text-xs">Pending Instructor Final Release</span>
               )}
-            </div>
-            <div>
-              <strong>Integrity Score:</strong> {submission.integrityScore ?? 100}%
-            </div>
-            <div>
-              <strong>Status:</strong> {submission.status.toUpperCase()}
             </div>
           </div>
 
-          {/* Questions and Candidate Responses */}
-          <div className="space-y-8 mt-6">
+          {/* Detailed Question Answers Section */}
+          <div className="space-y-8">
             {exam.questions.map((q, idx) => {
               const ans = submission.answers?.[q.id];
               const awarded = ans?.awardedPoints ?? 0;
 
               return (
-                <div key={q.id || idx} className="space-y-3 border-b border-slate-200 pb-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="font-bold">
-                      Question {idx + 1}.
-                    </div>
-                    <div className="font-bold text-sm shrink-0">
-                      Score: [{awarded} / {q.points} Marks]
-                    </div>
+                <div key={q.id || idx} className="border-b border-slate-200 pb-6 last:border-0">
+                  <div className="flex items-start justify-between gap-4 mb-2">
+                    <span className="font-bold text-base">
+                      Question {idx + 1} ({q.points} Marks)
+                    </span>
+                    <span className="font-mono font-bold text-sm bg-slate-100 px-2 py-0.5 rounded border border-slate-300">
+                      Score: {awarded} / {q.points}
+                    </span>
                   </div>
 
-                  <div className="pl-4 space-y-2">
-                    <p className="text-slate-800">{q.prompt}</p>
+                  <p className="mb-3 text-slate-800 whitespace-pre-wrap">{q.prompt}</p>
 
-                    <div className="mt-3 p-3 bg-slate-50 border border-slate-300 rounded text-sm">
-                      <strong className="block text-xs uppercase text-slate-600 mb-1">
-                        Candidate’s Response:
-                      </strong>
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-2">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-500 font-sans">
+                      Candidate Submitted Response:
+                    </div>
+                    <div className="text-sm font-sans whitespace-pre-wrap text-slate-900 bg-white p-3 rounded border border-slate-200">
                       {ans?.textAnswer ? (
-                        <p className="whitespace-pre-wrap">{ans.textAnswer}</p>
+                        ans.textAnswer
+                      ) : ans?.selectedOptionId ? (
+                        (() => {
+                          const opt = q.options?.find((o) => o.id === ans.selectedOptionId);
+                          return `Selected Option (${ans.selectedOptionId.toUpperCase()}): ${opt ? opt.text : ans.selectedOptionId}`;
+                        })()
                       ) : ans?.selectedOptionIds && ans.selectedOptionIds.length > 0 ? (
-                        <p className="font-sans font-medium">
-                          Selected Option:{' '}
-                          {q.options
-                            ?.filter((o) => ans.selectedOptionIds?.includes(o.id))
-                            .map((o) => o.text)
-                            .join(', ') || ans.selectedOptionIds.join(', ')}
-                        </p>
+                        `Selected Options: ${ans.selectedOptionIds.join(', ')}`
+                      ) : ans?.uploadedFileName ? (
+                        `Attached File Submission: ${ans.uploadedFileName}`
                       ) : (
                         <p className="italic text-slate-500">No response recorded by candidate.</p>
                       )}
@@ -206,7 +224,7 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
               <div className="text-slate-500 mt-0.5">Faculty Certification Seal Verified</div>
             </div>
             <div className="text-right">
-              <strong>Academic Audit Status:</strong> Verified & Archived
+              <strong>Rifkins Education College &bull; Academic Audit</strong>
               <div className="text-slate-500 mt-0.5">{new Date().toLocaleDateString()}</div>
             </div>
           </div>

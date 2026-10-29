@@ -86,7 +86,7 @@ export const PreExamDiagnosticModal: React.FC<PreExamDiagnosticModalProps> = ({
             <div>
               <h3 className="font-bold text-base">Pre-Exam Diagnostic Check</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {exam.courseCode} — Proctor Readiness Verification
+                {exam.courseCode} &bull; Rifkins Education College &bull; <span className="italic">"Impacting lives since 1953"</span>
               </p>
             </div>
           </div>

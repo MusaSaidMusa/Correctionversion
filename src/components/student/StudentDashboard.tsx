@@ -246,7 +246,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             <span className="text-slate-300">·</span>
             <span className="text-cyan-300 font-bold drop-shadow-xs">{studentBackendStats.studentNumber}</span>
             <span className="text-slate-300">·</span>
-            <span className="text-indigo-100 drop-shadow-xs">{studentBackendStats.department}</span>
+            <span className="text-amber-300 font-medium drop-shadow-xs italic">"Impacting lives since 1953"</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -412,7 +412,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             }
           }}
           className="group p-5 bg-gradient-to-br from-cyan-50/90 via-white to-cyan-100/40 dark:from-cyan-950/40 dark:via-slate-900 dark:to-cyan-950/20 rounded-2xl border-2 border-cyan-200 dark:border-cyan-800/70 shadow-xs hover:shadow-lg hover:-translate-y-1 transition-all duration-200 text-left cursor-pointer overflow-hidden"
-          title="Click to view certified results and downloadable Times New Roman answer sheets"
+          title="Click to view certified results and official protected Times New Roman answer sheets"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-cyan-700 dark:text-cyan-400 uppercase tracking-wider font-mono">
@@ -581,8 +581,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 onClick={() => setSelectedExamId(isSelected ? null : exam.id)}
                 className={`rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all cursor-pointer ${
                   isSelected
-                    ? 'border-2 border-emerald-500 dark:border-emerald-400 ring-2 ring-emerald-400/50 bg-emerald-50/25 dark:bg-emerald-950/20 shadow-md'
-                    : 'border-2 border-orange-400 dark:border-orange-500/80 bg-white dark:bg-slate-900 hover:border-sky-500 hover:bg-sky-50/30 dark:hover:bg-sky-950/20 hover:shadow-sky-500/10'
+                    ? 'border-2 border-emerald-500 dark:border-emerald-400 ring-4 ring-emerald-500/20 bg-emerald-50/30 dark:bg-emerald-950/20 shadow-md'
+                    : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-sky-400 dark:hover:border-sky-500 hover:bg-sky-50/25 dark:hover:bg-sky-950/20 hover:shadow-md'
                 }`}
               >
                 <div className="space-y-2 flex-1">
@@ -756,7 +756,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                           type="button"
                           onClick={() => setViewingAnswerSheetTarget({ exam, submission: sub })}
                           className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                          title="Open official Times New Roman 12pt downloadable answer sheet"
+                          title="Open official Times New Roman 12pt answer sheet (Protected Candidate View)"
                         >
                           <FileText className="w-3.5 h-3.5" />
                           <span>Answer Sheet</span>
@@ -952,6 +952,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           onClose={() => setViewingAnswerSheetTarget(null)}
           exam={viewingAnswerSheetTarget.exam}
           submission={viewingAnswerSheetTarget.submission}
+          isStudent={true}
         />
       )}
 

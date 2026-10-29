@@ -59,10 +59,10 @@ export const PastPapersSection: React.FC<PastPapersSectionProps> = ({
         <div>
           <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            Institutional Past Papers & Marking Schemes Archive
+            Rifkins Education College Past Papers &amp; Marking Schemes Archive
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Access previous examination papers, grading criteria, and self-assessment practice
+            Access previous examination papers, grading criteria, and self-assessment practice &bull; <span className="italic">"Impacting lives since 1953"</span>
           </p>
         </div>
 
@@ -111,11 +111,7 @@ export const PastPapersSection: React.FC<PastPapersSectionProps> = ({
             return (
               <div
                 key={exam.id}
-                className={`bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-xs flex flex-col justify-between transition-all ${
-                  userRole === 'student'
-                    ? 'border-2 border-orange-400 dark:border-orange-500/80 hover:border-sky-500 hover:shadow-md hover:bg-sky-50/20 dark:hover:bg-sky-950/20'
-                    : 'border border-slate-200 dark:border-slate-800 hover:border-sky-400'
-                }`}
+                className="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-xs flex flex-col justify-between transition-all border border-slate-200 dark:border-slate-800 hover:border-sky-400 dark:hover:border-sky-500 hover:bg-sky-50/20 dark:hover:bg-sky-950/20 hover:shadow-md border-l-4 border-l-indigo-600 dark:border-l-indigo-500"
               >
                 <div>
                   <div className="flex items-center justify-between mb-2.5">

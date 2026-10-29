@@ -56,14 +56,14 @@ export const Header: React.FC<HeaderProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="font-bold text-lg text-slate-900 dark:text-slate-100 tracking-tight">
-                ExamGuard<span className="text-indigo-600 dark:text-indigo-400"> Pro</span>
+                Rifkins Education College
               </span>
               <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
-                Institutional
+                ExamGuard Pro
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
-              Examination Management & Proctoring System
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 italic hidden sm:block">
+              "Impacting lives since 1953"
             </p>
           </div>
         </div>

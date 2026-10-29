@@ -84,7 +84,10 @@ export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
             <ShieldAlert className="w-16 h-16 text-rose-600 mb-4" />
             <h2 className="text-2xl font-bold text-slate-900 mb-2">Printing Prohibited</h2>
             <p className="text-sm text-slate-600 max-w-md">
-              In accordance with academic integrity and institutional examination regulations, candidates are strictly prohibited from printing or exporting examination papers.
+              In accordance with Rifkins Education College academic integrity and examination regulations, candidates are strictly prohibited from printing or exporting examination papers.
+            </p>
+            <p className="text-xs text-slate-400 mt-4 italic font-medium">
+              Rifkins Education College &bull; "Impacting lives since 1953"
             </p>
           </div>
         )}
@@ -96,19 +99,20 @@ export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
             <div className="flex justify-center mb-3">
               <img
                 src="/institution-logo.jpg"
-                alt="Institutional Examination Board Logo"
+                alt="Rifkins Education College Logo"
                 className="h-16 max-w-[200px] object-contain"
               />
             </div>
-            <h1 className="text-xl font-bold uppercase tracking-wide">University Academic Examination Board</h1>
-            <h2 className="text-sm font-semibold uppercase tracking-wider mt-0.5">
+            <h1 className="text-xl font-bold uppercase tracking-wide">Rifkins Education College</h1>
+            <p className="text-xs italic tracking-wide text-slate-700">"Impacting lives since 1953"</p>
+            <h2 className="text-sm font-semibold uppercase tracking-wider mt-1">
               {faculty || exam.faculty || 'Faculty of Computing & Information Technologies'}
             </h2>
             <h3 className="text-xs uppercase tracking-wider text-slate-700 mt-0.5">
               {department || exam.department || 'Academic Department of Examinations'}
             </h3>
-            <p className="text-xs italic mt-1 font-sans">
-              Semester Academic Assessment Examination Paper
+            <p className="text-xs italic mt-1 font-sans text-slate-600">
+              Official Examination Paper
             </p>
           </div>
 

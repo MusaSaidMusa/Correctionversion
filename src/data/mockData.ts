@@ -20,7 +20,7 @@ export const SUPER_ADMIN: AuthUser = {
   faculty: 'Directorate of Academic Standards & Quality Assurance',
   accessStatus: 'active',
   phone: '+1 (555) 019-4820',
-  bio: 'Oversees university-wide examination governance, proctoring security protocols, academic integrity standards, and official marks audit.',
+  bio: 'Oversees college-wide examination governance at Rifkins Education College, proctoring security protocols, academic integrity standards, and official marks audit.',
   officeLocation: 'Administration Complex, Senate Wing 4B',
 };
 

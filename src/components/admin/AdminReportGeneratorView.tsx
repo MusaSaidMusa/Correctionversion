@@ -1059,8 +1059,9 @@ export const AdminReportGeneratorView: React.FC<AdminReportGeneratorViewProps> =
               {/* Institutional Header */}
               <div className="text-center pb-4 border-b-2 border-black space-y-1">
                 <h1 className="text-xl font-bold uppercase tracking-wide">
-                  STATE UNIVERSITY OF SCIENCE &amp; TECHNOLOGY
+                  RIFKINS EDUCATION COLLEGE
                 </h1>
+                <p className="text-xs italic font-medium text-slate-700">"Impacting lives since 1953"</p>
                 <h2 className="text-sm font-semibold uppercase">
                   DIRECTORATE OF ACADEMIC QUALITY ASSURANCE &amp; EXAMINATIONS
                 </h2>
@@ -1259,7 +1260,7 @@ export const AdminReportGeneratorView: React.FC<AdminReportGeneratorViewProps> =
               <div className="pt-8 border-t border-black grid grid-cols-2 gap-8 text-xs">
                 <div>
                   <p className="font-bold">Prof. Evelyn Vance, Ph.D.</p>
-                  <p className="italic">Chief University Examinations Officer</p>
+                  <p className="italic">Chief College Examinations Officer</p>
                   <div className="mt-8 border-b border-black w-48" />
                   <p className="text-[10px] text-slate-500 mt-1">Official Signature &amp; Date</p>
                 </div>

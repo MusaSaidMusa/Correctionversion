@@ -39,10 +39,10 @@ export const InstitutionLogo: React.FC<InstitutionLogoProps> = ({
       {variant !== 'icon' && (
         <div>
           <div className={`font-bold tracking-tight text-slate-900 dark:text-slate-100 ${sizeMap.text}`}>
-            ExamGuard<span className="text-indigo-600 dark:text-indigo-400"> Pro</span>
+            Rifkins Education College
           </div>
-          <div className={`text-slate-500 dark:text-slate-400 font-medium ${sizeMap.sub}`}>
-            Academic Examination Board
+          <div className={`text-slate-500 dark:text-slate-400 font-medium italic ${sizeMap.sub}`}>
+            Impacting lives since 1953
           </div>
         </div>
       )}

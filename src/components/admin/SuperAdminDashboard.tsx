@@ -1095,19 +1095,19 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         />
 
         <div className="relative z-10 space-y-2 max-w-2xl pb-1 md:pb-3">
-          <div className="flex items-center gap-2 text-rose-300 text-xs font-mono font-bold">
+          <div className="flex flex-wrap items-center gap-2 text-rose-300 text-xs font-mono font-bold">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-900/90 text-rose-300 border border-rose-800/80 backdrop-blur-xs">
               <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
               <span>Super Administrator Directorate</span>
             </span>
             <span aria-hidden="true" className="text-slate-300">·</span>
-            <span className="text-slate-200 drop-shadow-xs">Institutional Governance & Examinations Board</span>
+            <span className="text-amber-300 italic drop-shadow-xs">Rifkins Education College &bull; "Impacting lives since 1953"</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight drop-shadow-md">
-            Institutional Academic Assessment Authority
+            Academic Assessment &amp; Examination Authority
           </h1>
           <p className="text-xs md:text-sm text-slate-100 max-w-2xl leading-relaxed drop-shadow-xs">
-            Consolidated oversight across all the college departments. Inspect accumulated examinations, manage faculty clearance and access rights, audit and decide on marks modifications, and register candidates.
+            Consolidated oversight across all Rifkins Education College departments. Inspect accumulated examinations, manage faculty clearance and access rights, audit and decide on marks modifications, and register candidates.
           </p>
         </div>
 
@@ -1649,7 +1649,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                   return (
                     <div
                       key={teacher.id}
-                      className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-xl border-2 border-orange-400 dark:border-orange-500 bg-white dark:bg-slate-900 shadow-xs hover:border-orange-500 hover:shadow-md transition-all text-xs"
+                      className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs hover:border-sky-400 dark:hover:border-sky-500 hover:bg-sky-50/20 dark:hover:bg-sky-950/20 hover:shadow-md transition-all text-xs border-l-4 border-l-indigo-600 dark:border-l-indigo-500"
                     >
                       <div className="flex items-start sm:items-center gap-3.5">
                         <img
