@@ -175,8 +175,37 @@ export function getStoredExams(): Exam[] {
   }
 }
 
+const syncChannel =
+  typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined'
+    ? new BroadcastChannel('examguard_realtime_sync')
+    : null;
+
+export function broadcastSync(eventType: string, payload?: any): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(eventType, { detail: payload }));
+    window.dispatchEvent(new CustomEvent('examguard_state_sync', { detail: { eventType, payload } }));
+    if (syncChannel) {
+      try {
+        syncChannel.postMessage({ eventType, payload, timestamp: Date.now() });
+      } catch (e) {
+        console.warn('BroadcastChannel sync error:', e);
+      }
+    }
+  }
+}
+
+if (syncChannel) {
+  syncChannel.onmessage = (event) => {
+    if (event.data?.eventType && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(event.data.eventType, { detail: event.data.payload }));
+      window.dispatchEvent(new CustomEvent('examguard_state_sync', { detail: event.data }));
+    }
+  };
+}
+
 export function saveStoredExams(exams: Exam[]): void {
   localStorage.setItem(STORAGE_KEYS.EXAMS, JSON.stringify(exams));
+  broadcastSync('examguard_exams_updated', { exams });
 }
 
 export function getStoredQuestions(): Question[] {
@@ -199,16 +228,47 @@ export function getStoredQuestions(): Question[] {
 
 export function saveStoredQuestions(questions: Question[]): void {
   localStorage.setItem(STORAGE_KEYS.QUESTIONS, JSON.stringify(questions));
+  broadcastSync('examguard_questions_updated', { questions });
 }
 
 export function getStoredSubmissions(): ExamSubmission[] {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.SUBMISSIONS);
+    let subs: ExamSubmission[] = data ? JSON.parse(data) : INITIAL_SUBMISSIONS;
     if (!data) {
       localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(INITIAL_SUBMISSIONS));
       return INITIAL_SUBMISSIONS;
     }
-    return JSON.parse(data);
+
+    // Enforce SEB continuous sitting: if an in-progress exam exceeded its duration,
+    // it was abandoned and cannot be resumed at a later time. Auto-transition to submitted.
+    let modified = false;
+    const now = Date.now();
+    const exams = getStoredExams();
+    subs = subs.map((s) => {
+      if (s.status === 'in_progress' && s.startedAt) {
+        const exam = exams.find((e) => e.id === s.examId);
+        const durationMinutes = exam?.durationMinutes || 60;
+        const elapsedMs = now - new Date(s.startedAt).getTime();
+        if (elapsedMs >= durationMinutes * 60 * 1000) {
+          modified = true;
+          return {
+            ...s,
+            status: 'submitted',
+            submittedAt: new Date(new Date(s.startedAt).getTime() + durationMinutes * 60 * 1000).toISOString(),
+            isExamPaused: false,
+            pauseReason: undefined,
+          };
+        }
+      }
+      return s;
+    });
+
+    if (modified) {
+      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
+    }
+
+    return subs;
   } catch {
     return INITIAL_SUBMISSIONS;
   }
@@ -216,6 +276,7 @@ export function getStoredSubmissions(): ExamSubmission[] {
 
 export function saveStoredSubmissions(submissions: ExamSubmission[]): void {
   localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(submissions));
+  broadcastSync('examguard_submissions_updated', { submissions });
 }
 
 export function getStoredStudents(): StudentProfile[] {
@@ -237,6 +298,7 @@ export function getStoredStudents(): StudentProfile[] {
 
 export function saveStoredStudents(students: StudentProfile[]): void {
   localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+  broadcastSync('examguard_students_updated', { students });
 }
 
 // ---------------------------------------------------------------------------
@@ -1040,6 +1102,7 @@ export function getStoredTeachers(): TeacherProfile[] {
 
 export function saveStoredTeachers(teachers: TeacherProfile[]): void {
   localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(teachers));
+  broadcastSync('examguard_teachers_updated', { teachers });
 }
 
 export function addTeacher(newTeacher: TeacherProfile): { success: boolean; teacher?: TeacherProfile; error?: string } {

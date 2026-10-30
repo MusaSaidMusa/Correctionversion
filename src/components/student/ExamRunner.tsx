@@ -111,20 +111,32 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
   const [lockoutBreachReason, setLockoutBreachReason] = useState<string | null>(null);
   const [answerUploadError, setAnswerUploadError] = useState<string | null>(null);
 
-  // Timer: Duration in seconds
+  // Timer: Duration in seconds - strictly non-pausable wall-clock calculation
   const totalSeconds = exam.durationMinutes * 60;
+  const startedAtTimestamp = useRef<number>(
+    existingSubmission?.startedAt ? new Date(existingSubmission.startedAt).getTime() : Date.now()
+  );
+
   const [secondsRemaining, setSecondsRemaining] = useState<number>(() => {
-    if (existingSubmission?.startedAt) {
-      const elapsed = Math.floor((Date.now() - new Date(existingSubmission.startedAt).getTime()) / 1000);
-      return Math.max(0, totalSeconds - elapsed);
-    }
-    return totalSeconds;
+    const elapsed = Math.floor((Date.now() - startedAtTimestamp.current) / 1000);
+    return Math.max(0, totalSeconds - elapsed);
   });
 
   const [gentleAlert, setGentleAlert] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('saved');
   const [isSubmitConfirmOpen, setIsSubmitConfirmOpen] = useState(false);
   const [sidebarFilter, setSidebarFilter] = useState<'all' | 'flagged' | 'unanswered'>('all');
+
+  // SEB Complete Security Lockdown & Anti-Cheating Breach Modal
+  const [sebBreachModal, setSebBreachModal] = useState<{
+    isOpen: boolean;
+    reason: string;
+    strikes: number;
+  }>({
+    isOpen: false,
+    reason: '',
+    strikes: 0,
+  });
 
   // Real-Time Invigilator Actions & Telemetry State
   const [isExamPaused, setIsExamPaused] = useState<boolean>(() => existingSubmission?.isExamPaused || false);
@@ -254,35 +266,198 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
     };
   }, [studentId, existingSubmission?.id]);
 
-  // Countdown Timer & Gentle Warnings (15m, 5m), plus AUTOMATIC SUBMISSION when time elapses
+  const autoSubmitRef = useRef<(reason?: string) => void>(() => {});
+
+  // Countdown Timer: Continuous wall-clock calculation ensures pausing and resuming is physically impossible
   useEffect(() => {
     const timer = setInterval(() => {
-      setSecondsRemaining((prev) => {
-        if (isExamPaused) {
-          return prev; // Timer paused while exam is paused by teacher!
-        }
+      // Calculate continuous real elapsed time from startedAtTimestamp
+      const elapsed = Math.floor((Date.now() - startedAtTimestamp.current) / 1000);
+      const remaining = Math.max(0, totalSeconds - elapsed);
 
-        if (prev <= 1) {
-          clearInterval(timer);
-          handleAutoSubmit('Time limit reached. Auto-submitting all saved answers.');
-          return 0;
-        }
+      if (remaining <= 0) {
+        clearInterval(timer);
+        setSecondsRemaining(0);
+        autoSubmitRef.current('Continuous SEB examination time limit reached. Auto-submitting all saved answers.');
+        return;
+      }
 
-        // 15-minute gentle warning
-        if (prev === 15 * 60) {
-          setGentleAlert('15 minutes remaining. You are well on track! Take a steady breath.');
-        }
-        // 5-minute gentle warning
-        if (prev === 5 * 60) {
-          setGentleAlert('5 minutes remaining. Please finalize and review your answer sheet before automatic submission.');
-        }
+      setSecondsRemaining(remaining);
 
-        return prev - 1;
-      });
+      // 15-minute gentle warning
+      if (remaining === 15 * 60) {
+        setGentleAlert('15 minutes remaining. You are well on track! Take a steady breath.');
+      }
+      // 5-minute gentle warning
+      if (remaining === 5 * 60) {
+        setGentleAlert('5 minutes remaining. Please finalize and review your answer sheet before automatic submission.');
+      }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isExamPaused]);
+  }, [totalSeconds]);
+
+  // COMPLETE SAFE EXAM BROWSER (SEB) FUNCTIONALITY & LOCKDOWN
+  useEffect(() => {
+    if (isSubmitted || lockoutBreachReason) return;
+
+    // 1. Enforce Fullscreen immediately upon active exam sitting
+    requestFullscreenMode();
+
+    // 2. Prevent window beforeunload (warn student that leaving will NOT pause exam clock)
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue =
+        'SEB WARNING: Your examination session is locked down. Navigating away or closing the browser will NOT pause your examination clock. All unanswered questions may be forfeited.';
+      return e.returnValue;
+    };
+
+    // 3. Block Context Menu (right click)
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      handleIncidentCallback({
+        id: `inc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        studentId,
+        studentName,
+        examId: exam.id,
+        timestamp: new Date().toISOString(),
+        type: 'context_menu_blocked',
+        severity: 'low',
+        description: 'SEB Security: Right-click context menu access prevented.',
+      });
+    };
+
+    // 4. Block Keyboard Shortcuts (F12, Ctrl+C, Ctrl+V, Ctrl+U, PrintScreen, Alt+Tab, etc.)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+
+      // Block Developer Tools / Inspect Element: F12, Ctrl+Shift+I/J/C
+      if (
+        e.key === 'F12' ||
+        (isCtrlOrMeta && e.shiftKey && (key === 'i' || key === 'j' || key === 'c'))
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerSebBreach('Developer tools and inspect inspection access attempted.');
+        return;
+      }
+
+      // Block View Source: Ctrl+U
+      if (isCtrlOrMeta && key === 'u') {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerSebBreach('Source code inspection blocked under SEB lockdown.');
+        return;
+      }
+
+      // Block Copy, Paste, Cut: Ctrl+C, Ctrl+V, Ctrl+X
+      if (isCtrlOrMeta && (key === 'c' || key === 'v' || key === 'x')) {
+        e.preventDefault();
+        e.stopPropagation();
+        setGentleAlert('SEB Security: Copy, paste, and cut clipboard operations are strictly blocked.');
+        handleIncidentCallback({
+          id: `inc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          studentId,
+          studentName,
+          examId: exam.id,
+          timestamp: new Date().toISOString(),
+          type: 'clipboard_action_blocked',
+          severity: 'medium',
+          description: `SEB Security: Clipboard operation (${key.toUpperCase()}) blocked.`,
+        });
+        return;
+      }
+
+      // Block Print: Ctrl+P
+      if (isCtrlOrMeta && key === 'p') {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerSebBreach('Printing examination paper is prohibited.');
+        return;
+      }
+
+      // Block Reload: Ctrl+R, F5
+      if ((isCtrlOrMeta && key === 'r') || e.key === 'F5') {
+        e.preventDefault();
+        e.stopPropagation();
+        setGentleAlert('SEB Security: Manual page reload prevented. All progress is saved continuously.');
+        return;
+      }
+
+      // Block Alt+Tab or Escape fullscreen exit
+      if (e.altKey && e.key === 'Tab') {
+        e.preventDefault();
+        triggerSebBreach('Application switching (Alt+Tab) detected.');
+        return;
+      }
+    };
+
+    // 5. Block Clipboard copy / cut / paste events
+    const handleCopy = (e: ClipboardEvent) => {
+      e.preventDefault();
+      setGentleAlert('SEB Security: Clipboard text copying is disabled during examination.');
+    };
+    const handlePaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+      setGentleAlert('SEB Security: Clipboard text pasting is disabled during examination.');
+    };
+
+    // 6. Monitor Window Blur and Tab Visibility
+    const handleWindowBlur = () => {
+      triggerSebBreach('Window focus lost. Navigating away or attempting to pause the examination is strictly prohibited.');
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        triggerSebBreach('Browser tab switched or minimized. Continuous SEB sitting required.');
+      }
+    };
+
+    function triggerSebBreach(reason: string) {
+      setSebBreachModal((prev) => {
+        const nextStrikes = prev.strikes + 1;
+        handleIncidentCallback({
+          id: `inc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          studentId,
+          studentName,
+          examId: exam.id,
+          timestamp: new Date().toISOString(),
+          type: 'seb_lockdown_breach',
+          severity: nextStrikes >= 3 ? 'high' : 'medium',
+          description: `SEB Breach (${nextStrikes}/3): ${reason}`,
+        });
+
+        if (nextStrikes >= 3) {
+          autoSubmitRef.current('Examination terminated: Maximum SEB security violations (3/3) exceeded.');
+        }
+
+        return {
+          isOpen: true,
+          reason,
+          strikes: nextStrikes,
+        };
+      });
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('contextmenu', handleContextMenu);
+    window.addEventListener('keydown', handleKeyDown, true);
+    document.addEventListener('copy', handleCopy);
+    document.addEventListener('paste', handlePaste);
+    window.addEventListener('blur', handleWindowBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('keydown', handleKeyDown, true);
+      document.removeEventListener('copy', handleCopy);
+      document.removeEventListener('paste', handlePaste);
+      window.removeEventListener('blur', handleWindowBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [exam.id, handleIncidentCallback, isSubmitted, lockoutBreachReason, requestFullscreenMode, studentId, studentName]);
 
   // Synchronize proctoring webcam element when stream changes
   useEffect(() => {
@@ -612,9 +787,10 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
     onSaveProgress(submission);
     setCompletedSubmission(submission);
 
-    // Immediately notify parent component to refresh admissions, gradebook, and submissions in real time
     onSubmitExam(submission);
   };
+
+  autoSubmitRef.current = handleAutoSubmit;
 
   // If candidate was locked out for severing camera/mic
   if (lockoutBreachReason) {
@@ -897,7 +1073,13 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
         </div>
 
         {/* Auto-save pulse & Timers */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* SEB Complete Kiosk Security Badge */}
+          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#556b2f]/30 border border-[#6b8e23] text-emerald-300 text-[11px] font-mono font-semibold">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>SEB Kiosk Mode · Continuous Sitting (Zero-Pause)</span>
+          </div>
+
           <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
             {saveStatus === 'saving' ? (
               <>
@@ -1564,6 +1746,47 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
             }
           }}
         />
+      )}
+      {/* SEB Lockdown Security Breach Modal */}
+      {sebBreachModal.isOpen && !isSubmitted && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-2xl shadow-2xl border-2 border-rose-500 max-w-lg w-full p-6 text-center space-y-4 animate-in fade-in zoom-in-95">
+            <div className="w-14 h-14 rounded-2xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-rose-600 dark:text-rose-400">
+                SEB Security Breach Detected
+              </h3>
+              <p className="text-xs text-slate-500 font-mono mt-1">
+                Strike {sebBreachModal.strikes} of 3 · Institutional Audit Log Updated
+              </p>
+            </div>
+            <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl text-xs text-rose-800 dark:text-rose-200 text-left">
+              <div className="font-bold flex items-center gap-1.5 mb-1">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>Zero-Pause &amp; Continuous Sitting Policy:</span>
+              </div>
+              <p>
+                {sebBreachModal.reason}
+              </p>
+              <p className="mt-2 font-semibold text-rose-700 dark:text-rose-300">
+                Under Safe Exam Browser regulations, you cannot pause the examination and resume after some time. The clock continues running uninterrupted. At 3 strikes, your paper will be forcibly auto-submitted immediately.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                requestFullscreenMode();
+                setSebBreachModal((prev) => ({ ...prev, isOpen: false }));
+              }}
+              className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Maximize2 className="w-4 h-4" />
+              <span>Return to Fullscreen Kiosk Mode ({Math.max(0, 3 - sebBreachModal.strikes)} strikes remaining)</span>
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

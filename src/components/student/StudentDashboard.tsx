@@ -142,6 +142,22 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     };
   }, [student.id]);
 
+  // Real-time synchronization of open answer sheet and results modal when teacher grades or updates marks
+  useEffect(() => {
+    if (selectedResultExam) {
+      const freshSub = submissions.find((s) => s.id === selectedResultExam.submission.id);
+      if (freshSub && (freshSub.score !== selectedResultExam.submission.score || freshSub.status !== selectedResultExam.submission.status)) {
+        setSelectedResultExam((prev) => (prev ? { ...prev, submission: freshSub } : null));
+      }
+    }
+    if (viewingAnswerSheetTarget) {
+      const freshSub = submissions.find((s) => s.id === viewingAnswerSheetTarget.submission.id);
+      if (freshSub && (freshSub.score !== viewingAnswerSheetTarget.submission.score || freshSub.status !== viewingAnswerSheetTarget.submission.status)) {
+        setViewingAnswerSheetTarget((prev) => (prev ? { ...prev, submission: freshSub } : null));
+      }
+    }
+  }, [submissions, selectedResultExam, viewingAnswerSheetTarget]);
+
   // Active exam concurrency restriction conflict state
   const [conflictNotice, setConflictNotice] = useState<{
     courseCode: string;
@@ -579,11 +595,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               <div
                 key={exam.id}
                 onClick={() => setSelectedExamId(isSelected ? null : exam.id)}
-                className={`rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all cursor-pointer ${
+                className={`exam-card rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all cursor-pointer ${
                   isSelected
-                    ? 'border-2 border-emerald-500 dark:border-emerald-400 ring-4 ring-emerald-500/20 bg-emerald-50/30 dark:bg-emerald-950/20 shadow-md'
-                    : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-sky-400 dark:hover:border-sky-500 hover:bg-sky-50/25 dark:hover:bg-sky-950/20 hover:shadow-md'
+                    ? 'border-2 border-[#556b2f] dark:border-[#6b8e23] ring-4 ring-[#556b2f]/25 bg-[#f4f6ea] dark:bg-[#556b2f]/25 shadow-md selected'
+                    : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 dark:hover:bg-amber-950/25 hover:shadow-md'
                 }`}
+                data-exam-card="true"
+                data-selected={isSelected ? 'true' : 'false'}
               >
                 <div className="space-y-2 flex-1">
                   <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
@@ -596,12 +614,12 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                       }}
                       className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
                         isSelected
-                          ? 'bg-emerald-600 text-white border-emerald-500 shadow-xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-sky-100 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/50 dark:hover:text-sky-200'
+                          ? 'bg-[#556b2f] text-white border-[#6b8e23] shadow-xs active-olive'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/50 dark:hover:text-amber-200'
                       }`}
                       title="Click to select this examination"
                     >
-                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${isSelected ? 'border-white bg-emerald-600' : 'border-slate-400'}`}>
+                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${isSelected ? 'border-white bg-[#556b2f]' : 'border-slate-400'}`}>
                         {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                       </span>
                       <span>{isSelected ? 'Selected Examination' : 'Select Examination'}</span>
@@ -791,17 +809,22 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                     )}
 
                     {statusType === 'in_progress' && sub && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedExamId(exam.id);
-                          onResumeExam(exam, sub);
-                        }}
-                        className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                      >
-                        <Play className="w-3.5 h-3.5" />
-                        <span>Resume Examination</span>
-                      </button>
+                      <div className="flex flex-col gap-1 items-start sm:items-end">
+                        <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
+                          <Lock className="w-3 h-3" /> SEB Non-Pausable Session
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedExamId(exam.id);
+                            onResumeExam(exam, sub);
+                          }}
+                          className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-amber-500 hover:text-amber-950 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                          <span>Return to Live Examination</span>
+                        </button>
+                      </div>
                     )}
 
                     {(statusType === 'active_now' || statusType === 'upcoming') && (

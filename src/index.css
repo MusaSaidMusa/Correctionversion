@@ -1,61 +1,157 @@
 @import "tailwindcss";
 
 /* 
-  Global Requirement:
-  1. Hover all items using blue (sky-50 / sky-950/40, border-sky-400 / border-sky-600, text-sky-900 / text-sky-100)
-  2. Selected items turn green (emerald-600 / emerald-500, white text or emerald ring)
+  Global Requirements:
+  1. Hover all items with light amber (#fffbeb / #fef3c7 / #fde68a, border #f59e0b / #fbbf24, text #92400e / #78350f).
+     In dark mode: amber glow (rgba(245, 158, 11, 0.22), border #d97706, text #fef3c7).
+  2. Actively selected items turn olive green (#556b2f, border #6b8e23, text #ffffff, ring #556b2f).
+  3. Examination cards/items: When dark mode is on, all black or grey text switches to radiant gold (#fbbf24 / #f59e0b / #fde68a).
 */
 
 @layer base {
-  /* Generic buttons and interactive controls default to blue hover unless overridden */
-  button:not(:disabled):hover {
+  /* Generic buttons and interactive controls default to light amber hover */
+  button:not(:disabled):hover,
+  [role="button"]:not(:disabled):hover {
     transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
   }
 }
 
 @layer utilities {
-  /* Light blue hover utility */
+  /* Light amber hover utility */
+  .hover-light-amber,
+  .hover-amber,
   .hover-light-blue,
   .hover-blue {
     transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
   }
+  .hover-light-amber:hover,
+  .hover-amber:hover,
   .hover-light-blue:hover,
   .hover-blue:hover {
-    background-color: #f0f9ff !important;
-    border-color: #38bdf8 !important;
-    color: #0369a1 !important;
+    background-color: #fef3c7 !important; /* Light amber */
+    border-color: #f59e0b !important;
+    color: #92400e !important;
   }
+  .dark .hover-light-amber:hover,
+  .dark .hover-amber:hover,
   .dark .hover-light-blue:hover,
   .dark .hover-blue:hover {
-    background-color: rgba(8, 47, 73, 0.5) !important;
-    border-color: #0284c7 !important;
-    color: #e0f2fe !important;
+    background-color: rgba(245, 158, 11, 0.22) !important;
+    border-color: #d97706 !important;
+    color: #fef3c7 !important;
   }
 
-  /* Actively selected green utility */
+  /* Actively selected olive green utility */
+  .active-olive,
+  .selected-olive,
   .active-green,
   .selected-green {
-    background-color: #059669 !important;
-    border-color: #10b981 !important;
+    background-color: #556b2f !important; /* Olive Green */
+    border-color: #6b8e23 !important;
     color: #ffffff !important;
   }
+  .active-olive-subtle,
   .active-green-subtle {
-    background-color: #ecfdf5 !important;
-    border-color: #10b981 !important;
-    color: #064e3b !important;
-    box-shadow: 0 0 0 2px #10b981 !important;
+    background-color: #f4f6ea !important; /* Subtle olive green */
+    border-color: #556b2f !important;
+    color: #283618 !important;
+    box-shadow: 0 0 0 2px #556b2f !important;
   }
+  .dark .active-olive-subtle,
   .dark .active-green-subtle {
-    background-color: rgba(6, 78, 59, 0.4) !important;
-    border-color: #059669 !important;
-    color: #a7f3d0 !important;
-    box-shadow: 0 0 0 2px #059669 !important;
+    background-color: rgba(85, 107, 47, 0.35) !important;
+    border-color: #6b8e23 !important;
+    color: #d4e09b !important;
+    box-shadow: 0 0 0 2px #6b8e23 !important;
+  }
+
+  /* Universal exam card & list items hover & selection */
+  .exam-card,
+  .examination-card,
+  [data-exam-card] {
+    transition: all 0.2s ease-in-out;
+  }
+
+  .exam-card:hover,
+  .examination-card:hover,
+  [data-exam-card]:hover {
+    border-color: #f59e0b !important;
+    background-color: #fffbeb !important; /* Light amber hover */
+  }
+  .dark .exam-card:hover,
+  .dark .examination-card:hover,
+  .dark [data-exam-card]:hover {
+    border-color: #d97706 !important;
+    background-color: rgba(245, 158, 11, 0.15) !important;
+  }
+
+  /* Selected exam card / item: Olive Green */
+  .exam-card.selected,
+  .examination-card.selected,
+  [data-exam-card].selected,
+  [data-selected="true"] {
+    border-color: #556b2f !important;
+    border-width: 2px !important;
+    background-color: #f4f6ea !important;
+    box-shadow: 0 0 0 3px rgba(85, 107, 47, 0.35) !important;
+  }
+  .dark .exam-card.selected,
+  .dark .examination-card.selected,
+  .dark [data-exam-card].selected,
+  .dark [data-selected="true"] {
+    border-color: #6b8e23 !important;
+    border-width: 2px !important;
+    background-color: rgba(85, 107, 47, 0.3) !important;
+    box-shadow: 0 0 0 3px rgba(107, 142, 35, 0.4) !important;
   }
 
   /* Orange outline separator utility */
   .outline-separator-orange {
     border-color: #fb923c !important;
   }
+}
+
+/* 
+  DARK MODE EXAMINATION CARDS / ITEMS:
+  Switch text written in black or grey to rich Gold
+*/
+.dark .exam-card :is(
+  .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-slate-500, .text-slate-400,
+  .text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600, .text-gray-500, .text-gray-400,
+  .text-zinc-900, .text-zinc-800, .text-zinc-700, .text-zinc-600, .text-zinc-500, .text-zinc-400,
+  .text-black, .text-white
+),
+.dark .examination-card :is(
+  .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-slate-500, .text-slate-400,
+  .text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600, .text-gray-500, .text-gray-400,
+  .text-zinc-900, .text-zinc-800, .text-zinc-700, .text-zinc-600, .text-zinc-500, .text-zinc-400,
+  .text-black, .text-white
+),
+.dark [data-exam-card] :is(
+  .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-slate-500, .text-slate-400,
+  .text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600, .text-gray-500, .text-gray-400,
+  .text-zinc-900, .text-zinc-800, .text-zinc-700, .text-zinc-600, .text-zinc-500, .text-zinc-400,
+  .text-black, .text-white
+) {
+  color: #fbbf24 !important; /* Radiant Gold */
+}
+
+/* Secondary/description text in dark mode inside exam cards: Soft Amber Gold */
+.dark .exam-card :is(
+  p.text-slate-600, p.text-slate-500, p.text-slate-400,
+  .text-slate-500, .text-slate-400, .text-gray-500, .text-gray-400
+),
+.dark [data-exam-card] :is(
+  p.text-slate-600, p.text-slate-500, p.text-slate-400,
+  .text-slate-500, .text-slate-400, .text-gray-500, .text-gray-400
+) {
+  color: #fde68a !important; /* Soft Amber Gold */
+}
+
+/* Main Titles inside Exam Cards in Dark Mode: Rich Metallic Gold */
+.dark .exam-card :is(h2, h3, h4, .font-extrabold, .font-bold.text-lg, .font-bold.text-base),
+.dark [data-exam-card] :is(h2, h3, h4, .font-extrabold, .font-bold.text-lg, .font-bold.text-base) {
+  color: #f59e0b !important; /* Rich Metallic Gold */
 }
 
 /* Security Print Restriction for Student Role */

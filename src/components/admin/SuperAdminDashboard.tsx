@@ -1468,7 +1468,8 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                   return (
                     <div
                       key={exam.id}
-                      className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors text-xs"
+                      data-exam-card="true"
+                      className="exam-card p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 dark:hover:bg-amber-950/20 transition-all text-xs"
                     >
                       <div className="space-y-1.5 flex-1">
                         <div className="flex flex-wrap items-center gap-2">

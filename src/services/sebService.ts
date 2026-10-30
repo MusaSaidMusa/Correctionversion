@@ -9,6 +9,59 @@ export function generateBrowserExamKey(): string {
   return key;
 }
 
+export interface SebSecurityManifest {
+  isSebActive: boolean;
+  browserExamKey: string;
+  configKey: string;
+  kioskModeActive: boolean;
+  clipboardLocked: boolean;
+  devtoolsBlocked: boolean;
+  singleDisplayEnforced: boolean;
+  continuousTimerEnforced: boolean;
+  pausePermitted: boolean;
+  autoSubmitOnViolation: boolean;
+}
+
+/**
+ * Detects whether the current client is executing within Safe Exam Browser (SEB)
+ * or under simulated strict institutional SEB lockdown.
+ */
+export function verifySebEnvironment(): { isSeb: boolean; version?: string; agent: string } {
+  if (typeof window === 'undefined' || !window.navigator) {
+    return { isSeb: false, agent: 'Unknown' };
+  }
+  const ua = window.navigator.userAgent || '';
+  const isSebUserAgent = ua.includes('SEB') || ua.includes('SafeExamBrowser');
+  const isInstitutionalLockdown = Boolean(
+    sessionStorage.getItem('examguard_seb_lockdown_active') === 'true'
+  );
+
+  return {
+    isSeb: isSebUserAgent || isInstitutionalLockdown,
+    version: isSebUserAgent ? '3.4.0 (Official SEB Engine)' : 'SEB Institutional Enforcer 2.5',
+    agent: ua,
+  };
+}
+
+export function getSebSecurityManifest(exam: Exam): SebSecurityManifest {
+  const env = verifySebEnvironment();
+  return {
+    isSebActive: env.isSeb || Boolean(exam.securityProtocols?.requireSEB),
+    browserExamKey: exam.sebConfig?.browserExamKey || generateBrowserExamKey(),
+    configKey: generateBrowserExamKey(),
+    kioskModeActive: true,
+    clipboardLocked: true,
+    devtoolsBlocked: true,
+    singleDisplayEnforced: true,
+    continuousTimerEnforced: true,
+    pausePermitted: false, // Strict: pausing is NEVER permitted under SEB
+    autoSubmitOnViolation: true,
+  };
+}
+
+/**
+ * Downloads official .seb configuration file adhering to SEB 3.x plist XML standards.
+ */
 export function downloadSebConfigFile(
   examOrTitle: Exam | string,
   origin?: string,
@@ -35,7 +88,9 @@ export function downloadSebConfigFile(
     <key>courseCode</key>
     <string>${escapeXml(courseCode)}</string>
     <key>allowQuit</key>
-    <true/>
+    <false/>
+    <key>allowPause</key>
+    <false/>
     <key>quitURL</key>
     <string>${baseUrl}/exam-completed</string>
     <key>browserWindowAllowReload</key>
@@ -60,6 +115,12 @@ export function downloadSebConfigFile(
     <false/>
     <key>enablePrintScreen</key>
     <false/>
+    <key>prohibitScreenSharing</key>
+    <true/>
+    <key>allowSpellCheck</key>
+    <false/>
+    <key>allowDictionaryLookup</key>
+    <false/>
 </dict>
 </plist>`;
 
@@ -67,7 +128,7 @@ export function downloadSebConfigFile(
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${courseCode}_config.seb`;
+  a.download = `${courseCode}_SEB_config.seb`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

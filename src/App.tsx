@@ -180,12 +180,20 @@ export default function App() {
     window.addEventListener('examguard_submissions_updated', handleSyncUpdate);
     window.addEventListener('examguard_admissions_updated', handleSyncUpdate);
     window.addEventListener('examguard_exams_updated', handleSyncUpdate);
+    window.addEventListener('examguard_students_updated', handleSyncUpdate);
+    window.addEventListener('examguard_teachers_updated', handleSyncUpdate);
+    window.addEventListener('examguard_questions_updated', handleSyncUpdate);
+    window.addEventListener('examguard_state_sync', handleSyncUpdate);
     window.addEventListener('storage', handleSyncUpdate);
 
     return () => {
       window.removeEventListener('examguard_submissions_updated', handleSyncUpdate);
       window.removeEventListener('examguard_admissions_updated', handleSyncUpdate);
       window.removeEventListener('examguard_exams_updated', handleSyncUpdate);
+      window.removeEventListener('examguard_students_updated', handleSyncUpdate);
+      window.removeEventListener('examguard_teachers_updated', handleSyncUpdate);
+      window.removeEventListener('examguard_questions_updated', handleSyncUpdate);
+      window.removeEventListener('examguard_state_sync', handleSyncUpdate);
       window.removeEventListener('storage', handleSyncUpdate);
     };
   }, []);
