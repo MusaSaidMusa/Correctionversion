@@ -686,11 +686,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           onClick={() => setActiveTab('exams')}
           className={`flex-1 min-w-[130px] flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'exams'
-              ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 dark:hover:border-sky-800 border-transparent'
+              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] font-bold shadow-xs active-pear animate-pear-pulse'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
           }`}
         >
-          <Calendar className={`w-4 h-4 ${activeTab === 'exams' ? 'text-white' : 'text-indigo-600'}`} />
+          <Calendar className={`w-4 h-4 ${activeTab === 'exams' ? 'text-[#1a2200]' : 'text-indigo-600'}`} />
           <span>Exams Bank ({exams.length})</span>
         </button>
 
@@ -699,11 +699,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           onClick={() => setActiveTab('submissions')}
           className={`flex-1 min-w-[140px] flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'submissions'
-              ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 dark:hover:border-sky-800 border-transparent'
+              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] font-bold shadow-xs active-pear animate-pear-pulse'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
           }`}
         >
-          <FileText className={`w-4 h-4 ${activeTab === 'submissions' ? 'text-white' : 'text-emerald-600'}`} />
+          <FileText className={`w-4 h-4 ${activeTab === 'submissions' ? 'text-[#1a2200]' : 'text-emerald-600'}`} />
           <span>Submissions ({submissions.length})</span>
         </button>
 
@@ -712,11 +712,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           onClick={() => setActiveTab('candidates')}
           className={`flex-1 min-w-[140px] flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'candidates'
-              ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 dark:hover:border-sky-800 border-transparent'
+              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] font-bold shadow-xs active-pear animate-pear-pulse'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
           }`}
         >
-          <UserPlus className={`w-4 h-4 ${activeTab === 'candidates' ? 'text-white' : 'text-indigo-600'}`} />
+          <UserPlus className={`w-4 h-4 ${activeTab === 'candidates' ? 'text-[#1a2200]' : 'text-indigo-600'}`} />
           <span>Candidates ({students.length})</span>
         </button>
 
@@ -725,11 +725,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           onClick={() => setActiveTab('proctor')}
           className={`flex-1 min-w-[130px] flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'proctor'
-              ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 dark:hover:border-sky-800 border-transparent'
+              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] font-bold shadow-xs active-pear animate-pear-pulse'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
           }`}
         >
-          <Camera className={`w-4 h-4 ${activeTab === 'proctor' ? 'text-white' : 'text-rose-600'}`} />
+          <Camera className={`w-4 h-4 ${activeTab === 'proctor' ? 'text-[#1a2200]' : 'text-rose-600'}`} />
           <span>Live Proctor Grid</span>
         </button>
 
@@ -738,11 +738,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           onClick={() => setActiveTab('analytics')}
           className={`flex-1 min-w-[130px] flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'analytics'
-              ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 dark:hover:border-sky-800 border-transparent'
+              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] font-bold shadow-xs active-pear animate-pear-pulse'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
           }`}
         >
-          <BarChart3 className={`w-4 h-4 ${activeTab === 'analytics' ? 'text-white' : 'text-cyan-600'}`} />
+          <BarChart3 className={`w-4 h-4 ${activeTab === 'analytics' ? 'text-[#1a2200]' : 'text-cyan-600'}`} />
           <span>Analytics & Reports</span>
         </button>
 
@@ -751,11 +751,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           onClick={() => setActiveTab('pastpapers')}
           className={`flex-1 min-w-[140px] flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'pastpapers'
-              ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 dark:hover:border-sky-800 border-transparent'
+              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] font-bold shadow-xs active-pear animate-pear-pulse'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
           }`}
         >
-          <FolderArchive className={`w-4 h-4 ${activeTab === 'pastpapers' ? 'text-white' : 'text-amber-600'}`} />
+          <FolderArchive className={`w-4 h-4 ${activeTab === 'pastpapers' ? 'text-[#1a2200]' : 'text-amber-600'}`} />
           <span>Past Papers</span>
         </button>
       </div>

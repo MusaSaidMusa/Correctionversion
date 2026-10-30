@@ -111,7 +111,8 @@ export const PastPapersSection: React.FC<PastPapersSectionProps> = ({
             return (
               <div
                 key={exam.id}
-                className="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-xs flex flex-col justify-between transition-all border border-slate-200 dark:border-slate-800 hover:border-sky-400 dark:hover:border-sky-500 hover:bg-sky-50/20 dark:hover:bg-sky-950/20 hover:shadow-md border-l-4 border-l-indigo-600 dark:border-l-indigo-500"
+                data-exam-card="true"
+                className="exam-card bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-xs flex flex-col justify-between transition-all border border-slate-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 dark:hover:bg-amber-950/20 hover:shadow-md border-l-4 border-l-indigo-600 dark:border-l-indigo-500"
               >
                 <div>
                   <div className="flex items-center justify-between mb-2.5">

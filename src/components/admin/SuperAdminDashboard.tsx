@@ -1309,11 +1309,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('all_exams')}
           className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'all_exams'
-              ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 dark:hover:border-sky-800 border-transparent'
+              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
           }`}
         >
-          <BookOpen className={`w-4 h-4 ${activeTab === 'all_exams' ? 'text-white' : 'text-blue-500'}`} />
+          <BookOpen className={`w-4 h-4 ${activeTab === 'all_exams' ? 'text-[#1a2200]' : 'text-blue-500'}`} />
           <span>All Accumulated Examinations ({exams.length})</span>
         </button>
 
@@ -1322,11 +1322,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('teachers')}
           className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'teachers'
-              ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 dark:hover:border-sky-800 border-transparent'
+              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
           }`}
         >
-          <Users className={`w-4 h-4 ${activeTab === 'teachers' ? 'text-white' : 'text-indigo-500'}`} />
+          <Users className={`w-4 h-4 ${activeTab === 'teachers' ? 'text-[#1a2200]' : 'text-indigo-500'}`} />
           <span>Faculty Directory & Rights ({teachers.length})</span>
         </button>
 
@@ -1335,11 +1335,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('departments')}
           className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'departments'
-              ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 dark:hover:border-sky-800 border-transparent'
+              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
           }`}
         >
-          <Building2 className={`w-4 h-4 ${activeTab === 'departments' ? 'text-white' : 'text-orange-500'}`} />
+          <Building2 className={`w-4 h-4 ${activeTab === 'departments' ? 'text-[#1a2200]' : 'text-orange-500'}`} />
           <span>Faculties, Departments & Courses ({courses.length})</span>
         </button>
 
@@ -1348,11 +1348,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('mark_overrides')}
           className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'mark_overrides'
-              ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 dark:hover:border-sky-800 border-transparent'
+              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
           }`}
         >
-          <Award className={`w-4 h-4 ${activeTab === 'mark_overrides' ? 'text-white' : 'text-amber-500'}`} />
+          <Award className={`w-4 h-4 ${activeTab === 'mark_overrides' ? 'text-[#1a2200]' : 'text-amber-500'}`} />
           <span>Modified Marks & Justifications ({allModifiedMarks.length + committedMarkChangeRequests.length})</span>
         </button>
 
@@ -1361,11 +1361,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('student_registrations')}
           className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'student_registrations'
-              ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 dark:hover:border-sky-800 border-transparent'
+              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
           }`}
         >
-          <GraduationCap className={`w-4 h-4 ${activeTab === 'student_registrations' ? 'text-white' : 'text-indigo-500'}`} />
+          <GraduationCap className={`w-4 h-4 ${activeTab === 'student_registrations' ? 'text-[#1a2200]' : 'text-indigo-500'}`} />
           <span>Candidate Registrations ({students.length})</span>
         </button>
 
@@ -1374,11 +1374,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('tickets')}
           className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'tickets'
-              ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 dark:hover:border-sky-800 border-transparent'
+              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
           }`}
         >
-          <LifeBuoy className={`w-4 h-4 ${activeTab === 'tickets' ? 'text-white' : 'text-rose-500'}`} />
+          <LifeBuoy className={`w-4 h-4 ${activeTab === 'tickets' ? 'text-[#1a2200]' : 'text-rose-500'}`} />
           <span>Incident Inquiries ({tickets.length})</span>
         </button>
 
@@ -1387,11 +1387,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('reports')}
           className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'reports'
-              ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 dark:hover:border-sky-800 border-transparent'
+              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
           }`}
         >
-          <BarChart3 className={`w-4 h-4 ${activeTab === 'reports' ? 'text-white' : 'text-emerald-500'}`} />
+          <BarChart3 className={`w-4 h-4 ${activeTab === 'reports' ? 'text-[#1a2200]' : 'text-emerald-500'}`} />
           <span>Institutional Reports & Analytics</span>
         </button>
       </div>

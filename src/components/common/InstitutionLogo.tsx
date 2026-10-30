@@ -5,12 +5,14 @@ interface InstitutionLogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   variant?: 'badge' | 'full' | 'icon';
   className?: string;
+  imgClassName?: string;
 }
 
 export const InstitutionLogo: React.FC<InstitutionLogoProps> = ({
   size = 'md',
   variant = 'badge',
   className = '',
+  imgClassName = '',
 }) => {
   const [imageError, setImageError] = useState(false);
 
@@ -28,7 +30,7 @@ export const InstitutionLogo: React.FC<InstitutionLogoProps> = ({
           src="/institution-logo.jpg"
           alt="Institutional Examination Board Logo"
           onError={() => setImageError(true)}
-          className={`${sizeMap.img} object-contain shrink-0 rounded`}
+          className={`${imgClassName || sizeMap.img} object-contain shrink-0 rounded`}
         />
       ) : (
         <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold">

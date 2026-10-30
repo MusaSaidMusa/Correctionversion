@@ -2,11 +2,29 @@
 
 /* 
   Global Requirements:
-  1. Hover all items with light amber (#fffbeb / #fef3c7 / #fde68a, border #f59e0b / #fbbf24, text #92400e / #78350f).
-     In dark mode: amber glow (rgba(245, 158, 11, 0.22), border #d97706, text #fef3c7).
-  2. Actively selected items turn olive green (#556b2f, border #6b8e23, text #ffffff, ring #556b2f).
-  3. Examination cards/items: When dark mode is on, all black or grey text switches to radiant gold (#fbbf24 / #f59e0b / #fde68a).
+  1. Hover all items with light amber (#fffbeb / #fef3c7, border #f59e0b / #fbbf24, text #92400e).
+  2. Actively selected items are animated with PEAR GREEN (#d1e231 / #c0d725), including exams selected and buttons across all dashboards.
+  3. Maintain the color of writings to automatic black even after dark mode is activated.
 */
+
+@keyframes pear-glow-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(209, 226, 49, 0.75);
+    border-color: #d1e231;
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(209, 226, 49, 0.22), 0 0 16px rgba(209, 226, 49, 0.6);
+    border-color: #9eb51c;
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(209, 226, 49, 0);
+    border-color: #d1e231;
+  }
+}
+
+.animate-pear-pulse {
+  animation: pear-glow-pulse 2s infinite ease-in-out !important;
+}
 
 @layer base {
   /* Generic buttons and interactive controls default to light amber hover */
@@ -41,31 +59,38 @@
     color: #fef3c7 !important;
   }
 
-  /* Actively selected olive green utility */
-  .active-olive,
-  .selected-olive,
+  /* Actively selected buttons across all dashboards: Animated Pear Green */
+  .active-pear,
+  .selected-pear,
   .active-green,
-  .selected-green {
-    background-color: #556b2f !important; /* Olive Green */
-    border-color: #6b8e23 !important;
-    color: #ffffff !important;
-  }
-  .active-olive-subtle,
-  .active-green-subtle {
-    background-color: #f4f6ea !important; /* Subtle olive green */
-    border-color: #556b2f !important;
-    color: #283618 !important;
-    box-shadow: 0 0 0 2px #556b2f !important;
-  }
-  .dark .active-olive-subtle,
-  .dark .active-green-subtle {
-    background-color: rgba(85, 107, 47, 0.35) !important;
-    border-color: #6b8e23 !important;
-    color: #d4e09b !important;
-    box-shadow: 0 0 0 2px #6b8e23 !important;
+  .selected-green,
+  button.bg-emerald-600,
+  button[aria-selected="true"] {
+    background-color: #d1e231 !important; /* Pear Green */
+    border-color: #a3b817 !important;
+    color: #1a2200 !important; /* High contrast black/olive for pear green */
+    font-weight: 700 !important;
+    animation: pear-glow-pulse 2s infinite ease-in-out !important;
   }
 
-  /* Universal exam card & list items hover & selection */
+  .active-pear *,
+  .selected-pear *,
+  .active-green *,
+  .selected-green *,
+  button.bg-emerald-600 * {
+    color: #1a2200 !important;
+  }
+
+  /* Subtle active pear utility */
+  .active-pear-subtle,
+  .active-green-subtle {
+    background-color: #f7fbe6 !important;
+    border-color: #d1e231 !important;
+    color: #1a2200 !important;
+    animation: pear-glow-pulse 2.2s infinite ease-in-out !important;
+  }
+
+  /* Universal exam card & list items hover */
   .exam-card,
   .examination-card,
   [data-exam-card] {
@@ -78,31 +103,26 @@
     border-color: #f59e0b !important;
     background-color: #fffbeb !important; /* Light amber hover */
   }
-  .dark .exam-card:hover,
-  .dark .examination-card:hover,
-  .dark [data-exam-card]:hover {
-    border-color: #d97706 !important;
-    background-color: rgba(245, 158, 11, 0.15) !important;
-  }
 
-  /* Selected exam card / item: Olive Green */
+  /* Selected exam card / item: Animated with Pear Green */
   .exam-card.selected,
   .examination-card.selected,
   [data-exam-card].selected,
   [data-selected="true"] {
-    border-color: #556b2f !important;
-    border-width: 2px !important;
-    background-color: #f4f6ea !important;
-    box-shadow: 0 0 0 3px rgba(85, 107, 47, 0.35) !important;
+    border-color: #d1e231 !important;
+    border-width: 2.5px !important;
+    background-color: #f8fce8 !important;
+    animation: pear-glow-pulse 2.2s infinite ease-in-out !important;
   }
+
   .dark .exam-card.selected,
   .dark .examination-card.selected,
   .dark [data-exam-card].selected,
   .dark [data-selected="true"] {
-    border-color: #6b8e23 !important;
-    border-width: 2px !important;
-    background-color: rgba(85, 107, 47, 0.3) !important;
-    box-shadow: 0 0 0 3px rgba(107, 142, 35, 0.4) !important;
+    border-color: #d1e231 !important;
+    border-width: 2.5px !important;
+    background-color: #ffffff !important; /* White background in dark mode keeps writings automatic black */
+    animation: pear-glow-pulse 2.2s infinite ease-in-out !important;
   }
 
   /* Orange outline separator utility */
@@ -112,46 +132,47 @@
 }
 
 /* 
-  DARK MODE EXAMINATION CARDS / ITEMS:
-  Switch text written in black or grey to rich Gold
+  DARK MODE WRITINGS SPECIFICATION:
+  Maintain the color of writings to automatic black even after dark mode is activated.
 */
+.dark .exam-card,
+.dark .examination-card,
+.dark [data-exam-card] {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+}
+
 .dark .exam-card :is(
   .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-slate-500, .text-slate-400,
   .text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600, .text-gray-500, .text-gray-400,
   .text-zinc-900, .text-zinc-800, .text-zinc-700, .text-zinc-600, .text-zinc-500, .text-zinc-400,
-  .text-black, .text-white
+  .text-black, .text-white, h1, h2, h3, h4, h5, p, span, div, label
 ),
 .dark .examination-card :is(
   .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-slate-500, .text-slate-400,
   .text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600, .text-gray-500, .text-gray-400,
   .text-zinc-900, .text-zinc-800, .text-zinc-700, .text-zinc-600, .text-zinc-500, .text-zinc-400,
-  .text-black, .text-white
+  .text-black, .text-white, h1, h2, h3, h4, h5, p, span, div, label
 ),
 .dark [data-exam-card] :is(
   .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-slate-500, .text-slate-400,
   .text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600, .text-gray-500, .text-gray-400,
   .text-zinc-900, .text-zinc-800, .text-zinc-700, .text-zinc-600, .text-zinc-500, .text-zinc-400,
-  .text-black, .text-white
+  .text-black, .text-white, h1, h2, h3, h4, h5, p, span, div, label
 ) {
-  color: #fbbf24 !important; /* Radiant Gold */
+  color: #000000 !important; /* Automatic Black */
 }
 
-/* Secondary/description text in dark mode inside exam cards: Soft Amber Gold */
-.dark .exam-card :is(
-  p.text-slate-600, p.text-slate-500, p.text-slate-400,
-  .text-slate-500, .text-slate-400, .text-gray-500, .text-gray-400
-),
-.dark [data-exam-card] :is(
-  p.text-slate-600, p.text-slate-500, p.text-slate-400,
-  .text-slate-500, .text-slate-400, .text-gray-500, .text-gray-400
-) {
-  color: #fde68a !important; /* Soft Amber Gold */
+/* Secondary/muted writings maintained to clean dark slate / automatic dark black */
+.dark .exam-card :is(p, .text-slate-600, .text-slate-500),
+.dark [data-exam-card] :is(p, .text-slate-600, .text-slate-500) {
+  color: #1e293b !important;
 }
 
-/* Main Titles inside Exam Cards in Dark Mode: Rich Metallic Gold */
-.dark .exam-card :is(h2, h3, h4, .font-extrabold, .font-bold.text-lg, .font-bold.text-base),
-.dark [data-exam-card] :is(h2, h3, h4, .font-extrabold, .font-bold.text-lg, .font-bold.text-base) {
-  color: #f59e0b !important; /* Rich Metallic Gold */
+/* Titles and strong headings maintained to solid black */
+.dark .exam-card :is(h2, h3, h4, .font-extrabold, .font-bold),
+.dark [data-exam-card] :is(h2, h3, h4, .font-extrabold, .font-bold) {
+  color: #000000 !important;
 }
 
 /* Security Print Restriction for Student Role */

@@ -479,8 +479,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               onClick={() => setFilter('all')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer border ${
                 filter === 'all'
-                  ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 border-transparent'
+                  ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
               }`}
             >
               All Enrolled ({studentExams.length})
@@ -490,8 +490,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               onClick={() => setFilter('ongoing')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer border ${
                 filter === 'ongoing'
-                  ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 border-transparent'
+                  ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
               }`}
             >
               Active / Ready
@@ -501,8 +501,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               onClick={() => setFilter('upcoming')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer border ${
                 filter === 'upcoming'
-                  ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 border-transparent'
+                  ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
               }`}
             >
               Upcoming
@@ -512,8 +512,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               onClick={() => setFilter('completed')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer border ${
                 filter === 'completed'
-                  ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 border-transparent'
+                  ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
               }`}
             >
               Completed
@@ -523,8 +523,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               onClick={() => setFilter('pastpapers')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border ${
                 filter === 'pastpapers'
-                  ? 'bg-emerald-600 text-white shadow-xs border-emerald-500 font-bold'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-200 border-transparent'
+                  ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
               }`}
             >
               <FolderArchive className="w-3.5 h-3.5" />
@@ -597,8 +597,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 onClick={() => setSelectedExamId(isSelected ? null : exam.id)}
                 className={`exam-card rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all cursor-pointer ${
                   isSelected
-                    ? 'border-2 border-[#556b2f] dark:border-[#6b8e23] ring-4 ring-[#556b2f]/25 bg-[#f4f6ea] dark:bg-[#556b2f]/25 shadow-md selected'
-                    : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 dark:hover:bg-amber-950/25 hover:shadow-md'
+                    ? 'border-2 border-[#d1e231] ring-4 ring-[#d1e231]/40 bg-[#f8fce8] dark:bg-white shadow-lg selected animate-pear-pulse'
+                    : 'border border-slate-200 dark:border-slate-800 bg-white hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 hover:shadow-md'
                 }`}
                 data-exam-card="true"
                 data-selected={isSelected ? 'true' : 'false'}
@@ -614,13 +614,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                       }}
                       className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
                         isSelected
-                          ? 'bg-[#556b2f] text-white border-[#6b8e23] shadow-xs active-olive'
+                          ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] shadow-xs active-pear animate-pear-pulse font-bold'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/50 dark:hover:text-amber-200'
                       }`}
                       title="Click to select this examination"
                     >
-                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${isSelected ? 'border-white bg-[#556b2f]' : 'border-slate-400'}`}>
-                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${isSelected ? 'border-[#1a2200] bg-[#d1e231]' : 'border-slate-400'}`}>
+                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-[#1a2200]" />}
                       </span>
                       <span>{isSelected ? 'Selected Examination' : 'Select Examination'}</span>
                     </button>
