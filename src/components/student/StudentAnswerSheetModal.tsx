@@ -132,24 +132,30 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-y-2 text-sm border-b border-slate-300 pb-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm border-b-2 border-black pb-4 mb-6">
             <div>
-              <strong>Candidate Name:</strong> {submission.studentName || submission.studentId}
+              <strong>Examination Title:</strong> {exam.title}
             </div>
             <div>
-              <strong>Date of Sitting:</strong> {submission.submittedAt ? new Date(submission.submittedAt).toLocaleDateString() : 'Active Session'}
-            </div>
-            <div>
-              <strong>Course Code:</strong> {exam.courseCode}
+              <strong>Course Code:</strong> <span className="font-mono font-bold">{exam.courseCode}</span>
             </div>
             <div>
               <strong>Course Title:</strong> {exam.courseTitle || exam.title}
             </div>
             <div>
-              <strong>Awarded Marks:</strong> {score} / {totalPoints} ({percentage}%)
+              <strong>Candidate Name:</strong> {submission.studentName || submission.studentId}
             </div>
             <div>
-              <strong>Official Grade:</strong>{' '}
+              <strong>Registration No:</strong> <span className="font-mono">{submission.studentNumber || 'STU-2024-8842'}</span>
+            </div>
+            <div>
+              <strong>Date of Sitting:</strong> {submission.submittedAt ? new Date(submission.submittedAt).toLocaleDateString() : 'Active Session'}
+            </div>
+            <div>
+              <strong>Awarded Marks:</strong> <span className="font-bold font-mono">{score} / {totalPoints} ({percentage}%)</span>
+            </div>
+            <div>
+              <strong>Official Evaluation:</strong>{' '}
               {isMarked && gradeInfo ? (
                 <span className={`inline-flex items-center px-2 py-0.5 rounded font-mono font-bold border text-xs ${gradeInfo.color}`}>
                   Grade {gradeInfo.letter} ({gradeInfo.label})
@@ -160,54 +166,111 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
             </div>
           </div>
 
-          {/* Detailed Question Answers Section */}
-          <div className="space-y-8">
+          {/* Detailed Question Answers Section with Line-by-Line Point Illustration */}
+          <div className="space-y-6">
             {exam.questions.map((q, idx) => {
               const ans = submission.answers?.[q.id];
               const awarded = ans?.awardedPoints ?? 0;
 
+              // Format text answer lines
+              const responseText = ans?.textAnswer || '';
+              const textPoints = responseText
+                ? responseText
+                    .split(/\n+|(?<=[.!?])\s+(?=[A-Z0-9•\-\*])/)
+                    .map((p) => p.trim())
+                    .filter(Boolean)
+                : [];
+
               return (
-                <div key={q.id || idx} className="border-b border-slate-200 pb-6 last:border-0">
-                  <div className="flex items-start justify-between gap-4 mb-2">
-                    <span className="font-bold text-base">
-                      Question {idx + 1} ({q.points} Marks)
-                    </span>
-                    <span className="font-mono font-bold text-sm bg-slate-100 px-2 py-0.5 rounded border border-slate-300">
-                      Score: {awarded} / {q.points}
+                <div key={q.id || idx} className="border-b border-black/20 pb-6 last:border-0 space-y-3">
+                  <div className="flex items-start justify-between gap-4 bg-slate-50 p-2.5 rounded border border-slate-200">
+                    <div>
+                      <span className="font-bold text-base">
+                        Question {idx + 1}
+                      </span>
+                      <span className="text-xs text-slate-500 ml-2 font-mono">
+                        (Max: {q.points} Marks)
+                      </span>
+                    </div>
+                    <span className="font-mono font-bold text-sm bg-white px-2.5 py-1 rounded border border-slate-300 shadow-xs">
+                      Awarded: {awarded} / {q.points} Marks
                     </span>
                   </div>
 
-                  <p className="mb-3 text-slate-800 whitespace-pre-wrap">{q.prompt}</p>
+                  <p className="font-semibold text-slate-900 leading-snug pl-1">{q.prompt}</p>
 
-                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-2">
-                    <div className="text-xs font-bold uppercase tracking-wider text-slate-500 font-sans">
-                      Candidate Submitted Response:
+                  <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-300 space-y-3 font-sans">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
+                      <span>Candidate Written Script &amp; Point Illustration:</span>
+                      <span className="text-[11px] font-mono font-semibold text-slate-500">
+                        {textPoints.length > 0 ? `${textPoints.length} Point(s) Documented` : 'Single Response Recorded'}
+                      </span>
                     </div>
-                    <div className="text-sm font-sans whitespace-pre-wrap text-slate-900 bg-white p-3 rounded border border-slate-200">
-                      {ans?.textAnswer ? (
-                        ans.textAnswer
+
+                    <div className="text-sm bg-white p-3.5 rounded-lg border border-slate-200 shadow-xs text-slate-900">
+                      {textPoints.length > 0 ? (
+                        <div className="space-y-2">
+                          {textPoints.map((point, pIdx) => {
+                            const cleanPoint = point.replace(/^[•\-\*\d\.\)\s]+/, '');
+                            return (
+                              <div key={pIdx} className="flex items-start gap-2.5 py-0.5 border-b border-slate-100 last:border-0">
+                                <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                  {pIdx + 1}
+                                </span>
+                                <span className="leading-relaxed font-serif text-slate-900 text-sm">
+                                  {cleanPoint}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       ) : ans?.selectedOptionId ? (
                         (() => {
                           const opt = q.options?.find((o) => o.id === ans.selectedOptionId);
-                          return `Selected Option (${ans.selectedOptionId.toUpperCase()}): ${opt ? opt.text : ans.selectedOptionId}`;
+                          return (
+                            <div className="font-mono font-medium text-indigo-900 bg-indigo-50/50 p-2 rounded">
+                              &bull; Selected Option [{ans.selectedOptionId.toUpperCase()}]: {opt ? opt.text : ans.selectedOptionId}
+                            </div>
+                          );
                         })()
                       ) : ans?.selectedOptionIds && ans.selectedOptionIds.length > 0 ? (
-                        `Selected Options: ${ans.selectedOptionIds.join(', ')}`
+                        <div className="font-mono text-indigo-900">
+                          &bull; Selected Multi-Options: {ans.selectedOptionIds.join(', ')}
+                        </div>
                       ) : ans?.uploadedFileName ? (
-                        `Attached File Submission: ${ans.uploadedFileName}`
+                        <div className="italic text-slate-800">
+                          &bull; Attached Candidate Document File: {ans.uploadedFileName}
+                        </div>
                       ) : (
-                        <p className="italic text-slate-500">No response recorded by candidate.</p>
+                        <p className="italic text-slate-500">No response recorded by candidate for this question.</p>
                       )}
                     </div>
 
+                    {/* Sub-Question Responses if available */}
+                    {ans?.subQuestionAnswers && Object.keys(ans.subQuestionAnswers).length > 0 && (
+                      <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block">
+                          Candidate Sub-Part Point Breakdown:
+                        </span>
+                        <div className="space-y-1 pl-2">
+                          {Object.entries(ans.subQuestionAnswers).map(([subId, subText], sIdx) => (
+                            <div key={subId} className="text-xs bg-white p-2 rounded border border-slate-200 flex items-start gap-2">
+                              <span className="font-bold font-mono text-indigo-700">({String.fromCharCode(97 + sIdx)})</span>
+                              <span className="leading-relaxed font-serif text-slate-800">{subText}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {ans?.teacherFeedback && (
-                      <div className="text-xs italic text-indigo-900 bg-indigo-50 p-2 rounded border border-indigo-200">
+                      <div className="text-xs italic text-indigo-950 bg-indigo-50/80 p-2.5 rounded-lg border border-indigo-200">
                         <strong>Examiner Feedback:</strong> {ans.teacherFeedback}
                       </div>
                     )}
 
                     {ans?.isOverridden && (
-                      <div className="text-[11px] text-amber-900 bg-amber-50 p-2 rounded border border-amber-200">
+                      <div className="text-[11px] text-amber-950 bg-amber-50 p-2 rounded-lg border border-amber-200">
                         <strong>Marks Audit Note:</strong> Adjusted by {ans.overriddenBy || 'Invigilator'}. Justification: "{ans.overrideReason}".
                       </div>
                     )}

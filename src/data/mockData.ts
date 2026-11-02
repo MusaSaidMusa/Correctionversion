@@ -7,6 +7,8 @@ import {
   HelpTicket,
   Course,
   AuthUser,
+  MissedExamRecord,
+  ResitRequest,
 } from '../types';
 
 export const SUPER_ADMIN: AuthUser = {
@@ -401,5 +403,56 @@ export const INITIAL_HELP_TICKETS: HelpTicket[] = [
     createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
     resolvedAt: new Date(Date.now() - 86400000).toISOString(),
     adminReply: 'Standard browser proctoring is enabled with webcam and mic verification. SEB is optional for this session.',
+  },
+];
+
+export const INITIAL_MISSED_EXAMS: MissedExamRecord[] = [
+  {
+    id: 'missed-sam-cs401',
+    studentId: 'student-sam',
+    studentName: 'Samuel K. Ochieng',
+    studentNumber: 'STU-2024-9031',
+    studentEmail: 'sam.ochieng@student.edu',
+    courseCode: 'CS401',
+    examTitle: 'Midterm Examination: Distributed Systems Architecture',
+    examId: 'exam-cs401-midterm',
+    scheduledDate: new Date().toISOString().split('T')[0],
+    missedReason: 'Candidate failed to establish secure proctored connection during live examination session window.',
+    status: 'uncleared',
+    recordedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+  },
+  {
+    id: 'missed-maya-cs401',
+    studentId: 'student-maya',
+    studentName: 'Maya Lin',
+    studentNumber: 'STU-2024-7721',
+    studentEmail: 'maya.lin@student.edu',
+    courseCode: 'CS401',
+    examTitle: 'Archive 2025: Principles of Distributed Computing',
+    examId: 'exam-past-2025',
+    scheduledDate: '2025-11-15',
+    missedReason: 'Documented sudden medical acute illness preventing attendance at scheduled examination.',
+    status: 'resit_pending',
+    recordedAt: '2025-11-15T12:00:00.000Z',
+  },
+];
+
+export const INITIAL_RESIT_REQUESTS: ResitRequest[] = [
+  {
+    id: 'resit-maya-001',
+    studentId: 'student-maya',
+    studentName: 'Maya Lin',
+    studentNumber: 'STU-2024-7721',
+    studentEmail: 'maya.lin@student.edu',
+    courseCode: 'CS401',
+    examTitle: 'Archive 2025: Principles of Distributed Computing',
+    examId: 'exam-past-2025',
+    missedDate: '2025-11-15',
+    reasonCategory: 'medical',
+    reasonDetails: 'Severe migraine and fever verified by University Health Services Clinic (Dr. K. Patel). Attached medical certificate.',
+    evidenceNotes: 'UHS-MED-CERT-2025-9981 officially stamped by College Clinic.',
+    attachmentFileName: 'Medical_Certificate_UHS_MayaLin.pdf',
+    status: 'pending',
+    submittedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
   },
 ];

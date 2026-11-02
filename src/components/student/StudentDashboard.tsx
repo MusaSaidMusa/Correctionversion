@@ -28,11 +28,12 @@ import { PreExamDiagnosticModal } from './PreExamDiagnosticModal';
 import { ExamResultsModal } from './ExamResultsModal';
 import { ExamWaitingRoomModal } from './ExamWaitingRoomModal';
 import { StudentAnswerSheetModal } from './StudentAnswerSheetModal';
+import { StudentResitRequestModal } from './StudentResitRequestModal';
 import { ProfileDetailModal } from '../common/ProfileDetailModal';
 import { ExaminationPaperModal } from '../common/ExaminationPaperModal';
 import { OfficialMarkingSchemeModal } from '../common/OfficialMarkingSchemeModal';
 import { PastPapersSection } from '../common/PastPapersSection';
-import { getActiveInProgressExamForStudent } from '../../services/storageService';
+import { getActiveInProgressExamForStudent, hasUnapprovedMissedExam } from '../../services/storageService';
 
 interface StudentDashboardProps {
   student: StudentProfile;
@@ -80,6 +81,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   // Selected Examination state to sit for
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
 
+  // Student Resit & Clearance modal state
+  const [isResitModalOpen, setIsResitModalOpen] = useState(false);
+  const [resitTargetExam, setResitTargetExam] = useState<Exam | null>(null);
+
   // Reset all selections and modals when resetKey changes (e.g. logo clicked)
   useEffect(() => {
     setSelectedExamId(null);
@@ -90,6 +95,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     setViewingQuestionPaperExam(null);
     setViewingMarkingSchemeExam(null);
     setSelectedProfileModal(null);
+    setIsResitModalOpen(false);
+    setResitTargetExam(null);
     setFilter('all');
   }, [resetKey]);
 
@@ -228,6 +235,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         existingExam,
         existingSub,
       });
+      return;
+    }
+
+    // ENFORCE: Missed Exam Clearance Rule:
+    // "check and ensure that the student that was previously registered for an examination but missed must seek clearance from admin before their details are accepted on the same Examination they missed. use Course code and Title to validate this."
+    const missedCheck = hasUnapprovedMissedExam(student.id, exam.courseCode, exam.title);
+    if (missedCheck.isBlocked) {
+      setResitTargetExam(exam);
+      setIsResitModalOpen(true);
       return;
     }
 
@@ -529,6 +545,18 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             >
               <FolderArchive className="w-3.5 h-3.5" />
               <span>Past Papers ({exams.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setResitTargetExam(null);
+                setIsResitModalOpen(true);
+              }}
+              className="px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border border-amber-400/60 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-500 dark:hover:bg-amber-950/40 text-xs font-semibold"
+              title="Apply for Admin clearance if you missed a scheduled examination"
+            >
+              <FileText className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span>Request Resit / Clearance</span>
             </button>
           </div>
         </div>
@@ -887,6 +915,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         <ExamWaitingRoomModal
           exam={waitingRoomExam}
           student={student}
+          allExams={exams}
           isOpen={true}
           onClose={() => setWaitingRoomExam(null)}
           onAdmittedAndUnlocked={() => {
@@ -895,6 +924,12 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             onStartExam(examToStart);
           }}
           onOpenHelp={onOpenHelp}
+          onRequestResit={() => {
+            const ex = waitingRoomExam;
+            setWaitingRoomExam(null);
+            setResitTargetExam(ex);
+            setIsResitModalOpen(true);
+          }}
         />
       )}
 
@@ -1010,6 +1045,18 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           targetId={selectedProfileModal.id}
         />
       )}
+
+      {/* Official Student Resit Clearance Request Modal */}
+      <StudentResitRequestModal
+        isOpen={isResitModalOpen}
+        onClose={() => {
+          setIsResitModalOpen(false);
+          setResitTargetExam(null);
+        }}
+        student={student}
+        exams={exams}
+        preselectedExam={resitTargetExam}
+      />
     </div>
   );
 };

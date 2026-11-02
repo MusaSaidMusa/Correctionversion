@@ -115,82 +115,152 @@ export const OfficialMarkingSchemeModal: React.FC<OfficialMarkingSchemeModalProp
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-y-2 text-sm border-b border-slate-300 pb-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm border-b-2 border-black pb-4 mb-6">
             <div>
-              <strong>Course Code:</strong> {exam.courseCode}
+              <strong>Examination Title:</strong> {exam.title}
             </div>
             <div>
-              <strong>Date Released:</strong> {new Date().toLocaleDateString()}
+              <strong>Course Code:</strong> <span className="font-mono font-bold">{exam.courseCode}</span>
             </div>
             <div>
               <strong>Course Title:</strong> {exam.courseTitle || exam.title}
             </div>
             <div>
+              <strong>Academic Faculty:</strong> {faculty || exam.faculty || 'Faculty of Computing & Information Technologies'}
+            </div>
+            <div>
+              <strong>Department:</strong> {department || exam.department || 'Computer Science & Software Engineering'}
+            </div>
+            <div>
+              <strong>Date Released:</strong> {new Date().toLocaleDateString()}
+            </div>
+            <div>
               <strong>Lead Examiner:</strong> {exam.instructorName}
             </div>
             <div>
-              <strong>Total Marks:</strong> {totalPoints} Marks
+              <strong>Total Marks Available:</strong> <span className="font-bold">{totalPoints} Marks (100%)</span>
             </div>
             <div>
-              <strong>Access Level:</strong> {isStudent ? 'Candidate Restricted' : 'Faculty Authorized'}
+              <strong>Access Classification:</strong> {isStudent ? 'Candidate Evaluation Copy' : 'Authorized Faculty Marking Guide'}
+            </div>
+            <div>
+              <strong>Examination Session:</strong> {exam.scheduledDate || new Date(exam.scheduledStartTime).toLocaleDateString()}
             </div>
           </div>
 
-          <div className="space-y-8 mt-6">
-            {exam.questions.map((q, idx) => (
-              <div key={q.id || idx} className="space-y-3 border-b border-slate-200 pb-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="font-bold">
-                    Question {idx + 1} Solution Guide
+          {/* Clean Line-by-Line Marking Scheme Points */}
+          <div className="space-y-6 mt-6">
+            {exam.questions.map((q, idx) => {
+              // Parse solution points line by line
+              const rawSolutionText = q.sampleAnswer || '';
+              const rawLines = rawSolutionText
+                ? rawSolutionText
+                    .split(/\n+|(?<=[.!?])\s+(?=[A-Z0-9•\-\*])/)
+                    .map((l) => l.trim())
+                    .filter(Boolean)
+                : [];
+
+              const linesCount = rawLines.length || 1;
+              const perPointMarks = (q.points / linesCount).toFixed(linesCount > 1 && q.points % linesCount !== 0 ? 1 : 0);
+
+              return (
+                <div key={q.id || idx} className="border-b border-black/30 pb-5 last:border-0 space-y-3">
+                  <div className="flex items-baseline justify-between gap-4 bg-slate-50 p-2.5 rounded border border-slate-200">
+                    <span className="font-bold text-base">
+                      Question {idx + 1}
+                    </span>
+                    <span className="font-bold text-sm font-mono shrink-0">
+                      Total Allocated: [{q.points} Marks]
+                    </span>
                   </div>
-                  <div className="font-bold text-sm shrink-0">
-                    [Total: {q.points} Marks]
+
+                  <div className="pl-2 space-y-2 text-sm">
+                    <p className="font-semibold text-slate-900 leading-snug">
+                      {q.prompt}
+                    </p>
+
+                    {/* Multiple Choice / Single Choice Direct Key */}
+                    {q.correctAnswers && q.correctAnswers.length > 0 && (
+                      <div className="space-y-1 pt-1">
+                        <span className="font-bold text-xs uppercase tracking-wider text-slate-700 block">
+                          Official Key & Award:
+                        </span>
+                        <div className="pl-3 border-l-2 border-emerald-600 space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-mono font-bold text-emerald-800">
+                              &bull; Correct Selection:{' '}
+                              {q.options
+                                ? q.options
+                                    .filter((opt) => q.correctAnswers?.includes(opt.id))
+                                    .map((opt) => `${opt.id.toUpperCase()}: ${opt.text}`)
+                                    .join('; ')
+                                : q.correctAnswers.join(', ')}
+                            </span>
+                            <span className="font-mono font-bold text-slate-900">
+                              [{q.points} Marks]
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Sub-questions line by line breakdown */}
+                    {q.subQuestions && q.subQuestions.length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        <span className="font-bold text-xs uppercase tracking-wider text-slate-700 block">
+                          Sub-Question Marking Points:
+                        </span>
+                        <div className="space-y-1.5 pl-3 border-l-2 border-slate-400">
+                          {q.subQuestions.map((sq, sqIdx) => (
+                            <div key={sq.id || sqIdx} className="flex items-start justify-between gap-3 text-xs">
+                              <span className="leading-relaxed">
+                                &bull; ({String.fromCharCode(97 + sqIdx)}) {sq.prompt}
+                                {sq.sampleAnswer && (
+                                  <span className="block italic text-slate-700 mt-0.5">
+                                    Key: {sq.sampleAnswer}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="font-mono font-bold shrink-0 text-slate-900">
+                                [{sq.points || 1} Marks]
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Line by line points for essay / short answer / open-ended */}
+                    {rawLines.length > 0 && (!q.subQuestions || q.subQuestions.length === 0) && (
+                      <div className="space-y-1.5 pt-1">
+                        <span className="font-bold text-xs uppercase tracking-wider text-slate-700 block">
+                          Line-by-Line Marking Points:
+                        </span>
+                        <div className="space-y-1 pl-3 border-l-2 border-slate-700">
+                          {rawLines.map((line, lIdx) => {
+                            const cleanLine = line.replace(/^[•\-\*\d\.\)\s]+/, '');
+                            return (
+                              <div
+                                key={lIdx}
+                                className="flex items-start justify-between gap-4 text-xs leading-relaxed py-0.5"
+                              >
+                                <span>&bull; {cleanLine}</span>
+                                <span className="font-mono font-semibold shrink-0 text-slate-800">
+                                  [{perPointMarks} Marks]
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                <div className="pl-4 space-y-2 text-sm">
-                  <p className="italic text-slate-700">Prompt: {q.prompt}</p>
-
-                  {/* Correct Answers */}
-                  {q.correctAnswers && q.correctAnswers.length > 0 && (
-                    <div className="bg-emerald-50 p-2.5 rounded-md border border-emerald-300">
-                      <strong>Correct Answer Key:</strong>{' '}
-                      {q.options
-                        ? q.options
-                            .filter((opt) => q.correctAnswers?.includes(opt.id))
-                            .map((opt) => opt.text)
-                            .join(', ')
-                        : q.correctAnswers.join(', ')}
-                    </div>
-                  )}
-
-                  {/* Sample Answer */}
-                  {q.sampleAnswer && (
-                    <div className="bg-slate-50 p-3 rounded-md border border-slate-200">
-                      <strong>Sample Solution / Benchmark:</strong>
-                      <p className="mt-1 whitespace-pre-wrap">{q.sampleAnswer}</p>
-                    </div>
-                  )}
-
-                  {/* Marking Rubric */}
-                  {q.rubric && (
-                    <div className="text-xs text-slate-800 bg-amber-50/60 p-2.5 rounded border border-amber-200">
-                      <strong>Marking Criteria & Rubric:</strong> {q.rubric}
-                    </div>
-                  )}
-
-                  {/* Explanation */}
-                  {q.explanation && (
-                    <div className="text-xs text-slate-600">
-                      <strong>Pedagogical Explanation:</strong> {q.explanation}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          <div className="text-center mt-12 pt-6 border-t border-slate-300 font-bold uppercase tracking-wider text-xs">
+          <div className="text-center mt-12 pt-6 border-t-2 border-black font-bold uppercase tracking-wider text-xs">
             *** End of Official Marking Scheme ***
           </div>
         </div>

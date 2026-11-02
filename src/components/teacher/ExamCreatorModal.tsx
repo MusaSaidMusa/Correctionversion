@@ -1829,6 +1829,17 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
             )}
           </div>
           <div className="flex items-center gap-2.5">
+            {selectedQuestions.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsPublishPreviewOpen(true)}
+                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-300 rounded-xl font-bold transition-all flex items-center gap-1.5 text-xs cursor-pointer"
+                title="Proofread all questions, answers, marking scheme points, and allocations"
+              >
+                <Eye className="w-4 h-4 text-indigo-600" />
+                <span>Proofread & Review All Q&As ({selectedQuestions.length})</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}

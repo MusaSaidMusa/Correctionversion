@@ -1,5 +1,5 @@
-import { Exam, Question, ExamSubmission, ProctorIncident, StudentProfile, TeacherProfile, HelpTicket, ThemeMode, Course, AuthUser } from '../types';
-import { INITIAL_EXAMS, INITIAL_QUESTION_BANK, INITIAL_SUBMISSIONS, INITIAL_STUDENTS, CURRENT_TEACHER, INITIAL_TEACHERS, INITIAL_HELP_TICKETS, INITIAL_COURSES, SUPER_ADMIN } from '../data/mockData';
+import { Exam, Question, ExamSubmission, ProctorIncident, StudentProfile, TeacherProfile, HelpTicket, ThemeMode, Course, AuthUser, MissedExamRecord, ResitRequest, ExamAttendanceSummary } from '../types';
+import { INITIAL_EXAMS, INITIAL_QUESTION_BANK, INITIAL_SUBMISSIONS, INITIAL_STUDENTS, CURRENT_TEACHER, INITIAL_TEACHERS, INITIAL_HELP_TICKETS, INITIAL_COURSES, SUPER_ADMIN, INITIAL_MISSED_EXAMS, INITIAL_RESIT_REQUESTS } from '../data/mockData';
 
 const STORAGE_KEYS = {
   EXAMS: 'examguard_exams_v1',
@@ -15,6 +15,8 @@ const STORAGE_KEYS = {
   ACCOUNT_PASSWORDS: 'examguard_account_passwords_v1',
   COURSES: 'examguard_courses_v1',
   SUPER_ADMIN: 'examguard_super_admin_v1',
+  MISSED_EXAMS: 'examguard_missed_exams_v1',
+  RESIT_REQUESTS: 'examguard_resit_requests_v1',
 };
 
 export function getTeacherPasswordHash(email: string): string | null {
@@ -458,18 +460,40 @@ export function updateStudent(updatedStudent: StudentProfile): { success: boolea
   return { success: true };
 }
 
-export function registerStudentToExam(studentId: string, examId: string): boolean {
+export function registerStudentToExamWithValidation(
+  studentId: string,
+  examId: string
+): { success: boolean; error?: string } {
   const exams = getStoredExams();
   const exam = exams.find((e) => e.id === examId);
-  if (!exam) return false;
+  if (!exam) return { success: false, error: 'Examination not found.' };
   const student = getStoredStudents().find((item) => item.id === studentId);
-  if (!student || (student.accessStatus && student.accessStatus !== 'active')) return false;
+  if (!student || (student.accessStatus && student.accessStatus !== 'active')) {
+    return { success: false, error: 'Student candidate profile is inactive or not found.' };
+  }
+
+  // Check if candidate previously missed this examination based on Course Code & Title
+  const missedCheck = hasUnapprovedMissedExam(studentId, exam.courseCode, exam.title);
+  if (missedCheck.isBlocked) {
+    const statusNote = missedCheck.resitRequest?.status === 'pending'
+      ? 'Resit clearance request is currently pending Super Admin review.'
+      : 'No approved Super Admin resit clearance on file.';
+    return {
+      success: false,
+      error: `Registration Blocked: Candidate previously registered for and missed ${exam.courseCode} — ${exam.title}. ${statusNote} Must seek and obtain Super Admin clearance before candidate details can be accepted for this examination.`,
+    };
+  }
+
   if (!exam.registeredStudentIds) exam.registeredStudentIds = [];
   if (!exam.registeredStudentIds.includes(studentId)) {
     exam.registeredStudentIds.push(studentId);
     saveStoredExams(exams);
   }
-  return true;
+  return { success: true };
+}
+
+export function registerStudentToExam(studentId: string, examId: string): boolean {
+  return registerStudentToExamWithValidation(studentId, examId).success;
 }
 
 export function unregisterStudentFromExam(studentId: string, examId: string): boolean {
@@ -527,11 +551,311 @@ export function toggleMarkingSchemeRelease(examId: string, released: boolean): {
   return { success: true, exam };
 }
 
-// Student Admission Control for Exam Room
-export function admitStudentToExam(examId: string, studentId: string): boolean {
+// -------------------------------------------------------------
+// MISSED EXAMINATIONS & RESIT CLEARANCES MANAGEMENT
+// -------------------------------------------------------------
+export function getStoredMissedExams(): MissedExamRecord[] {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.MISSED_EXAMS);
+    if (!data) {
+      localStorage.setItem(STORAGE_KEYS.MISSED_EXAMS, JSON.stringify(INITIAL_MISSED_EXAMS));
+      return INITIAL_MISSED_EXAMS;
+    }
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : INITIAL_MISSED_EXAMS;
+  } catch {
+    return INITIAL_MISSED_EXAMS;
+  }
+}
+
+export function saveStoredMissedExams(records: MissedExamRecord[]): void {
+  localStorage.setItem(STORAGE_KEYS.MISSED_EXAMS, JSON.stringify(records));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('examguard_missed_exams_updated', { detail: { records } }));
+  }
+}
+
+export function getStoredResitRequests(): ResitRequest[] {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.RESIT_REQUESTS);
+    if (!data) {
+      localStorage.setItem(STORAGE_KEYS.RESIT_REQUESTS, JSON.stringify(INITIAL_RESIT_REQUESTS));
+      return INITIAL_RESIT_REQUESTS;
+    }
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : INITIAL_RESIT_REQUESTS;
+  } catch {
+    return INITIAL_RESIT_REQUESTS;
+  }
+}
+
+export function saveStoredResitRequests(requests: ResitRequest[]): void {
+  localStorage.setItem(STORAGE_KEYS.RESIT_REQUESTS, JSON.stringify(requests));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('examguard_resit_requests_updated', { detail: { requests } }));
+  }
+}
+
+export function normalizeCourseCode(code: string): string {
+  return (code || '').toUpperCase().replace(/[\s\-_]/g, '');
+}
+
+export function normalizeExamTitle(title: string): string {
+  return (title || '').toLowerCase().trim();
+}
+
+/**
+ * Validates if candidate previously missed an examination based on Course Code & Title,
+ * and checks if Super Admin clearance has been requested and APPROVED.
+ */
+export function hasUnapprovedMissedExam(
+  studentId: string,
+  courseCode: string,
+  examTitle: string
+): { isBlocked: boolean; record?: MissedExamRecord; resitRequest?: ResitRequest } {
+  const normCode = normalizeCourseCode(courseCode);
+  const normTitle = normalizeExamTitle(examTitle);
+
+  const missedRecords = getStoredMissedExams();
+  const resitRequests = getStoredResitRequests();
+
+  const record = missedRecords.find((m) => {
+    if (m.studentId !== studentId) return false;
+    const matchCode = normalizeCourseCode(m.courseCode) === normCode;
+    const matchTitle =
+      normalizeExamTitle(m.examTitle) === normTitle ||
+      normTitle.includes(normalizeExamTitle(m.examTitle)) ||
+      normalizeExamTitle(m.examTitle).includes(normTitle);
+    return matchCode && matchTitle;
+  });
+
+  if (!record) {
+    return { isBlocked: false };
+  }
+
+  // Look for approved resit clearance by Admin
+  const approvedResit = resitRequests.find((r) => {
+    if (r.studentId !== studentId || r.status !== 'approved') return false;
+    const matchCode = normalizeCourseCode(r.courseCode) === normCode;
+    const matchTitle =
+      normalizeExamTitle(r.examTitle) === normTitle ||
+      normTitle.includes(normalizeExamTitle(r.examTitle)) ||
+      normalizeExamTitle(r.examTitle).includes(normTitle);
+    return matchCode && matchTitle;
+  });
+
+  if (approvedResit) {
+    return { isBlocked: false, record, resitRequest: approvedResit };
+  }
+
+  const pendingOrDeclinedReq = resitRequests.find((r) => {
+    if (r.studentId !== studentId) return false;
+    const matchCode = normalizeCourseCode(r.courseCode) === normCode;
+    const matchTitle =
+      normalizeExamTitle(r.examTitle) === normTitle ||
+      normTitle.includes(normalizeExamTitle(r.examTitle)) ||
+      normalizeExamTitle(r.examTitle).includes(normTitle);
+    return matchCode && matchTitle;
+  });
+
+  return { isBlocked: true, record, resitRequest: pendingOrDeclinedReq };
+}
+
+export function submitResitRequest(data: {
+  studentId: string;
+  studentName: string;
+  studentNumber: string;
+  studentEmail: string;
+  courseCode: string;
+  examTitle: string;
+  examId?: string;
+  missedDate: string;
+  reasonCategory: 'medical' | 'technical' | 'compassionate' | 'academic_clash' | 'other';
+  reasonDetails: string;
+  evidenceNotes?: string;
+  attachmentFileName?: string;
+}): ResitRequest {
+  const requests = getStoredResitRequests();
+  const newReq: ResitRequest = {
+    id: `resit-${Date.now()}`,
+    ...data,
+    status: 'pending',
+    submittedAt: new Date().toISOString(),
+  };
+
+  requests.unshift(newReq);
+  saveStoredResitRequests(requests);
+
+  // Mark status in missed exam record
+  const missed = getStoredMissedExams();
+  const normCode = normalizeCourseCode(data.courseCode);
+  const match = missed.find(
+    (m) => m.studentId === data.studentId && normalizeCourseCode(m.courseCode) === normCode
+  );
+  if (match) {
+    match.status = 'resit_pending';
+    saveStoredMissedExams(missed);
+  }
+
+  return newReq;
+}
+
+export function reviewResitRequest(
+  requestId: string,
+  action: 'approve' | 'declined' | 'approved' | 'decline',
+  adminNote: string,
+  adminName = 'Dr. Marcus Sterling (Super Admin)'
+): { success: boolean; error?: string } {
+  const requests = getStoredResitRequests();
+  const req = requests.find((r) => r.id === requestId);
+  if (!req) return { success: false, error: 'Resit clearance request record not found.' };
+
+  const isApp = action === 'approve' || action === 'approved';
+  req.status = isApp ? 'approved' : 'declined';
+  req.adminDecisionNote = adminNote.trim() || (isApp ? 'Cleared by Admin Directorate.' : 'Declined.');
+  req.adminNotes = req.adminDecisionNote;
+  req.reviewedBy = adminName;
+  req.reviewedAt = new Date().toISOString();
+
+  saveStoredResitRequests(requests);
+
+  // Update Missed Exam Record status
+  const missed = getStoredMissedExams();
+  const normCode = normalizeCourseCode(req.courseCode);
+  const mMatch = missed.find(
+    (m) => m.studentId === req.studentId && normalizeCourseCode(m.courseCode) === normCode
+  );
+  if (mMatch) {
+    mMatch.status = isApp ? 'cleared' : 'resit_declined';
+    mMatch.isCleared = isApp;
+    mMatch.clearedAt = isApp ? new Date().toISOString() : undefined;
+    mMatch.clearedBy = isApp ? adminName : undefined;
+    saveStoredMissedExams(missed);
+  }
+
+  // If approved, ensure student enrollment has this course code
+  if (isApp) {
+    const students = getStoredStudents();
+    const st = students.find((s) => s.id === req.studentId);
+    if (st && !st.enrolledCourseCodes.includes(req.courseCode)) {
+      st.enrolledCourseCodes.push(req.courseCode);
+      saveStoredStudents(students);
+    }
+  }
+
+  return { success: true };
+}
+
+/**
+ * Calculates attendance summary for an examination:
+ * Total Registered, Sat, and Missed (with detailed list and clearance status)
+ */
+export function getExamAttendanceSummary(examId: string): ExamAttendanceSummary | null {
   const exams = getStoredExams();
   const exam = exams.find((e) => e.id === examId);
-  if (!exam) return false;
+  if (!exam) return null;
+
+  const students = getStoredStudents();
+  const submissions = getStoredSubmissions();
+
+  // All students registered for this course/exam
+  const registered = students.filter(
+    (s) =>
+      (exam.registeredStudentIds && exam.registeredStudentIds.includes(s.id)) ||
+      (s.enrolledCourseCodes && s.enrolledCourseCodes.includes(exam.courseCode))
+  );
+
+  const satSubmissions = submissions.filter((s) => s.examId === examId);
+  const satStudentIds = new Set(satSubmissions.map((s) => s.studentId));
+
+  const missedStudentsList: ExamAttendanceSummary['missedStudents'] = [];
+
+  registered.forEach((student) => {
+    if (!satStudentIds.has(student.id)) {
+      const { isBlocked, record, resitRequest } = hasUnapprovedMissedExam(
+        student.id,
+        exam.courseCode,
+        exam.title
+      );
+
+      let clearanceStatus: 'uncleared' | 'resit_pending' | 'cleared' | 'resit_declined' = 'uncleared';
+      if (!isBlocked && (record || resitRequest)) {
+        clearanceStatus = 'cleared';
+      } else if (resitRequest?.status === 'pending') {
+        clearanceStatus = 'resit_pending';
+      } else if (resitRequest?.status === 'declined') {
+        clearanceStatus = 'resit_declined';
+      }
+
+      missedStudentsList.push({
+        student,
+        missedDate: record?.scheduledDate || exam.scheduledDate || new Date(exam.scheduledStartTime).toLocaleDateString(),
+        clearanceStatus,
+      });
+    }
+  });
+
+  const rate = registered.length > 0 ? Math.round((satStudentIds.size / registered.length) * 100) : 100;
+
+  return {
+    examId: exam.id,
+    courseCode: exam.courseCode,
+    examTitle: exam.title,
+    title: exam.title,
+    instructorName: exam.instructorName,
+    department: exam.department,
+    faculty: exam.faculty,
+    totalRegistered: registered.length,
+    totalSat: satStudentIds.size,
+    totalMissed: missedStudentsList.length,
+    attendanceRate: rate,
+    missedStudents: missedStudentsList,
+  };
+}
+
+export function getAllExamsAttendanceSummaries(examsOverride?: Exam[]): ExamAttendanceSummary[] {
+  const exams = examsOverride && examsOverride.length > 0 ? examsOverride : getStoredExams();
+  return exams.map((e) => getExamAttendanceSummary(e.id)).filter(Boolean) as ExamAttendanceSummary[];
+}
+
+// Student Admission Control for Exam Room with Strict Course Registration & Missed Exam Clearance Enforced
+export function admitStudentToExamWithValidation(
+  examId: string,
+  studentId: string
+): { success: boolean; error?: string } {
+  const exams = getStoredExams();
+  const exam = exams.find((e) => e.id === examId);
+  if (!exam) return { success: false, error: 'Examination record not found.' };
+
+  const students = getStoredStudents();
+  const student = students.find((s) => s.id === studentId);
+  if (!student) return { success: false, error: 'Candidate profile record not found.' };
+
+  // Rule: A student that is not registered to a course cannot be admitted into the examination room for that course.
+  const isRegisteredForCourse =
+    student.enrolledCourseCodes?.includes(exam.courseCode) ||
+    exam.registeredStudentIds?.includes(studentId) ||
+    exam.courseCode === 'ALL';
+
+  if (!isRegisteredForCourse) {
+    return {
+      success: false,
+      error: `Admission Denied: Candidate ${student.name} (${student.studentNumber}) is NOT registered for course ${exam.courseCode}. Unregistered candidates cannot be admitted into the examination room.`,
+    };
+  }
+
+  // Rule: Student previously registered for exam who missed must seek clearance from admin before admission.
+  const missedCheck = hasUnapprovedMissedExam(studentId, exam.courseCode, exam.title);
+  if (missedCheck.isBlocked) {
+    const note = missedCheck.resitRequest?.status === 'pending'
+      ? 'Resit clearance request is currently pending Admin review.'
+      : 'No approved Super Admin clearance found.';
+    return {
+      success: false,
+      error: `Missed Examination Clearance Required: Candidate previously missed ${exam.courseCode} — ${exam.title}. ${note} Clearance must be granted by the Super Admin Directorate before room admission.`,
+    };
+  }
+
   if (!exam.admittedStudentIds) exam.admittedStudentIds = [];
   if (!exam.admittedStudentIds.includes(studentId)) {
     exam.admittedStudentIds.push(studentId);
@@ -545,19 +869,47 @@ export function admitStudentToExam(examId: string, studentId: string): boolean {
     );
   }
 
-  return true;
+  return { success: true };
 }
 
-export function admitAllStudentsToExam(examId: string): boolean {
+export function admitStudentToExam(examId: string, studentId: string): boolean {
+  return admitStudentToExamWithValidation(examId, studentId).success;
+}
+
+export function admitAllStudentsToExam(examId: string): { success: boolean; admittedCount: number; rejectedCount: number } {
   const exams = getStoredExams();
   const exam = exams.find((e) => e.id === examId);
-  if (!exam) return false;
+  if (!exam) return { success: false, admittedCount: 0, rejectedCount: 0 };
   const students = getStoredStudents();
-  const targetIds = (exam.registeredStudentIds && exam.registeredStudentIds.length > 0)
-    ? exam.registeredStudentIds
-    : students.map((s) => s.id);
 
-  exam.admittedStudentIds = Array.from(new Set([...(exam.admittedStudentIds || []), ...targetIds]));
+  if (!exam.admittedStudentIds) exam.admittedStudentIds = [];
+
+  let admittedCount = 0;
+  let rejectedCount = 0;
+
+  students.forEach((student) => {
+    const isRegistered =
+      student.enrolledCourseCodes?.includes(exam.courseCode) ||
+      exam.registeredStudentIds?.includes(student.id) ||
+      exam.courseCode === 'ALL';
+
+    if (!isRegistered) {
+      rejectedCount++;
+      return;
+    }
+
+    const missedCheck = hasUnapprovedMissedExam(student.id, exam.courseCode, exam.title);
+    if (missedCheck.isBlocked) {
+      rejectedCount++;
+      return;
+    }
+
+    if (!exam.admittedStudentIds.includes(student.id)) {
+      exam.admittedStudentIds.push(student.id);
+      admittedCount++;
+    }
+  });
+
   saveStoredExams(exams);
 
   // Dispatch custom real-time event
@@ -567,7 +919,7 @@ export function admitAllStudentsToExam(examId: string): boolean {
     );
   }
 
-  return true;
+  return { success: true, admittedCount, rejectedCount };
 }
 
 export function revokeStudentAdmission(examId: string, studentId: string): boolean {
@@ -1259,6 +1611,10 @@ export function reviewMarkOverride(
   }
 
   saveStoredSubmissions(subs);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('examguard_submissions_updated', { detail: { submission: sub } }));
+    window.dispatchEvent(new CustomEvent('examguard_state_sync'));
+  }
   return { success: true, updatedSubmission: sub };
 }
 
@@ -1517,8 +1873,15 @@ export async function reviewCommittedMarkChange(
   const score = sub.score ?? 0;
   const percentage =
     sub.percentage ?? (totalPoints > 0 ? Math.round((score / totalPoints) * 100) : 0);
+  saveStoredSubmissions(subs);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('examguard_submissions_updated', { detail: { submission: sub } }));
+    window.dispatchEvent(new CustomEvent('examguard_state_sync'));
+  }
+
+  // Best-effort sync to backend API
   try {
-    const response = await fetch(
+    fetch(
       `/api/submissions/${encodeURIComponent(submissionId)}/committed-mark-review`,
       {
         method: 'POST',
@@ -1533,21 +1896,9 @@ export async function reviewCommittedMarkChange(
           percentage,
         }),
       }
-    );
-    const result = await response.json();
-    if (!response.ok || !result?.success) {
-      return {
-        success: false,
-        error: result?.error || `Backend review sync failed (${response.status}).`,
-      };
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Could not sync the Super Admin decision.',
-    };
-  }
-  saveStoredSubmissions(subs);
+    ).catch(() => {});
+  } catch {}
+
   return { success: true, updatedSubmission: sub };
 }
 
@@ -1558,4 +1909,6 @@ export function resetToDefaults(): void {
   localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(INITIAL_STUDENTS));
   localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(INITIAL_TEACHERS));
   localStorage.setItem(STORAGE_KEYS.HELP_TICKETS, JSON.stringify(INITIAL_HELP_TICKETS));
+  localStorage.setItem(STORAGE_KEYS.MISSED_EXAMS, JSON.stringify(INITIAL_MISSED_EXAMS));
+  localStorage.setItem(STORAGE_KEYS.RESIT_REQUESTS, JSON.stringify(INITIAL_RESIT_REQUESTS));
 }

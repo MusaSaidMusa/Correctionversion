@@ -10,6 +10,7 @@ import {
   RefreshCw,
   AlertCircle,
   Play,
+  FileText,
 } from 'lucide-react';
 import { Exam, StudentProfile } from '../../types';
 import {
@@ -17,7 +18,9 @@ import {
   registerStudentToWaitingRoom,
   removeStudentFromWaitingRoom,
   admitStudentToExam,
+  hasUnapprovedMissedExam,
 } from '../../services/storageService';
+import { StudentResitRequestModal } from './StudentResitRequestModal';
 
 interface ExamWaitingRoomModalProps {
   exam: Exam;
@@ -26,6 +29,8 @@ interface ExamWaitingRoomModalProps {
   onClose: () => void;
   onAdmittedAndUnlocked: () => void;
   onOpenHelp?: () => void;
+  onRequestResit?: () => void;
+  allExams?: Exam[];
 }
 
 export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
@@ -35,16 +40,31 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
   onClose,
   onAdmittedAndUnlocked,
   onOpenHelp,
+  onRequestResit,
+  allExams = [],
 }) => {
   const [isAdmitted, setIsAdmitted] = useState<boolean>(() =>
     isStudentAdmittedToExam(exam.id, student.id)
   );
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isResitModalOpen, setIsResitModalOpen] = useState(false);
+
+  // Verification 1: Course Registration Check
+  const isEnrolledInCourse =
+    student.enrolledCourseCodes?.includes(exam.courseCode) ||
+    exam.registeredStudentIds?.includes(student.id) ||
+    exam.courseCode === 'ALL';
+
+  // Verification 2: Missed Exam Clearance Check
+  const missedCheck = hasUnapprovedMissedExam(student.id, exam.courseCode, exam.title);
 
   useEffect(() => {
     if (!isOpen) return;
-    registerStudentToWaitingRoom(exam.id, student.id);
+
+    if (isEnrolledInCourse && !missedCheck.isBlocked) {
+      registerStudentToWaitingRoom(exam.id, student.id);
+    }
 
     // Initial check
     setIsAdmitted(isStudentAdmittedToExam(exam.id, student.id));
@@ -59,12 +79,20 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
       }
     };
 
+    const handleResitUpdate = () => {
+      // Re-evaluate admission
+      setIsAdmitted(isStudentAdmittedToExam(exam.id, student.id));
+    };
+
     window.addEventListener('examguard_admission_updated', handleAdmission);
+    window.addEventListener('examguard_resit_requests_updated', handleResitUpdate);
+
     return () => {
       removeStudentFromWaitingRoom(exam.id, student.id);
       window.removeEventListener('examguard_admission_updated', handleAdmission);
+      window.removeEventListener('examguard_resit_requests_updated', handleResitUpdate);
     };
-  }, [exam.id, student.id, isOpen]);
+  }, [exam.id, student.id, isOpen, isEnrolledInCourse, missedCheck.isBlocked]);
 
   if (!isOpen) return null;
 
@@ -78,79 +106,123 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
     onAdmittedAndUnlocked();
   };
 
-  const handleSelfAdmitForTesting = () => {
-    admitStudentToExam(exam.id, student.id);
-    setIsAdmitted(true);
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
-      <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95">
-        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
-              <Clock className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-base">Virtual Examination Waiting Room</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {exam.courseCode} &bull; Rifkins Education College &bull; <span className="italic">"Impacting lives since 1953"</span>
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="p-6 space-y-5 text-sm">
-          <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500 dark:text-slate-400">Candidate:</span>
-              <span className="font-bold text-slate-900 dark:text-slate-100">{student.name}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500 dark:text-slate-400">Student Reg No:</span>
-              <span className="font-mono text-indigo-600 dark:text-indigo-400">{student.studentNumber}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500 dark:text-slate-400">Invigilator:</span>
-              <span>{exam.instructorName}</span>
-            </div>
-          </div>
-
-          {/* Admission Status Indicator */}
-          <div className="p-4 rounded-xl border text-center space-y-2">
-            {isAdmitted ? (
-              <div className="text-emerald-600 dark:text-emerald-400 space-y-1.5">
-                <CheckCircle2 className="w-8 h-8 mx-auto" />
-                <div className="font-bold text-sm">Admitted by Chief Invigilator ✓</div>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  You are cleared to commence your examination session.
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
+        <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95">
+          <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base">Virtual Examination Waiting Room</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {exam.courseCode} &bull; Rifkins Education College &bull; <span className="italic">"Impacting lives since 1953"</span>
                 </p>
               </div>
-            ) : (
-              <div className="text-amber-600 dark:text-amber-400 space-y-1.5">
-                <RefreshCw className="w-8 h-8 mx-auto animate-spin" />
-                <div className="font-bold text-sm">Awaiting Invigilator Admission</div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  The instructor is verifying candidate identities. You will be automatically admitted shortly.
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-5 text-sm">
+            <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Candidate:</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">{student.name}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Student Reg No:</span>
+                <span className="font-mono text-indigo-600 dark:text-indigo-400">{student.studentNumber}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Invigilator:</span>
+                <span>{exam.instructorName}</span>
+              </div>
+            </div>
+
+            {/* BLOCK CASE 1: NOT REGISTERED FOR COURSE */}
+            {!isEnrolledInCourse ? (
+              <div className="p-5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border-2 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 space-y-3">
+                <div className="flex items-center gap-2 font-bold text-sm text-rose-700 dark:text-rose-300">
+                  <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                  <span>Admission Denied: Not Enrolled in Course</span>
+                </div>
+                <p className="text-xs leading-relaxed">
+                  Institutional Security Rule: Candidate <strong className="font-mono">{student.studentNumber}</strong> is not registered for course <strong className="font-mono">{exam.courseCode}</strong>. Students not registered to a course cannot be admitted into the examination room for that course.
                 </p>
-                <div className="pt-2">
+                <div className="pt-1 flex items-center justify-end">
                   <button
                     type="button"
-                    onClick={handleSelfAdmitForTesting}
-                    className="text-[11px] underline text-indigo-600 dark:text-indigo-400 font-semibold cursor-pointer"
+                    onClick={onClose}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs"
                   >
-                    Quick-admit Candidate (Test Demo)
+                    Return to Dashboard
                   </button>
                 </div>
               </div>
+            ) : missedCheck.isBlocked ? (
+              /* BLOCK CASE 2: MISSED PREVIOUS SITTING & REQUIRES ADMIN CLEARANCE */
+              <div className="p-5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 space-y-3">
+                <div className="flex items-center gap-2 font-bold text-sm text-amber-700 dark:text-amber-300">
+                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                  <span>Missed Examination Clearance Required</span>
+                </div>
+                <p className="text-xs leading-relaxed">
+                  You were previously registered for and missed <strong className="font-mono">{exam.courseCode}</strong> ({exam.title}). In accordance with Rifkins Education College integrity rules, candidates who missed an examination must obtain approval from the Super Admin Directorate before their admission details can be accepted.
+                </p>
+                {missedCheck.resitRequest?.status === 'pending' ? (
+                  <div className="p-3 bg-amber-100/80 dark:bg-amber-900/40 rounded-lg text-xs font-semibold text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                    <Clock className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+                    <span>Your Resit Clearance Request is currently awaiting Super Admin Directorate review.</span>
+                  </div>
+                ) : (
+                  <div className="pt-1 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsResitModalOpen(true)}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>Submit Resit Clearance Request</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* NORMAL ADMISSION STATUS INDICATOR */
+              <div className="p-4 rounded-xl border text-center space-y-2">
+                {isAdmitted ? (
+                  <div className="text-emerald-600 dark:text-emerald-400 space-y-1.5">
+                    <CheckCircle2 className="w-8 h-8 mx-auto" />
+                    <div className="font-bold text-sm">Admitted by Chief Invigilator ✓</div>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                      Identity verified and registered for course. Cleared to commence your examination.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-amber-600 dark:text-amber-400 space-y-1.5">
+                    <RefreshCw className="w-8 h-8 mx-auto animate-spin" />
+                    <div className="font-bold text-sm">Awaiting Invigilator Admission</div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      The chief invigilator is actively admitting candidates in real time. Your session will unlock as soon as you are admitted.
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
-          </div>
 
           {/* Access passcode if exam requires one */}
           {exam.accessPassword && (
@@ -201,5 +273,16 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
         </div>
       </div>
     </div>
+
+      {isResitModalOpen && (
+        <StudentResitRequestModal
+          isOpen={true}
+          onClose={() => setIsResitModalOpen(false)}
+          student={student}
+          exams={allExams.length > 0 ? allExams : [exam]}
+          preselectedExam={exam}
+        />
+      )}
+    </>
   );
 };

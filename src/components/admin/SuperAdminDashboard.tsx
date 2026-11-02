@@ -54,6 +54,9 @@ import {
   Question,
   Course,
   AuthUser,
+  MissedExamRecord,
+  ResitRequest,
+  ExamAttendanceSummary,
 } from '../../types';
 import {
   getStoredTeachers,
@@ -83,6 +86,14 @@ import {
   saveStoredSuperAdmin,
   verifyUserPassword,
   updateUserPassword,
+  getStoredMissedExams,
+  saveStoredMissedExams,
+  getStoredResitRequests,
+  saveStoredResitRequests,
+  hasUnapprovedMissedExam,
+  reviewResitRequest,
+  getAllExamsAttendanceSummaries,
+  registerStudentToExamWithValidation,
 } from '../../services/storageService';
 import { ProfileDetailModal } from '../common/ProfileDetailModal';
 import { ExaminationPaperModal } from '../common/ExaminationPaperModal';
@@ -127,23 +138,31 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   resetKey,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'all_exams' | 'teachers' | 'mark_overrides' | 'student_registrations' | 'tickets' | 'departments' | 'reports'
+    'all_exams' | 'teachers' | 'mark_overrides' | 'student_registrations' | 'tickets' | 'departments' | 'reports' | 'attendance_missed'
   >('all_exams');
 
   const [teachers, setTeachers] = useState<TeacherProfile[]>(() => getStoredTeachers());
   const [tickets, setTickets] = useState<HelpTicket[]>(() => getStoredHelpTickets());
   const [faculties, setFaculties] = useState(() => getStoredFaculties());
+  const [missedExams, setMissedExams] = useState<MissedExamRecord[]>(() => getStoredMissedExams());
+  const [resitRequests, setResitRequests] = useState<ResitRequest[]>(() => getStoredResitRequests());
 
-  // Real-time synchronization of submissions and admissions across Super Admin Directorate
+  // Real-time synchronization of submissions, admissions, missed exams, and resit clearances across Super Admin Directorate
   useEffect(() => {
     const handleRealtimeUpdate = () => {
+      setMissedExams(getStoredMissedExams());
+      setResitRequests(getStoredResitRequests());
       onDataRefresh();
     };
     window.addEventListener('examguard_submissions_updated', handleRealtimeUpdate);
     window.addEventListener('examguard_admissions_updated', handleRealtimeUpdate);
+    window.addEventListener('examguard_resit_requests_updated', handleRealtimeUpdate);
+    window.addEventListener('examguard_missed_exams_updated', handleRealtimeUpdate);
     return () => {
       window.removeEventListener('examguard_submissions_updated', handleRealtimeUpdate);
       window.removeEventListener('examguard_admissions_updated', handleRealtimeUpdate);
+      window.removeEventListener('examguard_resit_requests_updated', handleRealtimeUpdate);
+      window.removeEventListener('examguard_missed_exams_updated', handleRealtimeUpdate);
     };
   }, [onDataRefresh]);
 
@@ -894,6 +913,93 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     }
   };
 
+  const handleDirectApproveOverride = (
+    submission: ExamSubmission,
+    questionId: string,
+    e?: React.MouseEvent
+  ) => {
+    if (e) e.stopPropagation();
+    const res = reviewMarkOverride(
+      submission.id,
+      questionId,
+      'approve',
+      'Institutional mark adjustment verified and approved by Super Admin.',
+      'Dr. Marcus Sterling (Super Admin)'
+    );
+    if (res.success) {
+      showToast('Mark modification approved!');
+      refreshData();
+    } else {
+      showToast(res.error || 'Failed to approve mark override.');
+    }
+  };
+
+  const handleDirectDeclineOverride = (
+    submission: ExamSubmission,
+    questionId: string,
+    e?: React.MouseEvent
+  ) => {
+    if (e) e.stopPropagation();
+    const res = reviewMarkOverride(
+      submission.id,
+      questionId,
+      'decline',
+      'Super Admin reviewed and declined modification; original score restored.',
+      'Dr. Marcus Sterling (Super Admin)'
+    );
+    if (res.success) {
+      showToast('Mark modification declined & original score restored!');
+      refreshData();
+    } else {
+      showToast(res.error || 'Failed to decline mark override.');
+    }
+  };
+
+  const handleApproveResitRequest = (requestId: string) => {
+    const note = prompt(
+      'Admin clearance authorization note (optional):',
+      'Approved by Institutional Senate & Super Admin for exam resit.'
+    ) || 'Approved by Super Admin.';
+    const res = reviewResitRequest(requestId, 'approved', note, 'Dr. Marcus Sterling (Super Admin)');
+    if (res.success) {
+      showToast('Student resit clearance approved! Candidate is now authorized to register & enter exam.');
+      setResitRequests(getStoredResitRequests());
+      setMissedExams(getStoredMissedExams());
+      refreshData();
+    } else {
+      showToast(res.error || 'Failed to approve clearance.');
+    }
+  };
+
+  const handleDeclineResitRequest = (requestId: string) => {
+    const note = prompt(
+      'Reason for declining clearance:',
+      'Unexcused absence without timely medical or institutional clearance.'
+    ) || 'Declined by Super Admin.';
+    const res = reviewResitRequest(requestId, 'declined', note, 'Dr. Marcus Sterling (Super Admin)');
+    if (res.success) {
+      showToast('Student resit clearance declined.');
+      setResitRequests(getStoredResitRequests());
+      setMissedExams(getStoredMissedExams());
+      refreshData();
+    } else {
+      showToast(res.error || 'Failed to decline clearance.');
+    }
+  };
+
+  const handleToggleMissedClearance = (recordId: string, currentCleared: boolean) => {
+    const records = getStoredMissedExams();
+    const target = records.find((r) => r.id === recordId);
+    if (!target) return;
+    target.isCleared = !currentCleared;
+    target.clearedAt = !currentCleared ? new Date().toISOString() : undefined;
+    target.clearedBy = !currentCleared ? 'Dr. Marcus Sterling (Super Admin)' : undefined;
+    saveStoredMissedExams(records);
+    setMissedExams(records);
+    showToast(!currentCleared ? `Cleared ${target.studentName} for ${target.courseCode}.` : `Revoked clearance for ${target.studentName}.`);
+    refreshData();
+  };
+
   const handleOpenCommittedMarkReview = (submission: ExamSubmission) => {
     const changeRequest = submission.committedMarkChangeRequest;
     if (!changeRequest) return;
@@ -1004,10 +1110,17 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       updateStudent(updatedCandidate);
       await syncProfileToApi('/api/students', updatedCandidate);
 
-      // Synchronize student exam enrollments
+      // Synchronize student exam enrollments with strict Missed Exam clearance check
       exams.forEach((ex) => {
         if (selectedExamEnrollments.includes(ex.id)) {
-          registerStudentToExam(editingStudentId, ex.id);
+          const missedCheck = hasUnapprovedMissedExam(editingStudentId, ex.courseCode, ex.title);
+          if (missedCheck.isBlocked) {
+            alert(
+              `Registration Blocked for ${ex.courseCode} — ${ex.title}: Candidate ${updatedCandidate.name} previously registered and missed this examination. Super Admin clearance approval is required before candidate details can be accepted.`
+            );
+            return;
+          }
+          registerStudentToExamWithValidation(editingStudentId, ex.id);
         } else if (ex.registeredStudentIds?.includes(editingStudentId)) {
           unregisterStudentFromExam(editingStudentId, ex.id);
         }
@@ -1027,7 +1140,22 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
       };
 
-      addStudent(newCandidate, selectedExamEnrollments);
+      const approvedEnrollments: string[] = [];
+      selectedExamEnrollments.forEach((exId) => {
+        const ex = exams.find((e) => e.id === exId);
+        if (ex) {
+          const missedCheck = hasUnapprovedMissedExam(newCandidate.id, ex.courseCode, ex.title);
+          if (missedCheck.isBlocked) {
+            alert(
+              `Registration Blocked for ${ex.courseCode} — ${ex.title}: Candidate ${newCandidate.name} has an unapproved missed exam flag. Super Admin clearance is required before registration can be accepted.`
+            );
+            return;
+          }
+          approvedEnrollments.push(exId);
+        }
+      });
+
+      addStudent(newCandidate, approvedEnrollments);
       await syncProfileToApi('/api/students', newCandidate);
       showToast(`Registered candidate ${newCandidate.name} with profile photo.`);
     }
@@ -1380,6 +1508,19 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         >
           <LifeBuoy className={`w-4 h-4 ${activeTab === 'tickets' ? 'text-[#1a2200]' : 'text-rose-500'}`} />
           <span>Incident Inquiries ({tickets.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('attendance_missed')}
+          className={`flex-1 min-w-[170px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
+            activeTab === 'attendance_missed'
+              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+          }`}
+        >
+          <Users className={`w-4 h-4 ${activeTab === 'attendance_missed' ? 'text-[#1a2200]' : 'text-amber-600'}`} />
+          <span>Attendance & Missed Exam Clearance ({resitRequests.filter((r) => r.status === 'pending').length} Pending)</span>
         </button>
 
         <button
@@ -2033,50 +2174,43 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                       </div>
 
                       {/* Super Admin Decision Action Buttons */}
-                      {/* Requirement: Once admin approves the marks modification, the button becomes inactive */}
-                      {/* Hover: Dark Orange | Clicked/Active: Green */}
                       <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
                         <button
                           type="button"
-                          disabled={isApproved}
-                          onClick={() => !isApproved && handleOpenReviewOverride(submission, questionId, answer, exam, 'enquiry')}
-                          className={`px-3.5 py-1.5 border rounded-lg font-semibold flex items-center gap-1.5 transition-all ${
-                            isApproved
-                              ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 pointer-events-none'
-                              : 'bg-indigo-50 hover:bg-orange-600 hover:text-white hover:border-orange-500 active:bg-emerald-600 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 cursor-pointer shadow-xs'
-                          }`}
+                          onClick={() => handleOpenReviewOverride(submission, questionId, answer, exam, 'enquiry')}
+                          className="px-3 py-1.5 border rounded-lg font-semibold flex items-center gap-1.5 transition-all bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 cursor-pointer shadow-xs"
+                          title="Open audit form to write enquiry note to instructor"
                         >
                           <MessageSquare className="w-3.5 h-3.5" />
-                          <span>Send Enquiry for Explanation</span>
+                          <span>Audit Note / Enquiry</span>
                         </button>
 
                         <button
                           type="button"
-                          disabled={isApproved}
-                          onClick={() => !isApproved && handleOpenReviewOverride(submission, questionId, answer, exam, 'decline')}
-                          className={`px-3.5 py-1.5 border rounded-lg font-semibold flex items-center gap-1.5 transition-all ${
-                            isApproved
-                              ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 pointer-events-none'
-                              : 'bg-rose-50 hover:bg-orange-600 hover:text-white hover:border-orange-500 active:bg-emerald-600 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border-rose-200 dark:border-rose-800 cursor-pointer shadow-xs'
+                          onClick={(e) => handleDirectDeclineOverride(submission, questionId, e)}
+                          className={`px-3.5 py-1.5 border rounded-lg font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                            status === 'declined'
+                              ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                              : 'bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 dark:bg-rose-950 dark:text-rose-300 border-rose-300 dark:border-rose-800'
                           }`}
+                          title="Decline this mark modification and restore original marks"
                         >
-                          <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                          <span>Decline Modification & Revert</span>
+                          <XCircle className="w-3.5 h-3.5" />
+                          <span>{status === 'declined' ? 'Declined & Reverted ✓' : 'Decline Modification & Revert'}</span>
                         </button>
 
                         <button
                           type="button"
-                          disabled={isApproved}
-                          onClick={() => !isApproved && handleOpenReviewOverride(submission, questionId, answer, exam, 'approve')}
-                          className={`px-4 py-1.5 rounded-lg font-bold shadow-xs flex items-center gap-1.5 transition-all ${
-                            isApproved
-                              ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-300 dark:border-slate-700 cursor-not-allowed opacity-60 pointer-events-none'
-                              : 'bg-emerald-600 hover:bg-orange-600 active:bg-emerald-700 text-white cursor-pointer border border-emerald-500 hover:border-orange-500'
+                          onClick={(e) => handleDirectApproveOverride(submission, questionId, e)}
+                          className={`px-4 py-1.5 rounded-lg font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+                            status === 'approved'
+                              ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/20'
+                              : 'bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
                           }`}
-                          title={isApproved ? 'Modification has already been approved by Administrator' : 'Approve Modification'}
+                          title="Approve and accept this mark modification for the student"
                         >
-                          <CheckCircle2 className={`w-3.5 h-3.5 ${isApproved ? 'text-emerald-500' : 'text-white'}`} />
-                          <span>{isApproved ? 'Modification Approved (Inactive)' : 'Approve Modification'}</span>
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>{status === 'approved' ? 'Modification Approved ✓' : 'Approve Modification'}</span>
                         </button>
                       </div>
                     </div>
@@ -2151,7 +2285,14 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                         className="w-12 h-12 rounded-full object-cover border border-slate-300 dark:border-slate-700 shadow-xs"
                       />
                       <div className="space-y-0.5">
-                        <h4 className="font-bold text-slate-900 dark:text-white text-sm">{student.name}</h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-slate-900 dark:text-white text-sm">{student.name}</h4>
+                          {missedExams.some((m) => m.studentId === student.id && !m.isCleared) && (
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950 dark:text-amber-300">
+                              Missed Exam Flag
+                            </span>
+                          )}
+                        </div>
                         <div className="text-slate-500 font-mono text-[11px]">{student.email}</div>
                         <div className="text-slate-400 font-mono text-[11px]">
                           {student.studentNumber} · {student.department}
@@ -2220,11 +2361,28 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                       className="p-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded text-xs flex-1 text-slate-800 dark:text-slate-200"
                       defaultValue=""
                       onChange={(e) => {
-                        if (e.target.value) {
-                          registerStudentToExam(student.id, e.target.value);
-                          showToast(`Enrolled ${student.name} into examination.`);
-                          e.target.value = '';
-                          refreshData();
+                        const examId = e.target.value;
+                        if (examId) {
+                          const targetExam = exams.find((ex) => ex.id === examId);
+                          if (targetExam) {
+                            const missedCheck = hasUnapprovedMissedExam(student.id, targetExam.courseCode, targetExam.title);
+                            if (missedCheck.isBlocked) {
+                              alert(
+                                `Registration Blocked: Candidate ${student.name} previously registered for ${targetExam.courseCode} — ${targetExam.title} but missed sitting. Admin clearance approval is required before candidate details can be accepted on this examination.`
+                              );
+                              e.target.value = '';
+                              return;
+                            }
+                            const res = registerStudentToExamWithValidation(student.id, examId);
+                            if (!res.success) {
+                              alert(res.error);
+                              e.target.value = '';
+                              return;
+                            }
+                            showToast(`Enrolled ${student.name} into ${targetExam.courseCode}.`);
+                            e.target.value = '';
+                            refreshData();
+                          }
                         }
                       }}
                     >
@@ -2576,6 +2734,308 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* TAB: EXAMINATION ATTENDANCE CENSUS & MISSED EXAM CLEARANCE AUTHORITY */}
+      {activeTab === 'attendance_missed' && (() => {
+        const attendanceSummaries = getAllExamsAttendanceSummaries(exams);
+        const totalRegisteredSittings = attendanceSummaries.reduce((sum, s) => sum + s.totalRegistered, 0);
+        const totalSatSittings = attendanceSummaries.reduce((sum, s) => sum + s.totalSat, 0);
+        const totalMissedSittings = attendanceSummaries.reduce((sum, s) => sum + s.totalMissed, 0);
+        const overallAttendanceRate = totalRegisteredSittings > 0 ? Math.round((totalSatSittings / totalRegisteredSittings) * 100) : 100;
+        const pendingResitsCount = resitRequests.filter((r) => r.status === 'pending').length;
+
+        return (
+          <div className="space-y-6">
+            {/* Top Overview Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+              <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
+                <span className="text-[11px] font-semibold text-slate-500 uppercase">Examinations Monitored</span>
+                <div className="text-xl font-black text-slate-900 dark:text-white font-mono">{exams.length}</div>
+                <span className="text-[10px] text-slate-400">Active Curriculum Papers</span>
+              </div>
+
+              <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
+                <span className="text-[11px] font-semibold text-slate-500 uppercase">Total Sittings Registered</span>
+                <div className="text-xl font-black text-indigo-600 dark:text-indigo-400 font-mono">{totalRegisteredSittings}</div>
+                <span className="text-[10px] text-slate-400">Sum of Candidate Enrollments</span>
+              </div>
+
+              <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
+                <span className="text-[11px] font-semibold text-emerald-600 uppercase">Sat & Completed</span>
+                <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{totalSatSittings}</div>
+                <span className="text-[10px] text-emerald-600/80 font-medium">{overallAttendanceRate}% Attendance Rate</span>
+              </div>
+
+              <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900/60 shadow-xs space-y-1">
+                <span className="text-[11px] font-semibold text-rose-600 uppercase">Registered But Missed</span>
+                <div className="text-xl font-black text-rose-600 dark:text-rose-400 font-mono">{totalMissedSittings}</div>
+                <span className="text-[10px] text-rose-500 font-medium">Failed to connect/sit</span>
+              </div>
+
+              <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 shadow-xs space-y-1">
+                <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 uppercase">Pending Resit Clearances</span>
+                <div className="text-xl font-black text-amber-700 dark:text-amber-400 font-mono">{pendingResitsCount}</div>
+                <span className="text-[10px] text-amber-700 dark:text-amber-300 font-semibold">Requires Admin Review</span>
+              </div>
+            </div>
+
+            {/* SECTION 1: EXAM ATTENDANCE SUM-UP TABLE */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/40 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+                    Institutional Examination Attendance Sum-Up ({attendanceSummaries.length} Exams)
+                  </h3>
+                  <p className="text-xs text-slate-500 font-mono">
+                    Official census of registered candidates, completed sittings, and missed examination sessions.
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100/70 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-700">
+                      <th className="p-3.5">Course Code & Examination Title</th>
+                      <th className="p-3.5">Chief Examiner</th>
+                      <th className="p-3.5 text-center">Total Registered</th>
+                      <th className="p-3.5 text-center">Sat & Completed</th>
+                      <th className="p-3.5 text-center">Registered But Missed</th>
+                      <th className="p-3.5 text-center">Attendance %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {attendanceSummaries.map((summary) => (
+                      <tr key={summary.examId} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="p-3.5">
+                          <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                              {summary.courseCode}
+                            </span>
+                            <span>{summary.title}</span>
+                          </div>
+                        </td>
+                        <td className="p-3.5 text-slate-600 dark:text-slate-300 font-medium">
+                          {summary.instructorName}
+                        </td>
+                        <td className="p-3.5 text-center font-mono font-bold text-slate-800 dark:text-slate-200">
+                          {summary.totalRegistered}
+                        </td>
+                        <td className="p-3.5 text-center font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                          {summary.totalSat}
+                        </td>
+                        <td className="p-3.5 text-center font-mono font-bold">
+                          {summary.totalMissed > 0 ? (
+                            <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 font-bold">
+                              {summary.totalMissed} Missed
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">0</span>
+                          )}
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <div className="inline-flex items-center gap-2">
+                            <div className="w-16 h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                              <div
+                                className="h-full bg-emerald-500 rounded-full"
+                                style={{ width: `${summary.attendanceRate}%` }}
+                              />
+                            </div>
+                            <span className="font-mono font-bold text-xs text-slate-700 dark:text-slate-300">
+                              {summary.attendanceRate}%
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* SECTION 2: STUDENT RESIT CLEARANCE REQUESTS QUEUE */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-amber-50/60 dark:bg-amber-950/30 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-amber-600" />
+                    <span>Student Resit Clearance Requests ({resitRequests.length} Total · {pendingResitsCount} Pending)</span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Students who missed a scheduled examination must seek Super Admin clearance before they are accepted for resits or registration.
+                  </p>
+                </div>
+              </div>
+
+              <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                {resitRequests.length === 0 ? (
+                  <div className="p-10 text-center text-slate-400">
+                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-700" />
+                    <p>No student resit requests currently pending.</p>
+                  </div>
+                ) : (
+                  resitRequests.map((req) => (
+                    <div key={req.id} className="p-5 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+                          <span className="font-bold text-slate-900 dark:text-white text-sm font-sans">{req.studentName}</span>
+                          <span className="text-slate-400">·</span>
+                          <span className="text-slate-500">{req.studentNumber}</span>
+                          <span className="text-slate-400">·</span>
+                          <span className="text-indigo-600 dark:text-indigo-400 font-bold">{req.courseCode}</span>
+                          <span className="text-slate-400">·</span>
+                          <span className="font-sans text-slate-700 dark:text-slate-300">{req.examTitle}</span>
+                        </div>
+
+                        <span
+                          className={`px-2.5 py-1 rounded-full font-mono text-[11px] font-bold uppercase ${
+                            req.status === 'approved'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300'
+                              : req.status === 'declined'
+                              ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300'
+                              : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400 border border-amber-300 animate-pulse'
+                          }`}
+                        >
+                          {req.status === 'pending' ? 'Pending Admin Clearance' : `Clearance ${req.status}`}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <div>
+                          <span className="text-[11px] font-bold text-slate-500 uppercase block mb-0.5">
+                            Declared Grounds for Absence:
+                          </span>
+                          <span className="font-semibold text-slate-900 dark:text-white capitalize">
+                            {(req.grounds || req.reasonCategory || 'medical').replace('_', ' ')}
+                          </span>
+                          {req.evidenceDocument && (
+                            <div className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                              ✓ Evidence Document Attached: {req.evidenceDocument}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-bold text-slate-500 uppercase block mb-0.5">
+                            Candidate Explanation:
+                          </span>
+                          <p className="text-slate-700 dark:text-slate-300 italic">
+                            "{req.explanation}"
+                          </p>
+                        </div>
+                      </div>
+
+                      {req.adminNotes && (
+                        <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg border border-indigo-200 dark:border-indigo-800 text-[11px]">
+                          <strong>Super Admin Note:</strong> {req.adminNotes} (Reviewed by {req.reviewedBy})
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleDeclineResitRequest(req.id)}
+                          className={`px-3.5 py-1.5 rounded-lg border font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                            req.status === 'declined'
+                              ? 'bg-rose-600 text-white border-rose-600'
+                              : 'bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 dark:bg-rose-950 dark:text-rose-300 border-rose-300'
+                          }`}
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          <span>{req.status === 'declined' ? 'Clearance Declined ✓' : 'Decline Clearance'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleApproveResitRequest(req.id)}
+                          className={`px-4 py-1.5 rounded-lg font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+                            req.status === 'approved'
+                              ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/20'
+                              : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500'
+                          }`}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>{req.status === 'approved' ? 'Clearance Approved ✓' : 'Approve Clearance (Authorize Sitting)'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* SECTION 3: REGISTERED CANDIDATES WHO MISSED TO CONNECT & SIT */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/40 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-rose-600" />
+                    <span>Registered Candidates Flagged for Missed Examination ({missedExams.length} Records)</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 font-mono">
+                    Candidates registered previously but failed to connect and sit. Enforced restriction: cannot be admitted or accepted on this examination without approved clearance.
+                  </p>
+                </div>
+              </div>
+
+              <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                {missedExams.length === 0 ? (
+                  <div className="p-10 text-center text-slate-400">
+                    <p>No missed examination flags on record.</p>
+                  </div>
+                ) : (
+                  missedExams.map((record) => (
+                    <div key={record.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 dark:text-white text-sm">{record.studentName}</span>
+                          <span className="text-slate-400 font-mono">({record.studentNumber})</span>
+                          <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                            {record.courseCode}
+                          </span>
+                        </div>
+                        <div className="text-slate-600 dark:text-slate-400">
+                          Missed: <strong>{record.examTitle}</strong> &bull; Scheduled Session: {record.scheduledDate ? new Date(record.scheduledDate).toLocaleDateString() : 'Session Missed'}
+                        </div>
+                        {record.missedReason && (
+                          <div className="text-[11px] text-slate-500 italic">
+                            Reason: {record.missedReason}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2.5 shrink-0">
+                        {record.isCleared ? (
+                          <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold border border-emerald-300 flex items-center gap-1 text-[11px]">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Cleared by Admin</span>
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 font-bold border border-rose-300 flex items-center gap-1 text-[11px]">
+                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                            <span>Uncleared (Blocked)</span>
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleToggleMissedClearance(record.id, !!record.isCleared)}
+                          className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition-colors cursor-pointer border ${
+                            record.isCleared
+                              ? 'bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                              : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-600 shadow-xs'
+                          }`}
+                        >
+                          {record.isCleared ? 'Revoke Clearance' : 'Grant Admin Clearance'}
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* TAB 7: INSTITUTIONAL REPORTS & ANALYTICS (EXAMS DONE, DEPARTMENTAL CENSUS, TIMEFRAMES, PASS RATE & IMPROVEMENT CHARTS) */}
       {activeTab === 'reports' && (

@@ -346,3 +346,65 @@ export interface HelpTicket {
   adminReply?: string;
   activeExamId?: string;
 }
+
+export interface MissedExamRecord {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentNumber: string;
+  studentEmail: string;
+  courseCode: string;
+  examTitle: string;
+  examId: string;
+  scheduledDate?: string;
+  missedReason?: string;
+  status: 'uncleared' | 'resit_pending' | 'cleared' | 'resit_declined';
+  recordedAt: string;
+  isCleared?: boolean;
+  clearedAt?: string;
+  clearedBy?: string;
+}
+
+export interface ResitRequest {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentNumber: string;
+  studentEmail: string;
+  courseCode: string;
+  examTitle: string;
+  examId?: string;
+  missedDate?: string;
+  reasonCategory?: 'medical' | 'technical' | 'compassionate' | 'academic_clash' | 'other';
+  reasonDetails?: string;
+  grounds?: string;
+  explanation?: string;
+  evidenceNotes?: string;
+  evidenceDocument?: string;
+  attachmentFileName?: string;
+  status: 'pending' | 'approved' | 'declined';
+  submittedAt: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  adminDecisionNote?: string;
+  adminNotes?: string;
+}
+
+export interface ExamAttendanceSummary {
+  examId: string;
+  courseCode: string;
+  examTitle: string;
+  title?: string;
+  instructorName?: string;
+  attendanceRate?: number;
+  department?: string;
+  faculty?: string;
+  totalRegistered: number;
+  totalSat: number;
+  totalMissed: number;
+  missedStudents: {
+    student: StudentProfile;
+    missedDate?: string;
+    clearanceStatus: 'uncleared' | 'resit_pending' | 'cleared' | 'resit_declined';
+  }[];
+}

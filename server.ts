@@ -143,6 +143,29 @@ app.post('/api/submissions/:id/committed-mark-review', (req: Request, res: Respo
   });
 });
 
+// Resit Requests endpoints
+app.get('/api/resit-requests', (_req: Request, res: Response) => {
+  res.json({ success: true, timestamp: new Date().toISOString() });
+});
+
+app.post('/api/resit-requests', (req: Request, res: Response) => {
+  res.json({
+    success: true,
+    message: 'Resit request submitted successfully.',
+    data: req.body,
+  });
+});
+
+app.post('/api/resit-requests/:id/review', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { action, note, reviewedBy } = req.body;
+  res.json({
+    success: true,
+    message: `Resit request ${id} ${action}ed by ${reviewedBy || 'Admin'}.`,
+    data: { id, action, note, reviewedBy, reviewedAt: new Date().toISOString() },
+  });
+});
+
 // Dev server Vite integration & SPA HTML serving
 async function startServer() {
   if (!isStandaloneApi) {

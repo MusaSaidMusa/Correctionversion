@@ -117,24 +117,36 @@ export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
           </div>
 
           {/* Exam Details Grid */}
-          <div className="grid grid-cols-2 gap-y-2 text-sm border-b border-slate-300 pb-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm border-b-2 border-black pb-5 mb-6">
             <div>
-              <strong>Course Code:</strong> {exam.courseCode}
+              <strong>Examination Title:</strong> {exam.title}
             </div>
             <div>
-              <strong>Date:</strong> {exam.scheduledDate || new Date(exam.scheduledStartTime).toLocaleDateString()}
+              <strong>Course Code:</strong> <span className="font-mono font-bold">{exam.courseCode}</span>
             </div>
             <div>
               <strong>Course Title:</strong> {exam.courseTitle || exam.title}
             </div>
             <div>
-              <strong>Time Allowed:</strong> {exam.durationMinutes} Minutes
+              <strong>Academic Faculty:</strong> {faculty || exam.faculty || 'Faculty of Computing & Information Technologies'}
             </div>
             <div>
-              <strong>Chief Examiner:</strong> {exam.instructorName}
+              <strong>Department:</strong> {department || exam.department || 'Computer Science & Software Engineering'}
             </div>
             <div>
-              <strong>Total Marks Available:</strong> {totalPoints} Marks
+              <strong>Examination Date:</strong> {exam.scheduledDate || new Date(exam.scheduledStartTime).toLocaleDateString()}
+            </div>
+            <div>
+              <strong>Time Allowed:</strong> {exam.durationMinutes} Minutes ({Math.floor(exam.durationMinutes / 60) > 0 ? `${Math.floor(exam.durationMinutes / 60)} Hour${Math.floor(exam.durationMinutes / 60) > 1 ? 's' : ''} ` : ''}{exam.durationMinutes % 60 > 0 ? `${exam.durationMinutes % 60} Minutes` : ''})
+            </div>
+            <div>
+              <strong>Chief Invigilator:</strong> {exam.instructorName}
+            </div>
+            <div>
+              <strong>Total Marks Available:</strong> <span className="font-bold">{totalPoints} Marks (100%)</span>
+            </div>
+            <div>
+              <strong>Academic Level / Credits:</strong> {exam.level || 'Degree Level'} &bull; {exam.credits || 3} Credits
             </div>
           </div>
 
