@@ -7,8 +7,11 @@ import {
   Trash2,
   BookOpen,
   Search,
+  AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react';
 import { Exam, StudentProfile } from '../../types';
+import { checkMissedExamRegistrationBlock } from '../../services/storageService';
 
 interface StudentRegistrationModalProps {
   isOpen: boolean;
@@ -16,7 +19,7 @@ interface StudentRegistrationModalProps {
   exams: Exam[];
   targetExam: Exam | null;
   students: StudentProfile[];
-  onEnrollExistingStudent: (studentId: string, examId: string) => boolean;
+  onEnrollExistingStudent: (studentId: string, examId: string) => { success: boolean; error?: string } | boolean;
   onUnenrollStudent: (studentId: string, examId: string) => boolean;
   onRegisterStudent: (newStudent: StudentProfile, enrolledCodes: string[]) => void;
 }
@@ -36,6 +39,7 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
     targetExam?.id || exams[0]?.id || ''
   );
   const [searchFilter, setSearchFilter] = useState('');
+  const [enrollmentError, setEnrollmentError] = useState<string | null>(null);
 
   // Form state for new candidate registration
   const [newName, setNewName] = useState('');
@@ -164,9 +168,29 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
                 </div>
               </div>
 
+              {enrollmentError && (
+                <div className="p-3.5 bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 rounded-xl flex items-start gap-2.5 text-rose-800 dark:text-rose-200 text-xs">
+                  <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-0.5">
+                    <div className="font-bold">Administrative Clearance Required</div>
+                    <div>{enrollmentError}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEnrollmentError(null)}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               <div className="mt-4 border rounded-xl divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
                 {filteredStudents.map((st) => {
                   const isEnrolled = currentExam?.registeredStudentIds?.includes(st.id);
+                  const blockCheck = currentExam
+                    ? checkMissedExamRegistrationBlock(st.studentNumber, currentExam.courseCode, currentExam.title)
+                    : { isBlocked: false };
 
                   return (
                     <div
@@ -180,15 +204,24 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
                           className="w-8 h-8 rounded-full object-cover"
                         />
                         <div>
-                          <div className="font-bold text-slate-900 dark:text-slate-100">{st.name}</div>
+                          <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                            <span>{st.name}</span>
+                            {blockCheck.isBlocked && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-800 px-2 py-0.5 rounded-full">
+                                <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                <span>Missed Exam · Admin Clearance Required</span>
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[10px] text-slate-500">
-                            Reg: {st.studentNumber} &bull; {st.department || 'Computing'}
+                            Admission / Reg: <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{st.studentNumber}</span> &bull; {st.department || 'Computing'}
                           </div>
                         </div>
                       </div>
 
                       {isEnrolled ? (
                         <button
+                          type="button"
                           onClick={() => currentExam && onUnenrollStudent(st.id, currentExam.id)}
                           className="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-900 font-semibold hover:bg-rose-100 cursor-pointer flex items-center gap-1"
                         >
@@ -197,11 +230,30 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
                         </button>
                       ) : (
                         <button
-                          onClick={() => currentExam && onEnrollExistingStudent(st.id, currentExam.id)}
-                          className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 cursor-pointer flex items-center gap-1"
+                          type="button"
+                          onClick={() => {
+                            if (!currentExam) return;
+                            if (blockCheck.isBlocked) {
+                              setEnrollmentError(
+                                `Re-registration Blocked: Candidate ${st.name} (Admission: ${st.studentNumber}) was previously registered for examination [Code: ${currentExam.courseCode} | Title: "${currentExam.title}"] but missed the session. Re-registration is strictly prevented until cleared by the Administrator.`
+                              );
+                              return;
+                            }
+                            setEnrollmentError(null);
+                            const res = onEnrollExistingStudent(st.id, currentExam.id);
+                            if (typeof res === 'object' && !res.success && res.error) {
+                              setEnrollmentError(res.error);
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer flex items-center gap-1 transition-colors ${
+                            blockCheck.isBlocked
+                              ? 'bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 hover:bg-rose-100'
+                              : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                          }`}
+                          title={blockCheck.isBlocked ? 'Admin clearance required for missed exam' : 'Enroll candidate into exam'}
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Enroll Candidate</span>
+                          <span>{blockCheck.isBlocked ? 'Blocked (Missed Exam)' : 'Enroll Candidate'}</span>
                         </button>
                       )}
                     </div>

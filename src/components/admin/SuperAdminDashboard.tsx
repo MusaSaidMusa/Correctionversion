@@ -91,6 +91,9 @@ import {
   getStoredResitRequests,
   saveStoredResitRequests,
   hasUnapprovedMissedExam,
+  adminClearMissedExam,
+  adminRevokeMissedExamClearance,
+  checkMissedExamRegistrationBlock,
   reviewResitRequest,
   getAllExamsAttendanceSummaries,
   registerStudentToExamWithValidation,
@@ -172,6 +175,12 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pending' | 'suspended'>('all');
   const [examStatusFilter, setExamStatusFilter] = useState<string>('all');
   const [overrideStatusFilter, setOverrideStatusFilter] = useState<string>('all');
+
+  // Direct Admin Clearance for Missed Exams state (Student Admission number, Examination code, Title)
+  const [directClearanceAdmission, setDirectClearanceAdmission] = useState('');
+  const [directClearanceExamCode, setDirectClearanceExamCode] = useState('');
+  const [directClearanceExamTitle, setDirectClearanceExamTitle] = useState('');
+  const [directClearanceStatusMsg, setDirectClearanceStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Teacher Add & Modify Modal State
   const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
@@ -991,13 +1000,60 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     const records = getStoredMissedExams();
     const target = records.find((r) => r.id === recordId);
     if (!target) return;
-    target.isCleared = !currentCleared;
-    target.clearedAt = !currentCleared ? new Date().toISOString() : undefined;
-    target.clearedBy = !currentCleared ? 'Dr. Marcus Sterling (Super Admin)' : undefined;
-    saveStoredMissedExams(records);
-    setMissedExams(records);
-    showToast(!currentCleared ? `Cleared ${target.studentName} for ${target.courseCode}.` : `Revoked clearance for ${target.studentName}.`);
+    if (!currentCleared) {
+      const res = adminClearMissedExam(target.studentNumber, target.courseCode, target.examTitle, 'Dr. Marcus Sterling (Super Admin)');
+      if (res.success) {
+        showToast(`Cleared candidate (Admission: ${target.studentNumber}) for [Code: ${target.courseCode} | Title: "${target.examTitle}"]. Re-registration is now permitted.`);
+      } else {
+        showToast(res.error || 'Could not clear missed exam.');
+      }
+    } else {
+      const res = adminRevokeMissedExamClearance(target.studentNumber, target.courseCode, target.examTitle);
+      if (res.success) {
+        showToast(`Revoked clearance for candidate (Admission: ${target.studentNumber}) on [Code: ${target.courseCode} | Title: "${target.examTitle}"]. Re-registration is now blocked.`);
+      } else {
+        showToast(res.error || 'Could not revoke clearance.');
+      }
+    }
+    setMissedExams(getStoredMissedExams());
+    setResitRequests(getStoredResitRequests());
     refreshData();
+  };
+
+  const handleDirectAdminClearance = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!directClearanceAdmission.trim() || !directClearanceExamCode.trim() || !directClearanceExamTitle.trim()) {
+      setDirectClearanceStatusMsg({
+        type: 'error',
+        text: 'Please enter or select Student Admission number, Examination code, and Title.',
+      });
+      return;
+    }
+    const result = adminClearMissedExam(
+      directClearanceAdmission.trim(),
+      directClearanceExamCode.trim(),
+      directClearanceExamTitle.trim(),
+      'Dr. Marcus Sterling (Super Admin)'
+    );
+    if (result.success) {
+      setDirectClearanceStatusMsg({
+        type: 'success',
+        text: result.message,
+      });
+      showToast(result.message);
+      setMissedExams(getStoredMissedExams());
+      setResitRequests(getStoredResitRequests());
+      setDirectClearanceAdmission('');
+      setDirectClearanceExamCode('');
+      setDirectClearanceExamTitle('');
+      refreshData();
+    } else {
+      setDirectClearanceStatusMsg({
+        type: 'error',
+        text: result.error || 'Failed to clear candidate.',
+      });
+      showToast(result.error || 'Failed to clear candidate.');
+    }
   };
 
   const handleOpenCommittedMarkReview = (submission: ExamSubmission) => {
@@ -1113,10 +1169,10 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       // Synchronize student exam enrollments with strict Missed Exam clearance check
       exams.forEach((ex) => {
         if (selectedExamEnrollments.includes(ex.id)) {
-          const missedCheck = hasUnapprovedMissedExam(editingStudentId, ex.courseCode, ex.title);
+          const missedCheck = checkMissedExamRegistrationBlock(updatedCandidate.studentNumber, ex.courseCode, ex.title);
           if (missedCheck.isBlocked) {
             alert(
-              `Registration Blocked for ${ex.courseCode} — ${ex.title}: Candidate ${updatedCandidate.name} previously registered and missed this examination. Super Admin clearance approval is required before candidate details can be accepted.`
+              `Registration Blocked for [Code: ${ex.courseCode} | Title: "${ex.title}"]: Candidate ${updatedCandidate.name} (Admission: ${updatedCandidate.studentNumber}) previously registered to sit this examination but missed it. Admin clearance is required before re-registration is permitted.`
             );
             return;
           }
@@ -1144,10 +1200,10 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       selectedExamEnrollments.forEach((exId) => {
         const ex = exams.find((e) => e.id === exId);
         if (ex) {
-          const missedCheck = hasUnapprovedMissedExam(newCandidate.id, ex.courseCode, ex.title);
+          const missedCheck = checkMissedExamRegistrationBlock(newCandidate.studentNumber, ex.courseCode, ex.title);
           if (missedCheck.isBlocked) {
             alert(
-              `Registration Blocked for ${ex.courseCode} — ${ex.title}: Candidate ${newCandidate.name} has an unapproved missed exam flag. Super Admin clearance is required before registration can be accepted.`
+              `Registration Blocked for [Code: ${ex.courseCode} | Title: "${ex.title}"]: Candidate ${newCandidate.name} (Admission: ${newCandidate.studentNumber}) previously registered to sit this examination but missed it. Admin clearance is required before re-registration is permitted.`
             );
             return;
           }
@@ -2963,7 +3019,217 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
               </div>
             </div>
 
-            {/* SECTION 3: REGISTERED CANDIDATES WHO MISSED TO CONNECT & SIT */}
+            {/* SECTION 3: DIRECT ADMIN CLEARANCE AUTHORITY (STUDENT ADMISSION NUMBER, EXAMINATION CODE, TITLE) */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200 dark:border-indigo-900 overflow-hidden shadow-xs">
+              <div className="p-4 bg-gradient-to-r from-indigo-50/90 via-sky-50/60 to-purple-50/80 dark:from-indigo-950/40 dark:via-sky-950/30 dark:to-purple-950/30 border-b border-indigo-100 dark:border-indigo-900/60 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    <span>Direct Admin Clearance Authority (Student Admission Number, Examination Code, Title)</span>
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Identify candidate by Student Admission number, Examination code, and Title to clear missed examination restrictions and authorize re-registration.
+                  </p>
+                </div>
+                <span className="text-[11px] font-mono font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 px-2.5 py-1 rounded-md border border-indigo-300 dark:border-indigo-800">
+                  Enforced Re-registration Gate
+                </span>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <form onSubmit={handleDirectAdminClearance} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* FIELD 1: Student Admission Number */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                        Student Admission Number <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          list="missed-candidate-admissions"
+                          value={directClearanceAdmission}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setDirectClearanceAdmission(val);
+                            setDirectClearanceStatusMsg(null);
+                            const matchedMissed = missedExams.find(
+                              (m) => m.studentNumber.toLowerCase() === val.trim().toLowerCase()
+                            );
+                            if (matchedMissed) {
+                              if (!directClearanceExamCode) setDirectClearanceExamCode(matchedMissed.courseCode);
+                              if (!directClearanceExamTitle) setDirectClearanceExamTitle(matchedMissed.examTitle);
+                            }
+                          }}
+                          placeholder="e.g. STU-2024-9031"
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                          required
+                        />
+                        <datalist id="missed-candidate-admissions">
+                          {missedExams.map((m) => (
+                            <option key={`cand-${m.id}`} value={m.studentNumber}>
+                              {m.studentName} ({m.studentNumber}) &bull; {m.courseCode}
+                            </option>
+                          ))}
+                          {students.map((st) => (
+                            <option key={`stu-${st.id}`} value={st.studentNumber}>
+                              {st.name} ({st.studentNumber})
+                            </option>
+                          ))}
+                        </datalist>
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Candidate's institutional admission number.
+                      </p>
+                    </div>
+
+                    {/* FIELD 2: Examination Code */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                        Examination Code <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          list="missed-exam-codes"
+                          value={directClearanceExamCode}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setDirectClearanceExamCode(val);
+                            setDirectClearanceStatusMsg(null);
+                            const matchedExam = exams.find(
+                              (x) => x.courseCode.toLowerCase() === val.trim().toLowerCase()
+                            );
+                            if (matchedExam && !directClearanceExamTitle) {
+                              setDirectClearanceExamTitle(matchedExam.title);
+                            }
+                          }}
+                          placeholder="e.g. CS401 or CS-405"
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-mono uppercase focus:ring-2 focus:ring-indigo-500 outline-none"
+                          required
+                        />
+                        <datalist id="missed-exam-codes">
+                          {missedExams.map((m) => (
+                            <option key={`m-code-${m.id}`} value={m.courseCode}>
+                              {m.courseCode} &bull; {m.examTitle}
+                            </option>
+                          ))}
+                          {exams.map((ex) => (
+                            <option key={`all-codes-${ex.id}`} value={ex.courseCode}>
+                              {ex.courseCode} &bull; {ex.title}
+                            </option>
+                          ))}
+                        </datalist>
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Course / Examination code (e.g. CS401).
+                      </p>
+                    </div>
+
+                    {/* FIELD 3: Examination Title */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                        Examination Title <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          list="missed-exam-titles"
+                          value={directClearanceExamTitle}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setDirectClearanceExamTitle(val);
+                            setDirectClearanceStatusMsg(null);
+                            const matchedExam = exams.find(
+                              (x) => x.title.toLowerCase() === val.trim().toLowerCase()
+                            );
+                            if (matchedExam && !directClearanceExamCode) {
+                              setDirectClearanceExamCode(matchedExam.courseCode);
+                            }
+                          }}
+                          placeholder="e.g. Midterm Examination: Distributed Systems Architecture"
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
+                          required
+                        />
+                        <datalist id="missed-exam-titles">
+                          {missedExams.map((m) => (
+                            <option key={`ex-opt-${m.id}`} value={m.examTitle}>
+                              [{m.courseCode}] {m.examTitle}
+                            </option>
+                          ))}
+                          {exams.map((ex) => (
+                            <option key={`all-ex-${ex.id}`} value={ex.title}>
+                              [{ex.courseCode}] {ex.title}
+                            </option>
+                          ))}
+                        </datalist>
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Full examination paper title.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Quick-fill helper tags from flagged uncleared candidates */}
+                  {missedExams.some((m) => !m.isCleared && m.status !== 'cleared') && (
+                    <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                      <span className="text-slate-500 font-medium">Flagged Uncleared:</span>
+                      {missedExams
+                        .filter((m) => !m.isCleared && m.status !== 'cleared')
+                        .slice(0, 3)
+                        .map((m) => (
+                          <button
+                            key={`quick-${m.id}`}
+                            type="button"
+                            onClick={() => {
+                              setDirectClearanceAdmission(m.studentNumber);
+                              setDirectClearanceExamCode(m.courseCode);
+                              setDirectClearanceExamTitle(m.examTitle);
+                              setDirectClearanceStatusMsg(null);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 font-mono text-[11px] hover:bg-rose-100 transition-colors flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <span className="font-bold">{m.studentNumber}</span>
+                            <span className="text-slate-400">·</span>
+                            <span className="text-indigo-600 font-bold">{m.courseCode}</span>
+                            <span className="text-slate-400">·</span>
+                            <span className="font-sans truncate max-w-[140px]">{m.examTitle}</span>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+
+                  {directClearanceStatusMsg && (
+                    <div
+                      className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
+                        directClearanceStatusMsg.type === 'success'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                          : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+                      }`}
+                    >
+                      {directClearanceStatusMsg.type === 'success' ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                      )}
+                      <span>{directClearanceStatusMsg.text}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-end gap-3 pt-2">
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 rounded-xl font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm flex items-center gap-2 transition-all cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Grant Admin Clearance &amp; Permit Re-Registration</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            {/* SECTION 4: REGISTERED CANDIDATES WHO MISSED TO CONNECT & SIT */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
               <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/40 flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -2972,7 +3238,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                     <span>Registered Candidates Flagged for Missed Examination ({missedExams.length} Records)</span>
                   </h3>
                   <p className="text-xs text-slate-500 font-mono">
-                    Candidates registered previously but failed to connect and sit. Enforced restriction: cannot be admitted or accepted on this examination without approved clearance.
+                    Candidates registered previously but failed to connect and sit. Identified by Student Admission number, Examination code, and Title. Re-registration is strictly blocked without approved clearance.
                   </p>
                 </div>
               </div>
@@ -2983,53 +3249,63 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                     <p>No missed examination flags on record.</p>
                   </div>
                 ) : (
-                  missedExams.map((record) => (
-                    <div key={record.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-900 dark:text-white text-sm">{record.studentName}</span>
-                          <span className="text-slate-400 font-mono">({record.studentNumber})</span>
-                          <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                            {record.courseCode}
-                          </span>
-                        </div>
-                        <div className="text-slate-600 dark:text-slate-400">
-                          Missed: <strong>{record.examTitle}</strong> &bull; Scheduled Session: {record.scheduledDate ? new Date(record.scheduledDate).toLocaleDateString() : 'Session Missed'}
-                        </div>
-                        {record.missedReason && (
-                          <div className="text-[11px] text-slate-500 italic">
-                            Reason: {record.missedReason}
+                  missedExams.map((record) => {
+                    const isRecordCleared = !!record.isCleared || record.status === 'cleared';
+                    return (
+                      <div key={record.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                        <div className="space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-slate-900 dark:text-white text-sm">{record.studentName}</span>
+                            <span className="px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                              Admission: {record.studentNumber}
+                            </span>
+                            <span className="px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+                              Code: {record.courseCode}
+                            </span>
                           </div>
-                        )}
-                      </div>
+                          <div className="text-slate-600 dark:text-slate-400">
+                            Title: <strong className="text-slate-900 dark:text-white">{record.examTitle}</strong> &bull; Scheduled Session: {record.scheduledDate ? new Date(record.scheduledDate).toLocaleDateString() : 'Session Missed'}
+                          </div>
+                          {record.missedReason && (
+                            <div className="text-[11px] text-slate-500 italic">
+                              Reason: {record.missedReason}
+                            </div>
+                          )}
+                          {isRecordCleared && record.clearedBy && (
+                            <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                              Cleared by: {record.clearedBy} {record.clearedAt ? `(${new Date(record.clearedAt).toLocaleString()})` : ''}
+                            </div>
+                          )}
+                        </div>
 
-                      <div className="flex items-center gap-2.5 shrink-0">
-                        {record.isCleared ? (
-                          <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold border border-emerald-300 flex items-center gap-1 text-[11px]">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Cleared by Admin</span>
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 font-bold border border-rose-300 flex items-center gap-1 text-[11px]">
-                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                            <span>Uncleared (Blocked)</span>
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          {isRecordCleared ? (
+                            <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold border border-emerald-300 flex items-center gap-1 text-[11px]">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Cleared by Admin &bull; Re-registration Permitted</span>
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 font-bold border border-rose-300 flex items-center gap-1 text-[11px]">
+                              <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Uncleared &bull; Re-registration Blocked</span>
+                            </span>
+                          )}
 
-                        <button
-                          type="button"
-                          onClick={() => handleToggleMissedClearance(record.id, !!record.isCleared)}
-                          className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition-colors cursor-pointer border ${
-                            record.isCleared
-                              ? 'bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-                              : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-600 shadow-xs'
-                          }`}
-                        >
-                          {record.isCleared ? 'Revoke Clearance' : 'Grant Admin Clearance'}
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleMissedClearance(record.id, isRecordCleared)}
+                            className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition-colors cursor-pointer border ${
+                              isRecordCleared
+                                ? 'bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                                : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-600 shadow-xs'
+                            }`}
+                          >
+                            {isRecordCleared ? 'Revoke Clearance' : 'Grant Admin Clearance'}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>

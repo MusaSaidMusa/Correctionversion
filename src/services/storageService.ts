@@ -428,14 +428,17 @@ export function addStudent(newStudent: StudentProfile, enrolledExamIds: string[]
   }
   saveStoredStudents(students);
 
-  // If specific exams were selected, also register candidate into those exams
+  // If specific exams were selected, also register candidate into those exams after validating missed exam block
   if (enrolledExamIds.length > 0) {
     const exams = getStoredExams();
     exams.forEach((ex) => {
       if (enrolledExamIds.includes(ex.id) || enrolledExamIds.includes(ex.courseCode)) {
-        if (!ex.registeredStudentIds) ex.registeredStudentIds = [];
-        if (!ex.registeredStudentIds.includes(newStudent.id)) {
-          ex.registeredStudentIds.push(newStudent.id);
+        const blockCheck = checkMissedExamRegistrationBlock(newStudent.studentNumber, ex.courseCode, ex.title);
+        if (!blockCheck.isBlocked) {
+          if (!ex.registeredStudentIds) ex.registeredStudentIds = [];
+          if (!ex.registeredStudentIds.includes(newStudent.id)) {
+            ex.registeredStudentIds.push(newStudent.id);
+          }
         }
       }
     });
@@ -465,28 +468,30 @@ export function registerStudentToExamWithValidation(
   examId: string
 ): { success: boolean; error?: string } {
   const exams = getStoredExams();
-  const exam = exams.find((e) => e.id === examId);
+  const exam = exams.find((e) => e.id === examId || e.courseCode === examId);
   if (!exam) return { success: false, error: 'Examination not found.' };
-  const student = getStoredStudents().find((item) => item.id === studentId);
+  const student = getStoredStudents().find(
+    (item) => item.id === studentId || normalizeAdmission(item.studentNumber) === normalizeAdmission(studentId)
+  );
   if (!student || (student.accessStatus && student.accessStatus !== 'active')) {
     return { success: false, error: 'Student candidate profile is inactive or not found.' };
   }
 
-  // Check if candidate previously missed this examination based on Course Code & Title
-  const missedCheck = hasUnapprovedMissedExam(studentId, exam.courseCode, exam.title);
-  if (missedCheck.isBlocked) {
-    const statusNote = missedCheck.resitRequest?.status === 'pending'
-      ? 'Resit clearance request is currently pending Super Admin review.'
-      : 'No approved Super Admin resit clearance on file.';
+  // Check if candidate previously missed this examination based on Student Admission number, Examination code, and Title
+  const blockCheck = checkMissedExamRegistrationBlock(student.studentNumber, exam.courseCode, exam.title);
+  if (blockCheck.isBlocked) {
+    const statusNote = blockCheck.resitRequest?.status === 'pending'
+      ? 'Resit clearance request is currently pending Administrator review.'
+      : 'No approved Administrator clearance on record.';
     return {
       success: false,
-      error: `Registration Blocked: Candidate previously registered for and missed ${exam.courseCode} — ${exam.title}. ${statusNote} Must seek and obtain Super Admin clearance before candidate details can be accepted for this examination.`,
+      error: `Re-registration Blocked: Candidate (Admission: ${student.studentNumber}) was previously registered to sit examination [Code: ${exam.courseCode} | Title: "${exam.title}"] but missed the session. ${statusNote} Re-registration is strictly prevented unless cleared by the Administrator.`,
     };
   }
 
   if (!exam.registeredStudentIds) exam.registeredStudentIds = [];
-  if (!exam.registeredStudentIds.includes(studentId)) {
-    exam.registeredStudentIds.push(studentId);
+  if (!exam.registeredStudentIds.includes(student.id)) {
+    exam.registeredStudentIds.push(student.id);
     saveStoredExams(exams);
   }
   return { success: true };
@@ -601,65 +606,397 @@ export function normalizeCourseCode(code: string): string {
 }
 
 export function normalizeExamTitle(title: string): string {
-  return (title || '').toLowerCase().trim();
+  return (title || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+}
+
+export function normalizeAdmission(admission: string): string {
+  return (admission || '').toUpperCase().trim().replace(/[^A-Z0-9]/g, '');
 }
 
 /**
- * Validates if candidate previously missed an examination based on Course Code & Title,
- * and checks if Super Admin clearance has been requested and APPROVED.
+ * Checks if a candidate previously registered to sit an examination but missed it.
+ * Uses Student Admission number (studentNumber), Examination code (courseCode), and Title (examTitle)
+ * to identify and enforce logic preventing re-registration unless cleared by the Administrator.
  */
-export function hasUnapprovedMissedExam(
-  studentId: string,
-  courseCode: string,
-  examTitle: string
-): { isBlocked: boolean; record?: MissedExamRecord; resitRequest?: ResitRequest } {
-  const normCode = normalizeCourseCode(courseCode);
+export function checkMissedExamRegistrationBlock(
+  studentIdentifier: string,
+  examCodeOrIdentifier: string,
+  examTitleOverride?: string
+): {
+  isBlocked: boolean;
+  isCleared?: boolean;
+  studentAdmission: string;
+  studentName?: string;
+  examCode: string;
+  examTitle: string;
+  record?: MissedExamRecord;
+  resitRequest?: ResitRequest;
+  reason?: string;
+} {
+  const normAdmission = normalizeAdmission(studentIdentifier);
+
+  const students = getStoredStudents();
+  const student = students.find(
+    (s) =>
+      normalizeAdmission(s.studentNumber) === normAdmission ||
+      s.id === studentIdentifier ||
+      normalizeAdmission(s.id) === normAdmission
+  );
+
+  const exams = getStoredExams();
+  // Find exam matching code, id, or title
+  const exam = exams.find(
+    (e) =>
+      (examTitleOverride && (normalizeCourseCode(e.courseCode) === normalizeCourseCode(examCodeOrIdentifier) || normalizeExamTitle(e.title) === normalizeExamTitle(examTitleOverride))) ||
+      e.id === examCodeOrIdentifier ||
+      normalizeCourseCode(e.courseCode) === normalizeCourseCode(examCodeOrIdentifier) ||
+      normalizeExamTitle(e.title) === normalizeExamTitle(examCodeOrIdentifier) ||
+      e.title.toLowerCase().includes(examCodeOrIdentifier.toLowerCase())
+  );
+
+  const studentAdmission = student ? student.studentNumber : studentIdentifier;
+  const studentName = student ? student.name : undefined;
+  const examCode = exam ? exam.courseCode : (examTitleOverride ? examCodeOrIdentifier : '');
+  const examTitle = exam ? exam.title : (examTitleOverride ? examTitleOverride : examCodeOrIdentifier);
+
+  const normCode = normalizeCourseCode(examCode);
   const normTitle = normalizeExamTitle(examTitle);
 
   const missedRecords = getStoredMissedExams();
   const resitRequests = getStoredResitRequests();
 
+  // Find missed exam record matching student admission number, examination code, and title
   const record = missedRecords.find((m) => {
-    if (m.studentId !== studentId) return false;
-    const matchCode = normalizeCourseCode(m.courseCode) === normCode;
-    const matchTitle =
+    const studentMatch =
+      normalizeAdmission(m.studentNumber) === normAdmission ||
+      (student && (normalizeAdmission(m.studentNumber) === normalizeAdmission(student.studentNumber) || m.studentId === student.id)) ||
+      m.studentId === studentIdentifier;
+
+    const codeMatch =
+      !normCode ||
+      normalizeCourseCode(m.courseCode) === normCode ||
+      (exam && normalizeCourseCode(m.courseCode) === normalizeCourseCode(exam.courseCode));
+
+    const titleMatch =
+      !normTitle ||
       normalizeExamTitle(m.examTitle) === normTitle ||
-      normTitle.includes(normalizeExamTitle(m.examTitle)) ||
-      normalizeExamTitle(m.examTitle).includes(normTitle);
-    return matchCode && matchTitle;
+      (exam && normalizeExamTitle(m.examTitle) === normalizeExamTitle(exam.title)) ||
+      m.examTitle.toLowerCase().includes(examTitle.toLowerCase()) ||
+      examTitle.toLowerCase().includes(m.examTitle.toLowerCase());
+
+    return studentMatch && (codeMatch || titleMatch);
   });
 
   if (!record) {
-    return { isBlocked: false };
+    return {
+      isBlocked: false,
+      studentAdmission,
+      studentName,
+      examCode,
+      examTitle,
+    };
   }
 
-  // Look for approved resit clearance by Admin
+  // Check if cleared by Admin (either direct clearance flag or cleared status)
+  if (record.isCleared === true || record.status === 'cleared') {
+    return {
+      isBlocked: false,
+      isCleared: true,
+      studentAdmission,
+      studentName,
+      examCode: record.courseCode || examCode,
+      examTitle: record.examTitle || examTitle,
+      record,
+    };
+  }
+
+  // Check if resit clearance was approved by Admin matching admission, code, and title
   const approvedResit = resitRequests.find((r) => {
-    if (r.studentId !== studentId || r.status !== 'approved') return false;
-    const matchCode = normalizeCourseCode(r.courseCode) === normCode;
-    const matchTitle =
+    const studentMatch =
+      normalizeAdmission(r.studentNumber) === normAdmission ||
+      (student && (normalizeAdmission(r.studentNumber) === normalizeAdmission(student.studentNumber) || r.studentId === student.id)) ||
+      r.studentId === studentIdentifier;
+
+    const codeMatch =
+      !normCode ||
+      normalizeCourseCode(r.courseCode) === normCode ||
+      (record && normalizeCourseCode(r.courseCode) === normalizeCourseCode(record.courseCode));
+
+    const titleMatch =
+      !normTitle ||
       normalizeExamTitle(r.examTitle) === normTitle ||
-      normTitle.includes(normalizeExamTitle(r.examTitle)) ||
-      normalizeExamTitle(r.examTitle).includes(normTitle);
-    return matchCode && matchTitle;
+      (record && normalizeExamTitle(r.examTitle) === normalizeExamTitle(record.examTitle)) ||
+      r.examTitle.toLowerCase().includes(examTitle.toLowerCase()) ||
+      examTitle.toLowerCase().includes(r.examTitle.toLowerCase());
+
+    return studentMatch && (codeMatch || titleMatch) && r.status === 'approved';
   });
 
   if (approvedResit) {
-    return { isBlocked: false, record, resitRequest: approvedResit };
+    return {
+      isBlocked: false,
+      isCleared: true,
+      studentAdmission,
+      studentName,
+      examCode: approvedResit.courseCode || record.courseCode || examCode,
+      examTitle: approvedResit.examTitle || record.examTitle || examTitle,
+      record,
+      resitRequest: approvedResit,
+    };
   }
 
   const pendingOrDeclinedReq = resitRequests.find((r) => {
-    if (r.studentId !== studentId) return false;
-    const matchCode = normalizeCourseCode(r.courseCode) === normCode;
-    const matchTitle =
+    const studentMatch =
+      normalizeAdmission(r.studentNumber) === normAdmission ||
+      (student && (normalizeAdmission(r.studentNumber) === normalizeAdmission(student.studentNumber) || r.studentId === student.id)) ||
+      r.studentId === studentIdentifier;
+
+    const codeMatch =
+      !normCode ||
+      normalizeCourseCode(r.courseCode) === normCode ||
+      (record && normalizeCourseCode(r.courseCode) === normalizeCourseCode(record.courseCode));
+
+    const titleMatch =
+      !normTitle ||
       normalizeExamTitle(r.examTitle) === normTitle ||
-      normTitle.includes(normalizeExamTitle(r.examTitle)) ||
-      normalizeExamTitle(r.examTitle).includes(normTitle);
-    return matchCode && matchTitle;
+      (record && normalizeExamTitle(r.examTitle) === normalizeExamTitle(record.examTitle)) ||
+      r.examTitle.toLowerCase().includes(examTitle.toLowerCase()) ||
+      examTitle.toLowerCase().includes(r.examTitle.toLowerCase());
+
+    return studentMatch && (codeMatch || titleMatch);
   });
 
-  return { isBlocked: true, record, resitRequest: pendingOrDeclinedReq };
+  return {
+    isBlocked: true,
+    isCleared: false,
+    studentAdmission,
+    studentName,
+    examCode: record.courseCode || examCode,
+    examTitle: record.examTitle || examTitle,
+    record,
+    resitRequest: pendingOrDeclinedReq,
+    reason: `Candidate (Admission: ${studentAdmission}) was previously registered to sit examination [Code: ${record.courseCode || examCode} | Title: "${record.examTitle || examTitle}"] but missed the session. Re-registration is strictly prevented until cleared by the Administrator.`,
+  };
 }
+
+/**
+ * Validates if candidate previously missed an examination based on Student Admission number,
+ * Examination code, and Title, and checks if Administrator clearance has been granted.
+ */
+export function hasUnapprovedMissedExam(
+  studentIdOrAdmission: string,
+  courseCode: string,
+  examTitle: string
+): { isBlocked: boolean; record?: MissedExamRecord; resitRequest?: ResitRequest } {
+  const result = checkMissedExamRegistrationBlock(studentIdOrAdmission, courseCode, examTitle);
+  return {
+    isBlocked: result.isBlocked,
+    record: result.record,
+    resitRequest: result.resitRequest,
+  };
+}
+
+/**
+ * Allows the Administrator to clear a student who missed an examination using:
+ * 1. Student Admission number (studentNumber)
+ * 2. Examination code (courseCode)
+ * 3. Title (examTitle)
+ * Once cleared, re-registration to sit the examination is permitted.
+ */
+export function adminClearMissedExam(
+  studentAdmission: string,
+  examCodeOrTitle: string,
+  examTitleOrAdmin?: string,
+  adminNameParam?: string
+): { success: boolean; message: string; error?: string; record?: MissedExamRecord } {
+  let examCode = '';
+  let examTitle = '';
+  let adminName = 'Dr. Marcus Sterling (Super Admin)';
+
+  if (adminNameParam) {
+    examCode = examCodeOrTitle;
+    examTitle = examTitleOrAdmin || '';
+    adminName = adminNameParam;
+  } else if (examTitleOrAdmin && (examTitleOrAdmin.includes('Admin') || examTitleOrAdmin.includes('Dr.') || examTitleOrAdmin.includes('Super'))) {
+    examTitle = examCodeOrTitle;
+    adminName = examTitleOrAdmin;
+  } else if (examTitleOrAdmin) {
+    examCode = examCodeOrTitle;
+    examTitle = examTitleOrAdmin;
+  } else {
+    examTitle = examCodeOrTitle;
+  }
+
+  const normAdmission = normalizeAdmission(studentAdmission);
+  const students = getStoredStudents();
+  const student = students.find(
+    (s) =>
+      normalizeAdmission(s.studentNumber) === normAdmission ||
+      s.id === studentAdmission ||
+      normalizeAdmission(s.id) === normAdmission
+  );
+
+  const exams = getStoredExams();
+  const exam = exams.find(
+    (e) =>
+      (examCode && normalizeCourseCode(e.courseCode) === normalizeCourseCode(examCode)) ||
+      (examTitle && normalizeExamTitle(e.title) === normalizeExamTitle(examTitle)) ||
+      e.id === examCode ||
+      e.id === examTitle
+  );
+
+  const finalAdmission = student?.studentNumber || studentAdmission;
+  const finalCode = exam?.courseCode || examCode || 'EXAM';
+  const finalTitle = exam?.title || examTitle;
+
+  const normCode = normalizeCourseCode(finalCode);
+  const normTitle = normalizeExamTitle(finalTitle);
+
+  const missed = getStoredMissedExams();
+  const now = new Date().toISOString();
+
+  let target = missed.find((m) => {
+    const studentMatch =
+      normalizeAdmission(m.studentNumber) === normAdmission ||
+      (student && normalizeAdmission(m.studentNumber) === normalizeAdmission(student.studentNumber)) ||
+      m.studentId === studentAdmission;
+
+    const codeMatch = !normCode || normalizeCourseCode(m.courseCode) === normCode;
+    const titleMatch =
+      !normTitle ||
+      normalizeExamTitle(m.examTitle) === normTitle ||
+      m.examTitle.toLowerCase().includes(finalTitle.toLowerCase()) ||
+      finalTitle.toLowerCase().includes(m.examTitle.toLowerCase());
+
+    return studentMatch && (codeMatch || titleMatch);
+  });
+
+  if (target) {
+    target.isCleared = true;
+    target.status = 'cleared';
+    target.clearedAt = now;
+    target.clearedBy = adminName;
+    if (finalCode && target.courseCode !== finalCode) target.courseCode = finalCode;
+    if (finalTitle && target.examTitle !== finalTitle) target.examTitle = finalTitle;
+  } else {
+    target = {
+      id: `cleared-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      studentId: student?.id || `student-${studentAdmission}`,
+      studentName: student?.name || `Candidate (${finalAdmission})`,
+      studentNumber: finalAdmission,
+      studentEmail: student?.email || 'student@university.edu',
+      courseCode: finalCode,
+      examTitle: finalTitle,
+      examId: exam?.id || `exam-${Date.now()}`,
+      scheduledDate: new Date().toISOString().split('T')[0],
+      missedReason: 'Administrative clearance granted by Assessment Directorate.',
+      status: 'cleared',
+      isCleared: true,
+      clearedAt: now,
+      clearedBy: adminName,
+      recordedAt: now,
+    };
+    missed.unshift(target);
+  }
+
+  saveStoredMissedExams(missed);
+
+  // Synchronize matching resit requests to approved
+  const resitRequests = getStoredResitRequests();
+  let resitUpdated = false;
+  resitRequests.forEach((req) => {
+    const studentMatch =
+      normalizeAdmission(req.studentNumber) === normAdmission ||
+      (student && req.studentId === student.id) ||
+      req.studentId === studentAdmission;
+
+    const codeMatch = !normCode || normalizeCourseCode(req.courseCode) === normCode;
+    const titleMatch =
+      !normTitle ||
+      normalizeExamTitle(req.examTitle) === normTitle ||
+      req.examTitle.toLowerCase().includes(finalTitle.toLowerCase());
+
+    if (studentMatch && (codeMatch || titleMatch)) {
+      req.status = 'approved';
+      req.reviewedBy = adminName;
+      req.reviewedAt = now;
+      req.adminDecisionNote = `Administrative clearance granted: Candidate (Admission: ${finalAdmission}) cleared for [Code: ${finalCode} | Title: "${finalTitle}"]. Re-registration is authorized.`;
+      req.adminNotes = req.adminDecisionNote;
+      resitUpdated = true;
+    }
+  });
+
+  if (resitUpdated) {
+    saveStoredResitRequests(resitRequests);
+  }
+
+  // Ensure course enrollment if student and exam found
+  if (student && finalCode && !student.enrolledCourseCodes.includes(finalCode)) {
+    student.enrolledCourseCodes.push(finalCode);
+    saveStoredStudents(students);
+  }
+
+  broadcastSync('examguard_missed_exams_updated', { record: target });
+  broadcastSync('examguard_resit_requests_updated', { requests: resitRequests });
+  broadcastSync('examguard_state_sync');
+
+  return {
+    success: true,
+    message: `Clearance successfully granted for Candidate (Admission: "${finalAdmission}") on Examination [Code: ${target.courseCode} | Title: "${target.examTitle}"]. Re-registration is now permitted.`,
+    record: target,
+  };
+}
+
+/**
+ * Revokes Administrator clearance for a missed examination using Student Admission number,
+ * Examination code, and Title.
+ */
+export function adminRevokeMissedExamClearance(
+  studentAdmission: string,
+  examCodeOrTitle: string,
+  examTitleParam?: string
+): { success: boolean; message: string; error?: string; record?: MissedExamRecord } {
+  const normAdmission = normalizeAdmission(studentAdmission);
+  const examCode = examTitleParam ? examCodeOrTitle : '';
+  const examTitle = examTitleParam || examCodeOrTitle;
+  const normCode = normalizeCourseCode(examCode);
+  const normTitle = normalizeExamTitle(examTitle);
+
+  const missed = getStoredMissedExams();
+  const target = missed.find((m) => {
+    const studentMatch =
+      normalizeAdmission(m.studentNumber) === normAdmission ||
+      m.studentId === studentAdmission;
+
+    const codeMatch = !normCode || normalizeCourseCode(m.courseCode) === normCode;
+    const titleMatch =
+      !normTitle ||
+      normalizeExamTitle(m.examTitle) === normTitle ||
+      m.examTitle.toLowerCase().includes(examTitle.toLowerCase());
+
+    return studentMatch && (codeMatch || titleMatch);
+  });
+
+  if (!target) {
+    return { success: false, message: 'Missed examination record not found.' };
+  }
+
+  target.isCleared = false;
+  target.status = 'uncleared';
+  target.clearedAt = undefined;
+  target.clearedBy = undefined;
+  saveStoredMissedExams(missed);
+
+  broadcastSync('examguard_missed_exams_updated', { record: target });
+  broadcastSync('examguard_state_sync');
+
+  return {
+    success: true,
+    message: `Clearance revoked for Candidate (Admission: "${studentAdmission}") on Examination [Code: ${target.courseCode} | Title: "${target.examTitle}"]. Re-registration is blocked.`,
+    record: target,
+  };
+}
+
 
 export function submitResitRequest(data: {
   studentId: string;

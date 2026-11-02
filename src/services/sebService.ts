@@ -20,6 +20,9 @@ export interface SebSecurityManifest {
   continuousTimerEnforced: boolean;
   pausePermitted: boolean;
   autoSubmitOnViolation: boolean;
+  tabsLocked: boolean;
+  allowOpenNewTab: boolean;
+  autoSubmitOnModeSwitch: boolean;
 }
 
 /**
@@ -56,6 +59,9 @@ export function getSebSecurityManifest(exam: Exam): SebSecurityManifest {
     continuousTimerEnforced: true,
     pausePermitted: false, // Strict: pausing is NEVER permitted under SEB
     autoSubmitOnViolation: true,
+    tabsLocked: true, // Strict: All tabs remain locked when examination has commenced
+    allowOpenNewTab: false, // Strict: Student cannot open another tab
+    autoSubmitOnModeSwitch: true, // Strict: Student cannot switch from examination mode until submitted, otherwise auto-submits
   };
 }
 
@@ -95,6 +101,16 @@ export function downloadSebConfigFile(
     <string>${baseUrl}/exam-completed</string>
     <key>browserWindowAllowReload</key>
     <false/>
+    <key>allowNewTabs</key>
+    <false/>
+    <key>prohibitTabSwitching</key>
+    <true/>
+    <key>allowSwitchToOtherApps</key>
+    <false/>
+    <key>enableAltTab</key>
+    <false/>
+    <key>autoSubmitOnModeSwitch</key>
+    <true/>
     <key>enableAltEsc</key>
     <false/>
     <key>enableCtrlEsc</key>

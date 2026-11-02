@@ -93,7 +93,7 @@ interface TeacherDashboardProps {
   ) => { success: boolean; error?: string };
   onRegisterStudent: (newStudent: StudentProfile, enrolledExamIds: string[]) => void;
   onToggleMarkingScheme: (examId: string, released: boolean) => void;
-  onRegisterStudentToExam: (studentId: string, examId: string) => boolean;
+  onRegisterStudentToExam: (studentId: string, examId: string) => boolean | { success: boolean; error?: string };
   onUnregisterStudentFromExam: (studentId: string, examId: string) => void;
   onUpdateTeacher?: (updated: TeacherProfile) => void;
   onDataChanged?: () => void;
@@ -1656,9 +1656,16 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           targetExam={enrollExamTarget}
           students={students}
           onEnrollExistingStudent={(studentId, examId) => {
-            const enrolled = onRegisterStudentToExam(studentId, examId);
-            if (!enrolled) return false;
+            const res = onRegisterStudentToExam(studentId, examId);
             const foundStudent = students.find((s) => s.id === studentId);
+            if (typeof res === 'object' && !res.success) {
+              showToast(res.error || 'Re-registration blocked: Admin clearance required.', true);
+              return res;
+            }
+            if (!res) {
+              showToast('Could not enroll candidate. Check prerequisites and clearance.', true);
+              return false;
+            }
             showToast(`Candidate ${foundStudent ? `${foundStudent.name} (Admission No: ${foundStudent.studentNumber})` : 'Student'} enrolled into examination.`);
             return true;
           }}

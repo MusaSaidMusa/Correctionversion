@@ -33,6 +33,7 @@ import {
   hasExceededAttempts,
   addStudent,
   registerStudentToExam,
+  registerStudentToExamWithValidation,
   unregisterStudentFromExam,
   toggleMarkingSchemeRelease,
   updateTeacher,
@@ -287,9 +288,9 @@ export default function App() {
   };
 
   const handleRegisterStudentToExam = (studentId: string, examId: string) => {
-    const enrolled = registerStudentToExam(studentId, examId);
-    if (enrolled) reloadState();
-    return enrolled;
+    const res = registerStudentToExamWithValidation(studentId, examId);
+    if (res.success) reloadState();
+    return res;
   };
 
   const handleUnregisterStudentFromExam = (studentId: string, examId: string) => {

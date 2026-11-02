@@ -266,7 +266,7 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
     };
   }, [studentId, existingSubmission?.id]);
 
-  const autoSubmitRef = useRef<(reason?: string) => void>(() => {});
+  const autoSubmitRef = useRef<(reason?: string, isBreach?: boolean) => void>(() => {});
 
   // Countdown Timer: Continuous wall-clock calculation ensures pausing and resuming is physically impossible
   useEffect(() => {
@@ -304,7 +304,17 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
     // 1. Enforce Fullscreen immediately upon active exam sitting
     requestFullscreenMode();
 
-    // 2. Prevent window beforeunload (warn student that leaving will NOT pause exam clock)
+    // 2. Intercept window.open to strictly prevent student from opening another tab or window
+    const originalWindowOpen = window.open;
+    window.open = (url?: string | URL, target?: string, features?: string) => {
+      autoSubmitRef.current(
+        'SEB Security Violation: Attempted to open another tab/window during active examination. As per institutional regulations, your work has been automatically submitted.',
+        true
+      );
+      return null;
+    };
+
+    // 3. Prevent window beforeunload (warn student that leaving will forfeit and auto-submit)
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue =
@@ -312,7 +322,7 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
       return e.returnValue;
     };
 
-    // 3. Block Context Menu (right click)
+    // 4. Block Context Menu (right click)
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
       handleIncidentCallback({
@@ -322,15 +332,42 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
         examId: exam.id,
         timestamp: new Date().toISOString(),
         type: 'context_menu_blocked',
-        severity: 'low',
+        severity: 'medium',
         description: 'SEB Security: Right-click context menu access prevented.',
       });
     };
 
-    // 4. Block Keyboard Shortcuts (F12, Ctrl+C, Ctrl+V, Ctrl+U, PrintScreen, Alt+Tab, etc.)
+    // 5. Block Keyboard Shortcuts & Strictly Prevent Opening Another Tab or Switching Applications
     const handleKeyDown = (e: KeyboardEvent) => {
       const isCtrlOrMeta = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
+
+      // STRICT SEB RULE: Prevent opening another tab or window (Ctrl+T, Ctrl+N, Ctrl+Shift+N, Ctrl+Shift+T, Ctrl+W, Ctrl+Tab)
+      if (
+        (isCtrlOrMeta && (key === 't' || key === 'n' || key === 'w')) ||
+        (isCtrlOrMeta && e.shiftKey && (key === 'n' || key === 't')) ||
+        (isCtrlOrMeta && key === 'tab') ||
+        (isCtrlOrMeta && (key === 'pageup' || key === 'pagedown'))
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        autoSubmitRef.current(
+          'SEB Security Enforcement: Opening another tab or new browser window during active examination is strictly prohibited. Your work has been automatically submitted.',
+          true
+        );
+        return;
+      }
+
+      // STRICT SEB RULE: Prevent application switching (Alt+Tab, Alt+Esc, Meta/Windows key)
+      if ((e.altKey && (key === 'tab' || key === 'f4' || key === 'escape')) || e.key === 'Meta' || e.key === 'OS') {
+        e.preventDefault();
+        e.stopPropagation();
+        autoSubmitRef.current(
+          'SEB Security Enforcement: Application switching (Alt+Tab / OS key) detected. Examination mode cannot be exited — your work has been automatically submitted.',
+          true
+        );
+        return;
+      }
 
       // Block Developer Tools / Inspect Element: F12, Ctrl+Shift+I/J/C
       if (
@@ -339,7 +376,10 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
       ) {
         e.preventDefault();
         e.stopPropagation();
-        triggerSebBreach('Developer tools and inspect inspection access attempted.');
+        autoSubmitRef.current(
+          'SEB Security Enforcement: Developer inspection tools attempted. Examination terminated and work automatically submitted.',
+          true
+        );
         return;
       }
 
@@ -347,7 +387,7 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
       if (isCtrlOrMeta && key === 'u') {
         e.preventDefault();
         e.stopPropagation();
-        triggerSebBreach('Source code inspection blocked under SEB lockdown.');
+        setGentleAlert('Source code inspection blocked under SEB lockdown.');
         return;
       }
 
@@ -373,7 +413,7 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
       if (isCtrlOrMeta && key === 'p') {
         e.preventDefault();
         e.stopPropagation();
-        triggerSebBreach('Printing examination paper is prohibited.');
+        setGentleAlert('Printing examination paper is prohibited.');
         return;
       }
 
@@ -384,16 +424,9 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
         setGentleAlert('SEB Security: Manual page reload prevented. All progress is saved continuously.');
         return;
       }
-
-      // Block Alt+Tab or Escape fullscreen exit
-      if (e.altKey && e.key === 'Tab') {
-        e.preventDefault();
-        triggerSebBreach('Application switching (Alt+Tab) detected.');
-        return;
-      }
     };
 
-    // 5. Block Clipboard copy / cut / paste events
+    // 6. Block Clipboard copy / cut / paste events
     const handleCopy = (e: ClipboardEvent) => {
       e.preventDefault();
       setGentleAlert('SEB Security: Clipboard text copying is disabled during examination.');
@@ -403,59 +436,73 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
       setGentleAlert('SEB Security: Clipboard text pasting is disabled during examination.');
     };
 
-    // 6. Monitor Window Blur and Tab Visibility
-    const handleWindowBlur = () => {
-      triggerSebBreach('Window focus lost. Navigating away or attempting to pause the examination is strictly prohibited.');
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        triggerSebBreach('Browser tab switched or minimized. Continuous SEB sitting required.');
+    // 7. Prevent clicking external anchor links to open tabs or navigate away
+    const handleLinkClick = (e: MouseEvent) => {
+      const anchor = (e.target as HTMLElement)?.closest('a');
+      if (anchor) {
+        const href = anchor.getAttribute('href');
+        if (href && !href.startsWith('#') && href !== 'javascript:void(0)') {
+          e.preventDefault();
+          e.stopPropagation();
+          autoSubmitRef.current(
+            'SEB Security Enforcement: External navigation and link switching are strictly prohibited during examination. Your work has been automatically submitted.',
+            true
+          );
+        }
       }
     };
 
-    function triggerSebBreach(reason: string) {
-      setSebBreachModal((prev) => {
-        const nextStrikes = prev.strikes + 1;
-        handleIncidentCallback({
-          id: `inc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          studentId,
-          studentName,
-          examId: exam.id,
-          timestamp: new Date().toISOString(),
-          type: 'seb_lockdown_breach',
-          severity: nextStrikes >= 3 ? 'high' : 'medium',
-          description: `SEB Breach (${nextStrikes}/3): ${reason}`,
-        });
+    // 8. STRICT SEB RULE: Student CANNOT switch from examination mode until they submitted,
+    // otherwise their work will automatically submit immediately!
+    const handleVisibilityChange = () => {
+      if (document.hidden && !isSubmitted) {
+        autoSubmitRef.current(
+          'SEB Security Enforcement: Candidate switched away from examination mode (browser tab switched or minimized). Your examination work has been automatically submitted.',
+          true
+        );
+      }
+    };
 
-        if (nextStrikes >= 3) {
-          autoSubmitRef.current('Examination terminated: Maximum SEB security violations (3/3) exceeded.');
-        }
+    const handleWindowBlur = () => {
+      if (!isSubmitted) {
+        autoSubmitRef.current(
+          'SEB Security Enforcement: Candidate switched away from examination mode (window lost focus / navigated away). Your examination work has been automatically submitted.',
+          true
+        );
+      }
+    };
 
-        return {
-          isOpen: true,
-          reason,
-          strikes: nextStrikes,
-        };
-      });
-    }
+    const handleFullscreenChange = () => {
+      const isFull = Boolean(document.fullscreenElement);
+      if (!isFull && !isSubmitted) {
+        autoSubmitRef.current(
+          'SEB Security Enforcement: Candidate exited examination fullscreen mode. Your examination work has been automatically submitted.',
+          true
+        );
+      }
+    };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('keydown', handleKeyDown, true);
     document.addEventListener('copy', handleCopy);
     document.addEventListener('paste', handlePaste);
+    document.addEventListener('click', handleLinkClick, true);
     window.addEventListener('blur', handleWindowBlur);
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
 
     return () => {
+      window.open = originalWindowOpen;
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('contextmenu', handleContextMenu);
       window.removeEventListener('keydown', handleKeyDown, true);
       document.removeEventListener('copy', handleCopy);
       document.removeEventListener('paste', handlePaste);
+      document.removeEventListener('click', handleLinkClick, true);
       window.removeEventListener('blur', handleWindowBlur);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
   }, [exam.id, handleIncidentCallback, isSubmitted, lockoutBreachReason, requestFullscreenMode, studentId, studentName]);
 
@@ -830,8 +877,8 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
             <InstitutionLogo size="lg" variant="badge" />
           </div>
 
-          <div className="w-16 h-16 bg-emerald-950 text-emerald-400 rounded-full flex items-center justify-center mx-auto border border-emerald-800 shadow-md">
-            <CheckCircle className="w-9 h-9" />
+          <div className={`w-16 h-16 ${completedSubmission.terminationReason ? 'bg-amber-950 text-amber-400 border-amber-800' : 'bg-emerald-950 text-emerald-400 border-emerald-800'} rounded-full flex items-center justify-center mx-auto border shadow-md`}>
+            {completedSubmission.terminationReason ? <ShieldAlert className="w-9 h-9" /> : <CheckCircle className="w-9 h-9" />}
           </div>
 
           <div className="space-y-1.5">
@@ -839,12 +886,27 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
               {exam.courseCode} · EXAMINATION CONCLUDED
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white">
-              Answer Sheet Submitted Successfully
+              {completedSubmission.terminationReason ? 'Examination Automatically Submitted' : 'Answer Sheet Submitted Successfully'}
             </h2>
             <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
               Your examination responses have been locked and safely committed to the faculty invigilator gradebook for marking.
             </p>
           </div>
+
+          {completedSubmission.terminationReason && (
+            <div className="p-4 bg-rose-950/80 border border-rose-800 rounded-xl text-left space-y-1.5">
+              <div className="flex items-center gap-2 text-rose-300 font-bold text-xs uppercase tracking-wider">
+                <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>SEB Browser Security Auto-Submit Enforced</span>
+              </div>
+              <p className="text-xs text-rose-200 font-medium">
+                {completedSubmission.terminationReason}
+              </p>
+              <p className="text-[11px] text-slate-300/80">
+                Rule: All tabs remain locked when examination has commenced. Candidates cannot switch from examination mode until they submit. All answers recorded prior to mode switch have been saved and delivered.
+              </p>
+            </div>
+          )}
 
           {/* Camera Proctor Status & Post-Submission Privacy Control */}
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-left space-y-3">
