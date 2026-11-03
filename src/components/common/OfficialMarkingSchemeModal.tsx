@@ -151,17 +151,14 @@ export const OfficialMarkingSchemeModal: React.FC<OfficialMarkingSchemeModalProp
           {/* Clean Line-by-Line Marking Scheme Points */}
           <div className="space-y-6 mt-6">
             {exam.questions.map((q, idx) => {
-              // Parse solution points line by line
+              // Parse solution points line by line as specified by the teacher
               const rawSolutionText = q.sampleAnswer || '';
               const rawLines = rawSolutionText
                 ? rawSolutionText
-                    .split(/\n+|(?<=[.!?])\s+(?=[A-Z0-9•\-\*])/)
+                    .split(/\r?\n/)
                     .map((l) => l.trim())
                     .filter(Boolean)
                 : [];
-
-              const linesCount = rawLines.length || 1;
-              const perPointMarks = (q.points / linesCount).toFixed(linesCount > 1 && q.points % linesCount !== 0 ? 1 : 0);
 
               return (
                 <div key={q.id || idx} className="border-b border-black/30 pb-5 last:border-0 space-y-3">
@@ -208,46 +205,56 @@ export const OfficialMarkingSchemeModal: React.FC<OfficialMarkingSchemeModalProp
                     {q.subQuestions && q.subQuestions.length > 0 && (
                       <div className="space-y-1.5 pt-1">
                         <span className="font-bold text-xs uppercase tracking-wider text-slate-700 block">
-                          Sub-Question Marking Points:
+                          Sub-Question Marking Criteria:
                         </span>
                         <div className="space-y-1.5 pl-3 border-l-2 border-slate-400">
-                          {q.subQuestions.map((sq, sqIdx) => (
-                            <div key={sq.id || sqIdx} className="flex items-start justify-between gap-3 text-xs">
-                              <span className="leading-relaxed">
-                                &bull; ({String.fromCharCode(97 + sqIdx)}) {sq.prompt}
-                                {sq.sampleAnswer && (
-                                  <span className="block italic text-slate-700 mt-0.5">
-                                    Key: {sq.sampleAnswer}
+                          {q.subQuestions.map((sq, sqIdx) => {
+                            const hasExplicitSubMarks = typeof sq.points === 'number' && Number.isFinite(sq.points);
+                            return (
+                              <div key={sq.id || sqIdx} className="flex items-start justify-between gap-3 text-xs">
+                                <span className="leading-relaxed">
+                                  &bull; ({String.fromCharCode(97 + sqIdx)}) {sq.prompt}
+                                  {sq.sampleAnswer && (
+                                    <span className="block italic text-slate-700 mt-0.5">
+                                      Key: {sq.sampleAnswer}
+                                    </span>
+                                  )}
+                                </span>
+                                {hasExplicitSubMarks && (
+                                  <span className="font-mono font-bold shrink-0 text-slate-900">
+                                    [{sq.points} Marks]
                                   </span>
                                 )}
-                              </span>
-                              <span className="font-mono font-bold shrink-0 text-slate-900">
-                                [{sq.points || 1} Marks]
-                              </span>
-                            </div>
-                          ))}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
 
-                    {/* Line by line points for essay / short answer / open-ended */}
+                    {/* Official marking scheme criteria without automatic marks distribution */}
                     {rawLines.length > 0 && (!q.subQuestions || q.subQuestions.length === 0) && (
                       <div className="space-y-1.5 pt-1">
                         <span className="font-bold text-xs uppercase tracking-wider text-slate-700 block">
-                          Line-by-Line Marking Points:
+                          Official Marking Scheme Criteria & Solution:
                         </span>
                         <div className="space-y-1 pl-3 border-l-2 border-slate-700">
                           {rawLines.map((line, lIdx) => {
                             const cleanLine = line.replace(/^[•\-\*\d\.\)\s]+/, '');
+                            // Check if teacher explicitly wrote marks in this line (e.g. "[3 marks]", "(2 marks)", "(4 Marks)")
+                            const teacherMarkMatch = line.match(/(?:\[|\()(\d+(?:\.\d+)?)\s*(?:marks?|pts?|points?)(?:\]|\))/i);
+
                             return (
                               <div
                                 key={lIdx}
                                 className="flex items-start justify-between gap-4 text-xs leading-relaxed py-0.5"
                               >
                                 <span>&bull; {cleanLine}</span>
-                                <span className="font-mono font-semibold shrink-0 text-slate-800">
-                                  [{perPointMarks} Marks]
-                                </span>
+                                {teacherMarkMatch && (
+                                  <span className="font-mono font-semibold shrink-0 text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">
+                                    [{teacherMarkMatch[1]} Marks]
+                                  </span>
+                                )}
                               </div>
                             );
                           })}

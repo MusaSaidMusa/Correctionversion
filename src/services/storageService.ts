@@ -1071,11 +1071,37 @@ export function submitResitRequest(data: {
   reasonDetails: string;
   evidenceNotes?: string;
   attachmentFileName?: string;
+  attachmentFileUrl?: string;
+  attachmentFileType?: string;
+  attachmentFileSize?: number;
+  medicalFacility?: string;
+  doctorName?: string;
+  medicalCertificateRef?: string;
+  grounds?: string;
+  explanation?: string;
+  evidenceDocument?: string;
 }): ResitRequest {
+  // If the reason category is medical, ensure that medical evidence is compulsory attached
+  if (data.reasonCategory === 'medical') {
+    const hasEvidence = Boolean(
+      (data.attachmentFileName && data.attachmentFileName.trim()) ||
+      (data.attachmentFileUrl && data.attachmentFileUrl.trim())
+    );
+    if (!hasEvidence) {
+      throw new Error(
+        'Compulsory Requirement: Medical evidence documentation must be attached when selecting Medical reason for missed examination resit.'
+      );
+    }
+  }
+
   const requests = getStoredResitRequests();
   const newReq: ResitRequest = {
     id: `resit-${Date.now()}`,
     ...data,
+    grounds: data.grounds || data.reasonCategory,
+    explanation: data.explanation || data.reasonDetails,
+    evidenceDocument: data.evidenceDocument || data.attachmentFileName,
+    isMedicalCompulsoryMet: data.reasonCategory === 'medical' ? true : undefined,
     status: 'pending',
     submittedAt: new Date().toISOString(),
   };

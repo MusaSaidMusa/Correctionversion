@@ -50,7 +50,7 @@ export const PromptedQuestionBatchBuilder: React.FC<PromptedQuestionBatchBuilder
       points: 10,
       type: 'essay' as QuestionType,
       topic: defaultTopic || 'Core Subject',
-      sampleAnswer: `Official Marking Scheme & Model Rubric for Question ${idx + 1}:\n- Theoretical Definition & Core Concepts (4 Marks)\n- Architectural Analysis & Derivation (4 Marks)\n- Practical Evaluation & Synthesis (2 Marks)`,
+      sampleAnswer: `Official Marking Scheme & Model Rubric for Question ${idx + 1}:\n- Theoretical Definition & Core Concepts\n- Architectural Analysis & Derivation\n- Practical Evaluation & Synthesis`,
       explanation: `Verified grading criteria for Question ${idx + 1}`,
     }));
   });
@@ -102,7 +102,7 @@ export const PromptedQuestionBatchBuilder: React.FC<PromptedQuestionBatchBuilder
               points: 10,
               type: 'essay' as QuestionType,
               topic: defaultTopic || 'Core Subject',
-              sampleAnswer: `Official Marking Scheme & Model Answer for Q${num}:\n- Core Principles & Definitions (5 Marks)\n- Analytical Explanation & Working (5 Marks)`,
+              sampleAnswer: `Official Marking Scheme & Model Answer for Q${num}:\n- Core Principles & Definitions\n- Analytical Explanation & Working`,
               explanation: `Official marking rubric for Question ${num}`,
             };
           }
@@ -137,7 +137,7 @@ export const PromptedQuestionBatchBuilder: React.FC<PromptedQuestionBatchBuilder
       points: 10,
       type: 'essay',
       topic: defaultTopic || 'Core Subject',
-      sampleAnswer: `Official Marking Scheme for Question ${nextNum}:\n- Core Principles & Formulation (5 Marks)\n- Technical Discussion & Proof (5 Marks)`,
+      sampleAnswer: `Official Marking Scheme for Question ${nextNum}:\n- Core Principles & Formulation\n- Technical Discussion & Proof`,
       explanation: `Grading rubric for Question ${nextNum}`,
     };
     const nextList = [...questions, newQ];

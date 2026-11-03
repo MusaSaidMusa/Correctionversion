@@ -352,6 +352,19 @@ export const ManualMarkingModal: React.FC<ManualMarkingModalProps> = ({
                       <p className="text-slate-800 dark:text-slate-200 mt-1 text-xs leading-relaxed font-serif">
                         {q.prompt}
                       </p>
+
+                      {/* Official Marking Scheme & Solution Key Reference */}
+                      {(q.sampleAnswer || q.explanation) && (
+                        <div className="mt-2.5 p-2.5 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs">
+                          <div className="flex items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-300 text-[11px] mb-1">
+                            <Award className="w-3.5 h-3.5" />
+                            <span>Official Marking Scheme & Criteria (Teacher Allocated: {maxPoints} Marks):</span>
+                          </div>
+                          <div className="whitespace-pre-wrap font-serif text-slate-800 dark:text-slate-200 leading-relaxed text-xs pl-1">
+                            {q.sampleAnswer || q.explanation}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="shrink-0 flex items-center gap-2">

@@ -382,6 +382,13 @@ export interface ResitRequest {
   evidenceNotes?: string;
   evidenceDocument?: string;
   attachmentFileName?: string;
+  attachmentFileUrl?: string;
+  attachmentFileType?: string;
+  attachmentFileSize?: number;
+  medicalFacility?: string;
+  doctorName?: string;
+  medicalCertificateRef?: string;
+  isMedicalCompulsoryMet?: boolean;
   status: 'pending' | 'approved' | 'declined';
   submittedAt: string;
   reviewedBy?: string;
