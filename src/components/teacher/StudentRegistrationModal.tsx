@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Exam, StudentProfile } from '../../types';
 import { checkMissedExamRegistrationBlock } from '../../services/storageService';
+import { triggerFlash } from '../common/FlashMessage';
 
 interface StudentRegistrationModalProps {
   isOpen: boolean;
@@ -56,11 +57,27 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
     e.preventDefault();
     if (!newName.trim() || !newEmail.trim() || !newRegNo.trim()) return;
 
+    const formattedRegNo = newRegNo.trim().toUpperCase();
+    if (currentExam) {
+      const blockCheck = checkMissedExamRegistrationBlock(formattedRegNo, currentExam.courseCode, currentExam.title);
+      if (blockCheck.isBlocked) {
+        setEnrollmentError(
+          `Re-registration Rejected: Candidate with Admission (${formattedRegNo}) was registered for examination [Code: ${currentExam.courseCode} | Title: "${currentExam.title}"] but missed the session. Candidate details rejected until cleared by Administrator.`
+        );
+        triggerFlash({
+          type: 'error',
+          text: 'Registration Rejected (Missed Exam)',
+          subtext: `Candidate (${formattedRegNo}) has uncleared missed exam for ${currentExam.courseCode}. Resit approval required.`,
+        });
+        return;
+      }
+    }
+
     const newStudent: StudentProfile = {
       id: `student-${Date.now().toString().slice(-4)}`,
       name: newName.trim(),
       email: newEmail.trim(),
-      studentNumber: newRegNo.trim().toUpperCase(),
+      studentNumber: formattedRegNo,
       avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
       department: newDept,
       faculty: currentExam?.faculty || 'Faculty of Computing & Information Technologies',
@@ -73,6 +90,11 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
     };
 
     onRegisterStudent(newStudent, selectedCourses);
+    triggerFlash({
+      type: 'success',
+      text: 'Candidate Registered Successfully',
+      subtext: `${newName.trim()} (${formattedRegNo}) registered for examination session.`,
+    });
     setNewName('');
     setNewEmail('');
     setNewRegNo('');
@@ -234,9 +256,13 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
                           onClick={() => {
                             if (!currentExam) return;
                             if (blockCheck.isBlocked) {
-                              setEnrollmentError(
-                                `Re-registration Blocked: Candidate ${st.name} (Admission: ${st.studentNumber}) was previously registered for examination [Code: ${currentExam.courseCode} | Title: "${currentExam.title}"] but missed the session. Re-registration is strictly prevented until cleared by the Administrator.`
-                              );
+                              const err = `Re-registration Blocked: Candidate ${st.name} (Admission: ${st.studentNumber}) was previously registered for examination [Code: ${currentExam.courseCode} | Title: "${currentExam.title}"] but missed the session. Re-registration is strictly prevented until cleared by the Administrator.`;
+                              setEnrollmentError(err);
+                              triggerFlash({
+                                type: 'error',
+                                text: 'Re-registration Rejected (Missed Exam)',
+                                subtext: `Candidate (${st.studentNumber}) missed ${currentExam.courseCode}. Administrator clearance is required before re-registration.`,
+                              });
                               return;
                             }
                             setEnrollmentError(null);

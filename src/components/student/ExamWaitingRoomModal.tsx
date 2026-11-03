@@ -1,23 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Clock,
-  ShieldCheck,
   CheckCircle2,
-  Lock,
   KeyRound,
   HelpCircle,
   RefreshCw,
   AlertCircle,
   Play,
   FileText,
+  Loader2,
 } from 'lucide-react';
 import { Exam, StudentProfile } from '../../types';
 import {
   isStudentAdmittedToExam,
   registerStudentToWaitingRoom,
   removeStudentFromWaitingRoom,
-  admitStudentToExam,
   hasUnapprovedMissedExam,
 } from '../../services/storageService';
 import { StudentResitRequestModal } from './StudentResitRequestModal';
@@ -60,7 +58,6 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
   onClose,
   onAdmittedAndUnlocked,
   onOpenHelp,
-  onRequestResit,
   allExams = [],
 }) => {
   const [isAdmitted, setIsAdmitted] = useState<boolean>(() =>
@@ -70,7 +67,9 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isResitModalOpen, setIsResitModalOpen] = useState(false);
-  const passwordInputRef = React.useRef<HTMLInputElement | null>(null);
+  const passwordInputRef = useRef<HTMLInputElement | null>(null);
+  const onAdmittedAndUnlockedRef = useRef(onAdmittedAndUnlocked);
+  onAdmittedAndUnlockedRef.current = onAdmittedAndUnlocked;
 
   // Verification 1: Course Registration Check
   const isEnrolledInCourse =
@@ -81,6 +80,7 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
   // Verification 2: Missed Exam Clearance Check
   const missedCheck = hasUnapprovedMissedExam(student.id, exam.courseCode, exam.title);
 
+  // Stable lifecycle for waiting room registration: ONLY runs when isOpen, exam.id, or student.id changes
   useEffect(() => {
     if (!isOpen) return;
 
@@ -110,8 +110,8 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
             if (!exam.accessPassword || exam.accessPassword.trim().length === 0) {
               setIsAutoLaunching(true);
               const timer = setTimeout(() => {
-                onAdmittedAndUnlocked();
-              }, 400);
+                onAdmittedAndUnlockedRef.current();
+              }, 450);
               return () => clearTimeout(timer);
             } else {
               setTimeout(() => {
@@ -127,7 +127,6 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
     };
 
     const handleResitUpdate = () => {
-      // Re-evaluate admission
       setIsAdmitted(isStudentAdmittedToExam(exam.id, student.id));
     };
 
@@ -139,7 +138,7 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
       window.removeEventListener('examguard_admission_updated', handleAdmission);
       window.removeEventListener('examguard_resit_requests_updated', handleResitUpdate);
     };
-  }, [exam.id, student.id, isOpen, isEnrolledInCourse, missedCheck.isBlocked, exam.accessPassword, onAdmittedAndUnlocked]);
+  }, [exam.id, student.id, isOpen]);
 
   if (!isOpen) return null;
 
@@ -151,7 +150,7 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
       }
     }
     setIsAutoLaunching(true);
-    onAdmittedAndUnlocked();
+    onAdmittedAndUnlockedRef.current();
   };
 
   return (
@@ -186,7 +185,7 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 dark:text-slate-400">Student Reg No:</span>
-                <span className="font-mono text-indigo-600 dark:text-indigo-400">{student.studentNumber}</span>
+                <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{student.studentNumber}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 dark:text-slate-400">Invigilator:</span>
@@ -208,7 +207,7 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs"
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs cursor-pointer"
                   >
                     Return to Dashboard
                   </button>
@@ -222,12 +221,12 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
                   <span>Missed Examination Clearance Required</span>
                 </div>
                 <p className="text-xs leading-relaxed">
-                  You were previously registered for and missed <strong className="font-mono">{exam.courseCode}</strong> ({exam.title}). In accordance with Rifkins Education College integrity rules, candidates who missed an examination must obtain approval from the Super Admin Directorate before their admission details can be accepted.
+                  You were previously registered for and missed <strong className="font-mono">{exam.courseCode}</strong> ({exam.title}). Candidates who missed an examination must apply for a resit and wait for approval from the Super Admin Directorate before their admission details can be accepted.
                 </p>
                 {missedCheck.resitRequest?.status === 'pending' ? (
-                  <div className="p-3 bg-amber-100/80 dark:bg-amber-900/40 rounded-lg text-xs font-semibold text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                  <div className="p-3 bg-amber-100/80 dark:bg-amber-900/40 rounded-lg text-xs font-semibold text-amber-900 dark:text-amber-200 flex items-center gap-2">
                     <Clock className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
-                    <span>Your Resit Clearance Request is currently awaiting Super Admin Directorate review.</span>
+                    <span>Your Resit Clearance Request is currently awaiting Super Admin review.</span>
                   </div>
                 ) : (
                   <div className="pt-1 flex items-center justify-between gap-2">
@@ -242,7 +241,7 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
                     <button
                       type="button"
                       onClick={onClose}
-                      className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
+                      className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-xs cursor-pointer"
                     >
                       Dismiss
                     </button>
@@ -250,14 +249,16 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
                 )}
               </div>
             ) : (
-              /* NORMAL ADMISSION STATUS INDICATOR */
-              <div className={`p-4 rounded-xl border text-center space-y-2 transition-all ${
-                isAdmitted
-                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 shadow-xs'
-                  : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800'
-              }`}>
+              /* STABLE ADMISSION STATUS INDICATOR */
+              <div
+                className={`p-4 rounded-xl border text-center space-y-2 transition-all ${
+                  isAdmitted
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 shadow-xs'
+                    : 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800'
+                }`}
+              >
                 {isAdmitted ? (
-                  <div className="text-emerald-700 dark:text-emerald-300 space-y-1.5 animate-in fade-in zoom-in-95">
+                  <div className="text-emerald-800 dark:text-emerald-200 space-y-1.5 animate-in fade-in">
                     <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-300 flex items-center justify-center mx-auto shadow-xs">
                       <CheckCircle2 className="w-6 h-6" />
                     </div>
@@ -269,85 +270,101 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
                     </div>
                     <p className="text-xs text-slate-700 dark:text-slate-300 font-medium">
                       {isAutoLaunching
-                        ? '🚀 Unlocking examination room... Launching active test session now!'
-                        : 'Identity verified and registered for course. You may commence your examination immediately.'}
+                        ? 'Unlocking examination room... Launching active test session now!'
+                        : 'Identity verified and admitted to session. You may commence immediately.'}
                     </p>
                   </div>
                 ) : (
-                  <div className="text-amber-700 dark:text-amber-300 space-y-1.5">
+                  <div className="text-amber-800 dark:text-amber-200 space-y-1.5">
                     <RefreshCw className="w-8 h-8 mx-auto animate-spin text-amber-600 dark:text-amber-400" />
                     <div className="font-bold text-sm">Awaiting Invigilator Admission</div>
                     <p className="text-xs text-slate-600 dark:text-slate-400">
-                      The chief invigilator is actively admitting candidates in real time. Your session will unlock instantly the split second you are admitted.
+                      The chief invigilator is actively admitting candidates. Your room unlocks automatically when admitted.
                     </p>
                   </div>
                 )}
               </div>
             )}
 
-          {/* Access passcode if exam requires one */}
-          {exam.accessPassword && (
-            <div className={`space-y-1.5 p-3 rounded-xl border transition-all ${
-              isAdmitted ? 'bg-amber-50/60 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700' : 'border-slate-200 dark:border-slate-800'
-            }`}>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Examination Room Access Passcode {isAdmitted && <span className="text-amber-600 dark:text-amber-400 font-bold">(Required to Commence)</span>}
-              </label>
-              <div className="relative">
-                <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  ref={passwordInputRef}
-                  type="password"
-                  placeholder="Enter passcode provided by invigilator"
-                  value={passwordInput}
-                  onChange={(e) => {
-                    setPasswordInput(e.target.value);
-                    setPasswordError(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleStart();
-                  }}
-                  className="w-full pl-9 pr-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500"
-                />
+            {/* Access passcode if exam requires one */}
+            {exam.accessPassword && (
+              <div
+                className={`space-y-1.5 p-3 rounded-xl border transition-all ${
+                  isAdmitted
+                    ? 'bg-amber-50/60 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700'
+                    : 'border-slate-200 dark:border-slate-800'
+                }`}
+              >
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Examination Room Access Passcode{' '}
+                  {isAdmitted && (
+                    <span className="text-amber-600 dark:text-amber-400 font-bold">(Required to Commence)</span>
+                  )}
+                </label>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    ref={passwordInputRef}
+                    type="password"
+                    placeholder="Enter passcode provided by invigilator"
+                    value={passwordInput}
+                    onChange={(e) => {
+                      setPasswordInput(e.target.value);
+                      setPasswordError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleStart();
+                    }}
+                    className="w-full pl-9 pr-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                {passwordError && (
+                  <p className="text-xs text-rose-600 dark:text-rose-400 font-semibold">{passwordError}</p>
+                )}
               </div>
-              {passwordError && (
-                <p className="text-xs text-rose-600 dark:text-rose-400 font-semibold">{passwordError}</p>
+            )}
+
+            {/* STABLE, NON-FLICKERING COMMENCE / ADMIT AWAITING BUTTON */}
+            <div className="pt-2 flex items-center gap-3">
+              <button
+                onClick={handleStart}
+                disabled={!isAdmitted || isAutoLaunching}
+                className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 shadow-md transition-colors cursor-pointer ${
+                  isAdmitted
+                    ? 'bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99]'
+                    : 'bg-slate-400 dark:bg-slate-700 cursor-not-allowed opacity-80'
+                }`}
+              >
+                {isAutoLaunching ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Commencing Examination Now...</span>
+                  </>
+                ) : isAdmitted ? (
+                  <>
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>Commence Examination Immediately</span>
+                  </>
+                ) : (
+                  <>
+                    <Clock className="w-4 h-4 animate-spin text-amber-200" />
+                    <span>Awaiting Invigilator Admission</span>
+                  </>
+                )}
+              </button>
+              {onOpenHelp && (
+                <button
+                  onClick={onOpenHelp}
+                  className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Get Invigilator Assistance"
+                >
+                  <HelpCircle className="w-5 h-5 text-slate-500" />
+                </button>
               )}
             </div>
-          )}
-
-          <div className="pt-2 flex items-center gap-3">
-            <button
-              onClick={handleStart}
-              disabled={!isAdmitted}
-              className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer ${
-                isAdmitted
-                  ? 'bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] animate-pulse ring-2 ring-emerald-400/50'
-                  : 'bg-slate-400 cursor-not-allowed opacity-75'
-              }`}
-            >
-              <Play className="w-4 h-4 fill-current" />
-              <span>
-                {isAutoLaunching
-                  ? 'Commencing Now...'
-                  : isAdmitted
-                  ? 'Commence Examination Immediately'
-                  : 'Awaiting Invigilator Admission'}
-              </span>
-            </button>
-            {onOpenHelp && (
-              <button
-                onClick={onOpenHelp}
-                className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                title="Get Invigilator Assistance"
-              >
-                <HelpCircle className="w-5 h-5 text-slate-500" />
-              </button>
-            )}
           </div>
         </div>
       </div>
-    </div>
 
       {isResitModalOpen && (
         <StudentResitRequestModal

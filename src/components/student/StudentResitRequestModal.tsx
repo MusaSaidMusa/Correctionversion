@@ -18,6 +18,7 @@ import {
   getStoredResitRequests,
   getStoredMissedExams,
 } from '../../services/storageService';
+import { triggerFlash } from '../common/FlashMessage';
 
 interface StudentResitRequestModalProps {
   isOpen: boolean;
@@ -84,6 +85,11 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
       setSuccessMsg(
         'Your Examination Resit & Clearance Request has been officially lodged. The Super Admin Directorate will review your case. Once cleared, candidate registration and examination room admission will be approved.'
       );
+      triggerFlash({
+        type: 'success',
+        text: 'Resit Clearance Request Submitted',
+        subtext: `Application for ${courseCode.trim().toUpperCase()} lodged with Super Admin Directorate for review and approval.`,
+      });
       setErrorMsg(null);
       setReasonDetails('');
       setEvidenceNotes('');
@@ -91,6 +97,11 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
       if (onSubmitted) onSubmitted();
     } catch (err: any) {
       setErrorMsg(err?.message || 'Failed to lodge resit request.');
+      triggerFlash({
+        type: 'error',
+        text: 'Resit Submission Failed',
+        subtext: err?.message || 'Could not lodge resit clearance application.',
+      });
     }
   };
 

@@ -1,5 +1,6 @@
 import { Exam, Question, ExamSubmission, ProctorIncident, StudentProfile, TeacherProfile, HelpTicket, ThemeMode, Course, AuthUser, MissedExamRecord, ResitRequest, ExamAttendanceSummary } from '../types';
 import { INITIAL_EXAMS, INITIAL_QUESTION_BANK, INITIAL_SUBMISSIONS, INITIAL_STUDENTS, CURRENT_TEACHER, INITIAL_TEACHERS, INITIAL_HELP_TICKETS, INITIAL_COURSES, SUPER_ADMIN, INITIAL_MISSED_EXAMS, INITIAL_RESIT_REQUESTS } from '../data/mockData';
+import { triggerFlash } from '../components/common/FlashMessage';
 
 const STORAGE_KEYS = {
   EXAMS: 'examguard_exams_v1',
@@ -216,22 +217,30 @@ if (typeof window !== 'undefined' && typeof EventSource !== 'undefined') {
         const exam = exams.find((x) => x.id === data.examId);
         if (exam) {
           if (!exam.admittedStudentIds) exam.admittedStudentIds = [];
+          let changed = false;
           if (data.admitted) {
             if (data.all && Array.isArray(data.studentIds)) {
               data.studentIds.forEach((sid: string) => {
-                if (!exam.admittedStudentIds!.includes(sid)) exam.admittedStudentIds!.push(sid);
+                if (!exam.admittedStudentIds!.includes(sid)) {
+                  exam.admittedStudentIds!.push(sid);
+                  changed = true;
+                }
               });
             } else if (data.studentId && !exam.admittedStudentIds.includes(data.studentId)) {
               exam.admittedStudentIds.push(data.studentId);
+              changed = true;
             }
-            localStorage.setItem(STORAGE_KEYS.EXAMS, JSON.stringify(exams));
           } else if (data.revoked && data.studentId) {
-            exam.admittedStudentIds = exam.admittedStudentIds.filter((id) => id !== data.studentId);
+            if (exam.admittedStudentIds.includes(data.studentId)) {
+              exam.admittedStudentIds = exam.admittedStudentIds.filter((id) => id !== data.studentId);
+              changed = true;
+            }
+          }
+          if (changed) {
             localStorage.setItem(STORAGE_KEYS.EXAMS, JSON.stringify(exams));
+            window.dispatchEvent(new CustomEvent('examguard_admission_updated', { detail: data }));
           }
         }
-        window.dispatchEvent(new CustomEvent('examguard_admission_updated', { detail: data }));
-        window.dispatchEvent(new CustomEvent('examguard_state_sync', { detail: data }));
       } catch {}
     });
 
@@ -524,9 +533,14 @@ export function registerStudentToExamWithValidation(
     const statusNote = blockCheck.resitRequest?.status === 'pending'
       ? 'Resit clearance request is currently pending Administrator review.'
       : 'No approved Administrator clearance on record.';
+    triggerFlash({
+      type: 'error',
+      text: 'Candidate Registration Rejected',
+      subtext: `Candidate ${student.name} (${student.studentNumber}) missed ${exam.courseCode}. Resit application & Admin approval required before re-registration.`,
+    });
     return {
       success: false,
-      error: `Re-registration Blocked: Candidate (Admission: ${student.studentNumber}) was previously registered to sit examination [Code: ${exam.courseCode} | Title: "${exam.title}"] but missed the session. ${statusNote} Re-registration is strictly prevented unless cleared by the Administrator.`,
+      error: `Re-registration Blocked: Candidate (Admission: ${student.studentNumber}) was previously registered to sit examination [Code: ${exam.courseCode} | Title: "${exam.title}"] but missed the session. ${statusNote} Student must apply for a resit and wait for approval from the Admin Directorate.`,
     };
   }
 
@@ -535,6 +549,11 @@ export function registerStudentToExamWithValidation(
     exam.registeredStudentIds.push(student.id);
     saveStoredExams(exams);
   }
+  triggerFlash({
+    type: 'success',
+    text: 'Candidate Enrolled Successfully',
+    subtext: `${student.name} (${student.studentNumber}) registered for ${exam.courseCode}.`,
+  });
   return { success: true };
 }
 
@@ -1121,6 +1140,20 @@ export function reviewResitRequest(
     }
   }
 
+  if (isApp) {
+    triggerFlash({
+      type: 'success',
+      text: 'Student Resit Clearance Approved',
+      subtext: `${req.studentName} (${req.studentNumber}) approved by Super Admin for ${req.courseCode} resit.`,
+    });
+  } else {
+    triggerFlash({
+      type: 'error',
+      text: 'Student Resit Clearance Declined',
+      subtext: `Resit clearance for ${req.studentName} (${req.courseCode}) was declined.`,
+    });
+  }
+
   return { success: true };
 }
 
@@ -1216,9 +1249,15 @@ export function admitStudentToExamWithValidation(
     exam.courseCode === 'ALL';
 
   if (!isRegisteredForCourse) {
+    const errorMsg = `Admission Denied: Candidate ${student.name} (${student.studentNumber}) is NOT registered for course ${exam.courseCode}. Unregistered candidates cannot be admitted into the examination room.`;
+    triggerFlash({
+      type: 'error',
+      text: 'Admission Denied: Not Enrolled',
+      subtext: `${student.name} (${student.studentNumber}) is not enrolled for ${exam.courseCode}.`,
+    });
     return {
       success: false,
-      error: `Admission Denied: Candidate ${student.name} (${student.studentNumber}) is NOT registered for course ${exam.courseCode}. Unregistered candidates cannot be admitted into the examination room.`,
+      error: errorMsg,
     };
   }
 
@@ -1228,9 +1267,15 @@ export function admitStudentToExamWithValidation(
     const note = missedCheck.resitRequest?.status === 'pending'
       ? 'Resit clearance request is currently pending Admin review.'
       : 'No approved Super Admin clearance found.';
+    const errorMsg = `Missed Examination Clearance Required: Candidate previously missed ${exam.courseCode} — ${exam.title}. ${note} Clearance must be granted by the Super Admin Directorate before room admission.`;
+    triggerFlash({
+      type: 'error',
+      text: 'Admission Blocked: Missed Exam',
+      subtext: `Candidate ${student.name} previously missed ${exam.courseCode}. Admin clearance required.`,
+    });
     return {
       success: false,
-      error: `Missed Examination Clearance Required: Candidate previously missed ${exam.courseCode} — ${exam.title}. ${note} Clearance must be granted by the Super Admin Directorate before room admission.`,
+      error: errorMsg,
     };
   }
 
@@ -1240,12 +1285,21 @@ export function admitStudentToExamWithValidation(
     saveStoredExams(exams);
   }
 
+  // Synchronously remove from waiting room to prevent button jitter/flicker
+  removeStudentFromWaitingRoom(examId, studentId);
+
   // Instant broadcast across local window and cross-tab BroadcastChannel
   broadcastSync('examguard_admission_updated', {
     examId,
     studentId,
     admitted: true,
     timestamp: Date.now(),
+  });
+
+  triggerFlash({
+    type: 'success',
+    text: 'Candidate Admitted into Exam Room',
+    subtext: `${student.name} (${student.studentNumber}) is cleared and admitted into ${exam.courseCode}.`,
   });
 
   // Post to backend for real-time multi-browser / cross-device SSE synchronization
@@ -1296,6 +1350,8 @@ export function admitAllStudentsToExam(examId: string): { success: boolean; admi
       exam.admittedStudentIds.push(student.id);
       admittedCount++;
     }
+    // Remove from waiting room synchronously
+    removeStudentFromWaitingRoom(examId, student.id);
   });
 
   saveStoredExams(exams);
@@ -1307,6 +1363,12 @@ export function admitAllStudentsToExam(examId: string): { success: boolean; admi
     admitted: true,
     studentIds: exam.admittedStudentIds,
     timestamp: Date.now(),
+  });
+
+  triggerFlash({
+    type: 'success',
+    text: 'Candidate Admissions Approved',
+    subtext: `Admitted ${admittedCount} cleared candidate(s) into examination room.`,
   });
 
   // Post to backend for multi-browser & device sync

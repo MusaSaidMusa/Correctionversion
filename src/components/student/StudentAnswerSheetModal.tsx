@@ -181,6 +181,11 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
                     .filter(Boolean)
                 : [];
 
+              const maxPoints = q.points || 1;
+              const isFullPoints = isMarked && awarded === maxPoints;
+              const isZeroPoints = isMarked && awarded === 0;
+              const isPartial = isMarked && awarded > 0 && awarded < maxPoints;
+
               return (
                 <div key={q.id || idx} className="border-b border-black/20 pb-6 last:border-0 space-y-3">
                   <div className="flex items-start justify-between gap-4 bg-slate-50 p-2.5 rounded border border-slate-200">
@@ -189,19 +194,45 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
                         Question {idx + 1}
                       </span>
                       <span className="text-xs text-slate-500 ml-2 font-mono">
-                        (Max: {q.points} Marks)
+                        (Max: {maxPoints} Marks)
                       </span>
                     </div>
-                    <span className="font-mono font-bold text-sm bg-white px-2.5 py-1 rounded border border-slate-300 shadow-xs">
-                      Awarded: {awarded} / {q.points} Marks
-                    </span>
+
+                    {/* Teacher Marking Toolset Evaluation Badge (Green Tick / Red X) */}
+                    <div className="flex items-center gap-2">
+                      {isFullPoints ? (
+                        <span className="font-mono font-bold text-xs bg-emerald-50 text-emerald-900 border-2 border-emerald-400 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+                          <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black">✓</span>
+                          <span>Right: {awarded} / {maxPoints} Marks</span>
+                        </span>
+                      ) : isZeroPoints ? (
+                        <span className="font-mono font-bold text-xs bg-rose-50 text-rose-900 border-2 border-rose-400 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+                          <span className="w-4 h-4 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px] font-black">✗</span>
+                          <span>Unright: 0 / {maxPoints} Marks</span>
+                        </span>
+                      ) : isPartial ? (
+                        <span className="font-mono font-bold text-xs bg-amber-50 text-amber-900 border-2 border-amber-400 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+                          <span>~ Partial: {awarded} / {maxPoints} Marks</span>
+                        </span>
+                      ) : (
+                        <span className="font-mono font-bold text-sm bg-white px-2.5 py-1 rounded border border-slate-300 shadow-xs">
+                          Awarded: {awarded} / {maxPoints} Marks
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <p className="font-semibold text-slate-900 leading-snug pl-1">{q.prompt}</p>
 
-                  <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-300 space-y-3 font-sans">
+                  <div className={`p-4 rounded-xl border space-y-3 font-sans transition-all ${
+                    isFullPoints
+                      ? 'bg-emerald-50/40 border-emerald-200'
+                      : isZeroPoints
+                      ? 'bg-rose-50/40 border-rose-200'
+                      : 'bg-slate-50/70 border-slate-300'
+                  }`}>
                     <div className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
-                      <span>Candidate Written Script &amp; Point Illustration:</span>
+                      <span>Candidate Written Script &amp; Evaluation Marks:</span>
                       <span className="text-[11px] font-mono font-semibold text-slate-500">
                         {textPoints.length > 0 ? `${textPoints.length} Point(s) Documented` : 'Single Response Recorded'}
                       </span>
@@ -213,13 +244,36 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
                           {textPoints.map((point, pIdx) => {
                             const cleanPoint = point.replace(/^[•\-\*\d\.\)\s]+/, '');
                             return (
-                              <div key={pIdx} className="flex items-start gap-2.5 py-0.5 border-b border-slate-100 last:border-0">
-                                <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
-                                  {pIdx + 1}
-                                </span>
-                                <span className="leading-relaxed font-serif text-slate-900 text-sm">
-                                  {cleanPoint}
-                                </span>
+                              <div key={pIdx} className="flex items-start justify-between gap-2.5 py-1 border-b border-slate-100 last:border-0">
+                                <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                    {pIdx + 1}
+                                  </span>
+                                  <span className="leading-relaxed font-serif text-slate-900 text-sm">
+                                    {cleanPoint}
+                                  </span>
+                                </div>
+
+                                {/* Beautiful Green Tick for right point / Red X for unright point */}
+                                {isMarked && (
+                                  <div className="shrink-0 pt-0.5">
+                                    {isFullPoints ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                                        <span className="text-emerald-700 font-black">✓</span>
+                                        <span>Right</span>
+                                      </span>
+                                    ) : isZeroPoints ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-100 text-rose-800 text-[11px] font-bold">
+                                        <span className="text-rose-700 font-black">✗</span>
+                                        <span>Unright</span>
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-mono font-bold">
+                                        {pIdx < awarded ? '✓ Right' : '✗ Unright'}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}

@@ -69,6 +69,7 @@ import { ExaminationPaperModal } from '../common/ExaminationPaperModal';
 import { OfficialMarkingSchemeModal } from '../common/OfficialMarkingSchemeModal';
 import { UploadMarkingSchemeModal } from './UploadMarkingSchemeModal';
 import { PastPapersSection } from '../common/PastPapersSection';
+import { triggerFlash } from '../common/FlashMessage';
 
 interface TeacherDashboardProps {
   teacher: TeacherProfile;
@@ -349,6 +350,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   // Helper notification
   const showToast = (text: string, isError = false) => {
     setToastMessage({ text, isError });
+    triggerFlash({
+      type: isError ? 'error' : 'success',
+      text,
+    });
     setTimeout(() => setToastMessage(null), 5000);
   };
 

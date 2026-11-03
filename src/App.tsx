@@ -187,9 +187,15 @@ export default function App() {
     window.addEventListener('examguard_teachers_updated', handleSyncUpdate);
     window.addEventListener('examguard_questions_updated', handleSyncUpdate);
     window.addEventListener('examguard_state_sync', handleSyncUpdate);
-    window.addEventListener('storage', handleSyncUpdate);
+    const handleGlobalFlash = (e: any) => {
+      if (e.detail) {
+        showFlash(e.detail);
+      }
+    };
+    window.addEventListener('examguard_flash', handleGlobalFlash);
 
     return () => {
+      window.removeEventListener('examguard_flash', handleGlobalFlash);
       window.removeEventListener('examguard_submissions_updated', handleSyncUpdate);
       window.removeEventListener('examguard_admissions_updated', handleSyncUpdate);
       window.removeEventListener('examguard_admission_updated', handleSyncUpdate);
@@ -395,6 +401,11 @@ export default function App() {
     saveSubmission(finalSub);
     reloadState();
     window.dispatchEvent(new CustomEvent('examguard_submissions_updated'));
+    showFlash({
+      type: 'success',
+      text: 'Examination Paper Successfully Submitted',
+      subtext: `Your answers for ${activeRunningExam?.courseCode || 'the examination'} have been uploaded and recorded for evaluation.`,
+    });
     setActiveRunningExam(null);
     if (activeRunningExam) {
       setPostSubmitResult({ exam: activeRunningExam, submission: finalSub });

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { X, Printer, Download, FileText, CheckCircle2, Lock, ShieldAlert } from 'lucide-react';
+import { X, Printer, FileText, Lock, ShieldAlert, Award, Calendar, Clock, CheckCircle } from 'lucide-react';
 import { Exam } from '../../types';
 
 interface ExaminationPaperModalProps {
@@ -24,7 +24,12 @@ export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
   if (!isOpen) return null;
 
   const isStudent = userRole === 'student' || canDownload === false;
-  const totalPoints = exam.questions.reduce((sum, q) => sum + (q.points || 0), 0);
+
+  // Use the exact marks specified by teacher during examination setting
+  const totalTeacherMarks = exam.questions.reduce((sum, q) => {
+    const pts = typeof q.points === 'number' && Number.isFinite(q.points) ? q.points : 0;
+    return sum + pts;
+  }, 0);
 
   useEffect(() => {
     if (!isOpen || !isStudent) return;
@@ -48,30 +53,37 @@ export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
       <div className="bg-white text-slate-900 rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
         {/* Modal Action Header (Excluded when printed) */}
         <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 print:hidden">
-          <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-indigo-600" />
-            <span className="font-bold text-sm text-slate-800">
-              Official Examination Paper — {exam.courseCode}: {exam.courseTitle || exam.title}
-            </span>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+              <FileText className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-sm text-slate-900">
+                Official Examination Paper &mdash; {exam.courseCode}
+              </span>
+              <p className="text-[11px] text-slate-500 font-medium">
+                {exam.courseTitle || exam.title} &bull; Rifkins Education College
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {!isStudent && canDownload ? (
               <button
                 onClick={handlePrint}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
                 <span>Print / Save as PDF</span>
               </button>
             ) : (
-              <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-300 flex items-center gap-1">
+              <span className="text-[11px] font-semibold text-amber-900 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-300 flex items-center gap-1.5 shadow-2xs">
                 <Lock className="w-3.5 h-3.5 text-amber-600" />
                 <span>Candidate View (Print Prohibited)</span>
               </span>
             )}
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -92,125 +104,167 @@ export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
           </div>
         )}
 
-        {/* Paper Document Container (Standard Times New Roman 12pt Academic Styling) */}
-        <div className={`p-8 sm:p-12 overflow-y-auto flex-1 font-serif text-[12pt] leading-relaxed text-black bg-white select-text ${isStudent ? 'student-print-restricted' : ''}`}>
-          {/* Official University Header with Uploaded Institutional Logo */}
-          <div className="text-center border-b-2 border-black pb-4 mb-6">
-            <div className="flex justify-center mb-3">
+        {/* Paper Document Container (Standard Times New Roman Academic Paper Presentation) */}
+        <div
+          className={`p-8 sm:p-14 overflow-y-auto flex-1 font-serif text-[12pt] leading-relaxed text-black bg-white select-text ${
+            isStudent ? 'student-print-restricted' : ''
+          }`}
+        >
+          {/* Institutional Header with Logo & Crest */}
+          <div className="text-center border-b-2 border-slate-900 pb-5 mb-6 space-y-1">
+            <div className="flex justify-center mb-2">
               <img
-                src="/institution-logo.jpg"
-                alt="Rifkins Education College Logo"
-                className="h-16 max-w-[200px] object-contain"
+                src="/rifkins-logo.png"
+                alt="Rifkins Education College Crest"
+                className="h-16 max-w-[220px] object-contain drop-shadow-xs"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/institution-logo.jpg';
+                }}
               />
             </div>
-            <h1 className="text-xl font-bold uppercase tracking-wide">Rifkins Education College</h1>
-            <p className="text-xs italic tracking-wide text-slate-700">"Impacting lives since 1953"</p>
-            <h2 className="text-sm font-semibold uppercase tracking-wider mt-1">
+            <h1 className="text-2xl font-black uppercase tracking-wider text-black">
+              Rifkins Education College
+            </h1>
+            <p className="text-xs italic tracking-widest text-slate-700 font-sans">
+              "Impacting lives since 1953"
+            </p>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-900 pt-1">
               {faculty || exam.faculty || 'Faculty of Computing & Information Technologies'}
             </h2>
-            <h3 className="text-xs uppercase tracking-wider text-slate-700 mt-0.5">
-              {department || exam.department || 'Academic Department of Examinations'}
+            <h3 className="text-xs uppercase tracking-wider text-slate-700 font-sans">
+              {department || exam.department || 'Academic Department of Examinations & Assessments'}
             </h3>
-            <p className="text-xs italic mt-1 font-sans text-slate-600">
-              Official Examination Paper
-            </p>
-          </div>
-
-          {/* Exam Details Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm border-b-2 border-black pb-5 mb-6">
-            <div>
-              <strong>Examination Title:</strong> {exam.title}
-            </div>
-            <div>
-              <strong>Course Code:</strong> <span className="font-mono font-bold">{exam.courseCode}</span>
-            </div>
-            <div>
-              <strong>Course Title:</strong> {exam.courseTitle || exam.title}
-            </div>
-            <div>
-              <strong>Academic Faculty:</strong> {faculty || exam.faculty || 'Faculty of Computing & Information Technologies'}
-            </div>
-            <div>
-              <strong>Department:</strong> {department || exam.department || 'Computer Science & Software Engineering'}
-            </div>
-            <div>
-              <strong>Examination Date:</strong> {exam.scheduledDate || new Date(exam.scheduledStartTime).toLocaleDateString()}
-            </div>
-            <div>
-              <strong>Time Allowed:</strong> {exam.durationMinutes} Minutes ({Math.floor(exam.durationMinutes / 60) > 0 ? `${Math.floor(exam.durationMinutes / 60)} Hour${Math.floor(exam.durationMinutes / 60) > 1 ? 's' : ''} ` : ''}{exam.durationMinutes % 60 > 0 ? `${exam.durationMinutes % 60} Minutes` : ''})
-            </div>
-            <div>
-              <strong>Chief Invigilator:</strong> {exam.instructorName}
-            </div>
-            <div>
-              <strong>Total Marks Available:</strong> <span className="font-bold">{totalPoints} Marks (100%)</span>
-            </div>
-            <div>
-              <strong>Academic Level / Credits:</strong> {exam.level || 'Degree Level'} &bull; {exam.credits || 3} Credits
+            <div className="pt-2">
+              <span className="inline-block px-3 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[11px] font-mono font-bold uppercase tracking-wider border border-slate-300">
+                Official University Examination Paper
+              </span>
             </div>
           </div>
 
-          {/* Instructions to Candidates */}
-          <div className="mb-6 bg-slate-50 p-4 border border-slate-300 text-xs font-sans">
-            <strong className="block text-sm uppercase tracking-wide mb-1.5">Instructions to Candidates:</strong>
-            <ul className="list-disc pl-5 space-y-1 text-slate-800">
-              <li>Answer all questions in this examination paper.</li>
-              <li>Marks allocated for each question are indicated in brackets [ ] at the right margin.</li>
-              <li>Calculators and electronic communication devices are subject to proctored surveillance guidelines.</li>
-              <li>Ensure all submitted responses are written clearly and numbered sequentially.</li>
-            </ul>
+          {/* Official Examination Metadata Table */}
+          <div className="border border-slate-400 rounded-lg p-4 mb-6 bg-slate-50/50 text-sm font-sans grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
+            <div>
+              <span className="text-slate-500 font-medium">Course Code:</span>{' '}
+              <strong className="font-mono text-black">{exam.courseCode}</strong>
+            </div>
+            <div>
+              <span className="text-slate-500 font-medium">Examination Date:</span>{' '}
+              <strong className="text-black">
+                {exam.scheduledDate || new Date(exam.scheduledStartTime).toLocaleDateString()}
+              </strong>
+            </div>
+            <div>
+              <span className="text-slate-500 font-medium">Course Title:</span>{' '}
+              <strong className="text-black">{exam.courseTitle || exam.title}</strong>
+            </div>
+            <div>
+              <span className="text-slate-500 font-medium">Time Allowed:</span>{' '}
+              <strong className="text-black">
+                {exam.durationMinutes} Minutes ({Math.floor(exam.durationMinutes / 60) > 0 ? `${Math.floor(exam.durationMinutes / 60)} Hr ` : ''}{exam.durationMinutes % 60 > 0 ? `${exam.durationMinutes % 60} Mins` : ''})
+              </strong>
+            </div>
+            <div>
+              <span className="text-slate-500 font-medium">Chief Invigilator:</span>{' '}
+              <strong className="text-black">{exam.instructorName}</strong>
+            </div>
+            <div>
+              <span className="text-slate-500 font-medium">Total Marks Available:</span>{' '}
+              {/* Uses the exact marks specified by teacher during examination setting */}
+              <strong className="text-black font-mono">
+                {totalTeacherMarks} Marks (100%)
+              </strong>
+            </div>
           </div>
 
-          {/* Questions Section */}
+          {/* Candidate Directives & Instructions */}
+          <div className="mb-8 p-4 bg-amber-50/50 border-l-4 border-amber-600 rounded-r-lg text-xs font-sans space-y-1.5">
+            <div className="font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+              <span>Instructions to Candidates:</span>
+            </div>
+            <ol className="list-decimal pl-5 space-y-1 text-slate-800">
+              <li>Answer all questions presented in this examination paper.</li>
+              <li>
+                <strong>Marks allocation:</strong> The marks allocated for each question are indicated in brackets <span className="font-mono font-bold">[ &hellip; Marks ]</span> as specified by the setting examiner.
+              </li>
+              <li>All candidate answers must be clear, legible, and organized sequentially.</li>
+              <li>Communication with unauthorized persons or external materials is strictly prohibited under institutional regulations.</li>
+            </ol>
+          </div>
+
+          {/* Questions Section with Teacher-Specified Marks Preserved */}
           <div className="space-y-8 mt-6">
-            {exam.questions.map((q, idx) => (
-              <div key={q.id || idx} className="space-y-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="font-bold">
-                    Question {idx + 1}.
+            {exam.questions.map((q, idx) => {
+              // Strictly use the teacher's specified marks for this question
+              const questionMarks = typeof q.points === 'number' && Number.isFinite(q.points) ? q.points : 0;
+
+              return (
+                <div key={q.id || idx} className="space-y-3 pb-6 border-b border-slate-200 last:border-0">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <div className="font-bold text-base text-black">
+                      Question {idx + 1}.
+                    </div>
+                    {/* Teacher-specified mark right-aligned without alterations */}
+                    <div className="font-bold text-sm shrink-0 font-mono text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded border border-slate-300">
+                      [{questionMarks} Marks]
+                    </div>
                   </div>
-                  <div className="font-bold text-sm shrink-0">
-                    [{q.points} Marks]
+
+                  <div className="pl-4 space-y-3">
+                    <p className="whitespace-pre-wrap text-black leading-relaxed text-justify">
+                      {q.prompt}
+                    </p>
+
+                    {/* Multiple Choice Options if applicable */}
+                    {q.options && q.options.length > 0 && (
+                      <div className="mt-3 space-y-2 pl-2">
+                        {q.options.map((opt, oIdx) => (
+                          <div key={opt.id || oIdx} className="flex items-start gap-2.5 text-sm">
+                            <span className="font-bold font-mono text-black w-6">
+                              ({String.fromCharCode(65 + oIdx)})
+                            </span>
+                            <span className="text-black">{opt.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Sub-questions if specified by teacher with individual sub-marks */}
+                    {q.subQuestions && q.subQuestions.length > 0 && (
+                      <div className="mt-4 space-y-2.5 pl-4 border-l-2 border-slate-200">
+                        {q.subQuestions.map((sq, sqIdx) => {
+                          const subMarks = typeof sq.points === 'number' && Number.isFinite(sq.points) ? sq.points : null;
+                          return (
+                            <div key={sq.id || sqIdx} className="text-sm flex items-baseline justify-between gap-3">
+                              <div>
+                                <span className="font-bold font-mono text-black">
+                                  ({String.fromCharCode(97 + sqIdx)})
+                                </span>{' '}
+                                <span className="text-black">{sq.prompt}</span>
+                              </div>
+                              {subMarks !== null && (
+                                <span className="font-bold font-mono text-xs shrink-0 text-slate-800">
+                                  [{subMarks} Marks]
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                <div className="pl-4">
-                  <p className="whitespace-pre-wrap">{q.prompt}</p>
-
-                  {/* Multiple Choice Options if applicable */}
-                  {q.options && q.options.length > 0 && (
-                    <div className="mt-3 space-y-1.5 pl-4">
-                      {q.options.map((opt, oIdx) => (
-                        <div key={opt.id || oIdx} className="flex items-start gap-2 text-sm">
-                          <span className="font-semibold">
-                            {String.fromCharCode(65 + oIdx)}.
-                          </span>
-                          <span>{opt.text}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Sub-questions if applicable */}
-                  {q.subQuestions && q.subQuestions.length > 0 && (
-                    <div className="mt-3 space-y-2 pl-4">
-                      {q.subQuestions.map((sq, sqIdx) => (
-                        <div key={sq.id || sqIdx} className="text-sm">
-                          <span className="font-semibold">({String.fromCharCode(97 + sqIdx)})</span>{' '}
-                          {sq.prompt}{' '}
-                          {sq.points && <span className="font-bold">[{sq.points} Marks]</span>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* End of Examination Footer */}
-          <div className="text-center mt-12 pt-6 border-t border-slate-300 font-bold uppercase tracking-wider text-xs">
-            *** End of Examination Paper ***
+          {/* Academic Footer */}
+          <div className="text-center mt-12 pt-6 border-t-2 border-slate-900 font-sans">
+            <div className="font-bold uppercase tracking-widest text-xs text-slate-800">
+              *** END OF EXAMINATION PAPER ***
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1 italic">
+              Rifkins Education College &bull; Academic Examination Directorate &bull; "Impacting lives since 1953"
+            </p>
           </div>
         </div>
       </div>

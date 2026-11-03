@@ -1,14 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   UserCheck,
-  Users,
-  ShieldCheck,
   CheckCircle2,
   Clock,
   Ban,
-  RefreshCw,
   Search,
+  Loader2,
 } from 'lucide-react';
 import { Exam, StudentProfile, ExamSubmission } from '../../types';
 import {
@@ -39,7 +37,9 @@ export const ExamAdmissionModal: React.FC<ExamAdmissionModalProps> = ({
   const [currentExam, setCurrentExam] = useState<Exam>(exam);
   const [waitingStudentIds, setWaitingStudentIds] = useState<string[]>([]);
   const [searchFilter, setSearchFilter] = useState('');
-  const [actionAlert, setActionAlert] = useState<{ text: string; isError?: boolean } | null>(null);
+  const [admittingMap, setAdmittingMap] = useState<Record<string, boolean>>({});
+  const [isAdmittingAll, setIsAdmittingAll] = useState(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const refreshState = () => {
     const exams = getStoredExams();
@@ -48,17 +48,25 @@ export const ExamAdmissionModal: React.FC<ExamAdmissionModalProps> = ({
     setWaitingStudentIds(getWaitingRoomStudents(exam.id));
   };
 
+  const debouncedRefresh = () => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      refreshState();
+    }, 60);
+  };
+
   useEffect(() => {
     if (!isOpen) return;
     refreshState();
 
-    const handleWaitingRoomUpdate = () => refreshState();
-    window.addEventListener('examguard_waiting_room_updated', handleWaitingRoomUpdate);
-    window.addEventListener('examguard_admission_updated', handleWaitingRoomUpdate);
+    const handleEvent = () => debouncedRefresh();
+    window.addEventListener('examguard_waiting_room_updated', handleEvent);
+    window.addEventListener('examguard_admission_updated', handleEvent);
 
     return () => {
-      window.removeEventListener('examguard_waiting_room_updated', handleWaitingRoomUpdate);
-      window.removeEventListener('examguard_admission_updated', handleWaitingRoomUpdate);
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      window.removeEventListener('examguard_waiting_room_updated', handleEvent);
+      window.removeEventListener('examguard_admission_updated', handleEvent);
     };
   }, [exam.id, isOpen]);
 
@@ -68,35 +76,56 @@ export const ExamAdmissionModal: React.FC<ExamAdmissionModalProps> = ({
   const registeredIds = currentExam.registeredStudentIds || [];
 
   const handleAdmitOne = (studentId: string) => {
-    const res = admitStudentToExamWithValidation(exam.id, studentId);
-    if (!res.success) {
-      setActionAlert({ text: res.error || 'Failed to admit candidate.', isError: true });
-      return;
+    // Set admitting lock to avoid button jitter
+    setAdmittingMap((prev) => ({ ...prev, [studentId]: true }));
+
+    // Optimistically update currentExam admittedStudentIds for zero-latency UI stability
+    setCurrentExam((prev) => ({
+      ...prev,
+      admittedStudentIds: Array.from(new Set([...(prev.admittedStudentIds || []), studentId])),
+    }));
+    setWaitingStudentIds((prev) => prev.filter((id) => id !== studentId));
+
+    try {
+      const res = admitStudentToExamWithValidation(exam.id, studentId);
+      if (res.success) {
+        onAdmissionsUpdated();
+      }
+    } finally {
+      setTimeout(() => {
+        setAdmittingMap((prev) => {
+          const next = { ...prev };
+          delete next[studentId];
+          return next;
+        });
+        refreshState();
+      }, 150);
     }
-    setActionAlert({ text: 'Candidate successfully admitted into examination room.', isError: false });
-    refreshState();
-    onAdmissionsUpdated();
   };
 
   const handleRevokeOne = (studentId: string) => {
+    // Optimistically revoke
+    setCurrentExam((prev) => ({
+      ...prev,
+      admittedStudentIds: (prev.admittedStudentIds || []).filter((id) => id !== studentId),
+    }));
+
     revokeStudentAdmission(exam.id, studentId);
-    setActionAlert({ text: 'Candidate admission revoked.', isError: false });
-    refreshState();
     onAdmissionsUpdated();
+    setTimeout(() => refreshState(), 100);
   };
 
   const handleAdmitAll = () => {
-    const res = admitAllStudentsToExam(exam.id);
-    if (res.rejectedCount > 0) {
-      setActionAlert({
-        text: `Admitted ${res.admittedCount} registered & cleared candidate(s). Skipped ${res.rejectedCount} unregistered or uncleared candidate(s).`,
-        isError: false,
-      });
-    } else {
-      setActionAlert({ text: `Admitted ${res.admittedCount} candidate(s).`, isError: false });
+    setIsAdmittingAll(true);
+    try {
+      const res = admitAllStudentsToExam(exam.id);
+      if (res.success) {
+        refreshState();
+        onAdmissionsUpdated();
+      }
+    } finally {
+      setTimeout(() => setIsAdmittingAll(false), 200);
     }
-    refreshState();
-    onAdmissionsUpdated();
   };
 
   const filteredStudents = students.filter(
@@ -108,6 +137,7 @@ export const ExamAdmissionModal: React.FC<ExamAdmissionModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
       <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+        {/* Header */}
         <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
@@ -129,65 +159,59 @@ export const ExamAdmissionModal: React.FC<ExamAdmissionModalProps> = ({
         </div>
 
         <div className="p-6 overflow-y-auto space-y-4 flex-1 text-xs">
-          {/* Action Alert Banner */}
-          {actionAlert && (
-            <div
-              className={`p-3 rounded-xl border flex items-center justify-between gap-2 ${
-                actionAlert.isError
-                  ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200'
-                  : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
-              }`}
-            >
-              <span>{actionAlert.text}</span>
-              <button
-                type="button"
-                onClick={() => setActionAlert(null)}
-                className="text-slate-400 hover:text-slate-600 font-bold"
-              >
-                ×
-              </button>
-            </div>
-          )}
-
           {/* Waiting Room Real-Time Banner */}
-          <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <Clock className="w-5 h-5 text-amber-500 shrink-0" />
+              <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <Clock className="w-5 h-5" />
+              </div>
               <div>
-                <div className="font-bold text-sm">
+                <div className="font-bold text-sm text-slate-900 dark:text-slate-100">
                   {waitingStudentIds.length} Candidate(s) in Virtual Waiting Room
                 </div>
-                <div className="text-slate-500 mt-0.5">
-                  Total Admitted: {admittedIds.length} of {registeredIds.length || students.length}
+                <div className="text-slate-500 dark:text-slate-400 mt-0.5">
+                  Total Admitted: <strong className="text-emerald-600 dark:text-emerald-400">{admittedIds.length}</strong> of {registeredIds.length || students.length}
                 </div>
               </div>
             </div>
 
             <button
               onClick={handleAdmitAll}
-              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              disabled={isAdmittingAll}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs disabled:opacity-60 whitespace-nowrap"
             >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Admit Cleared Candidates</span>
+              {isAdmittingAll ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Admitting Candidates...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Admit Cleared Candidates</span>
+                </>
+              )}
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Search className="w-4 h-4 text-slate-400" />
+          {/* Search bar */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
               placeholder="Search candidate by name or registration number..."
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+              className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
-          {/* Candidates List with Course Registration & Missed Clearance Enforced */}
-          <div className="border rounded-xl divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
+          {/* Candidates List with Stable Non-Flickering Buttons */}
+          <div className="border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
             {filteredStudents.map((st) => {
               const isAdmitted = admittedIds.includes(st.id);
               const isWaiting = waitingStudentIds.includes(st.id);
+              const isAdmitting = Boolean(admittingMap[st.id]);
               const isEnrolledInCourse =
                 st.enrolledCourseCodes?.includes(exam.courseCode) ||
                 currentExam.registeredStudentIds?.includes(st.id) ||
@@ -197,69 +221,91 @@ export const ExamAdmissionModal: React.FC<ExamAdmissionModalProps> = ({
               return (
                 <div
                   key={st.id}
-                  className="p-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 gap-2"
+                  className="p-3.5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 gap-3 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <img
                       src={st.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'}
                       alt={st.name}
-                      className="w-8 h-8 rounded-full object-cover"
+                      className="w-9 h-9 rounded-full object-cover shrink-0 border border-slate-200 dark:border-slate-700"
                     />
-                    <div>
-                      <div className="font-bold text-slate-900 dark:text-slate-100 flex flex-wrap items-center gap-1.5">
-                        <span>{st.name}</span>
-                        {isWaiting && (
-                          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[10px] font-bold">
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 dark:text-slate-100 flex flex-wrap items-center gap-1.5 truncate">
+                        <span className="truncate">{st.name}</span>
+                        {isWaiting && !isAdmitted && (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 text-[10px] font-bold border border-amber-300 dark:border-amber-700 shrink-0">
                             Waiting Room
                           </span>
                         )}
+                        {isAdmitted && (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300 text-[10px] font-bold border border-emerald-300 dark:border-emerald-700 shrink-0">
+                            Admitted ✓
+                          </span>
+                        )}
                         {!isEnrolledInCourse && (
-                          <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 text-[10px] font-bold">
-                            Not Registered for Course
+                          <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 text-[10px] font-bold shrink-0">
+                            Not Enrolled
                           </span>
                         )}
                         {missedCheck.isBlocked && (
-                          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 text-[10px] font-bold">
-                            Requires Admin Resit Clearance
+                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 text-[10px] font-bold shrink-0">
+                            Admin Clearance Required
                           </span>
                         )}
                       </div>
-                      <div className="text-[10px] text-slate-500">
-                        Reg: {st.studentNumber} &bull; {st.department || 'Computing'}
+                      <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                        ADM NO: {st.studentNumber} &bull; {st.department || 'Computing'}
                       </div>
                     </div>
                   </div>
 
-                  <div className="shrink-0">
+                  {/* Stable Action Button Controls */}
+                  <div className="shrink-0 flex items-center gap-2">
                     {isAdmitted ? (
                       <button
                         type="button"
                         onClick={() => handleRevokeOne(st.id)}
-                        className="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-900 font-semibold hover:bg-rose-100 cursor-pointer flex items-center gap-1"
+                        className="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-900 font-semibold hover:bg-rose-100 transition-colors cursor-pointer flex items-center gap-1"
+                        title="Revoke room admission"
                       >
                         <Ban className="w-3.5 h-3.5" />
-                        <span>Revoke Admission</span>
+                        <span>Revoke</span>
                       </button>
                     ) : !isEnrolledInCourse ? (
-                      <span className="text-[11px] font-semibold text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded border border-rose-200 dark:border-rose-800">
-                        Unregistered (Admission Blocked)
+                      <span className="text-[11px] font-semibold text-rose-700 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1.5 rounded-lg border border-rose-200 dark:border-rose-800">
+                        Unregistered
                       </span>
                     ) : missedCheck.isBlocked ? (
-                      <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded border border-amber-200 dark:border-amber-800">
+                      <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1.5 rounded-lg border border-amber-200 dark:border-amber-800">
                         Clearance Required
                       </span>
                     ) : (
                       <button
                         type="button"
+                        disabled={isAdmitting}
                         onClick={() => handleAdmitOne(st.id)}
-                        className={`px-3 py-1.5 rounded-lg font-bold cursor-pointer flex items-center gap-1 shadow-xs transition-all ${
-                          isWaiting
-                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse ring-2 ring-emerald-400'
-                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                        className={`min-w-[125px] px-3.5 py-1.5 rounded-lg font-bold cursor-pointer flex items-center justify-center gap-1.5 shadow-xs transition-colors ${
+                          isAdmitting
+                            ? 'bg-emerald-700 text-white opacity-80 cursor-wait'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                         }`}
                       >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>{isWaiting ? 'Admit Waiting Candidate ⚡' : 'Admit to Exam'}</span>
+                        {isAdmitting ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Admitting...</span>
+                          </>
+                        ) : isWaiting ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Admit Candidate ⚡</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Admit to Room</span>
+                          </>
+                        )}
                       </button>
                     )}
                   </div>

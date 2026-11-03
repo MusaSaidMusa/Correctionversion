@@ -41,8 +41,12 @@ import {
   Layers,
   BookPlus,
   BarChart3,
+  Printer,
 } from 'lucide-react';
 import { AdminReportGeneratorView } from './AdminReportGeneratorView';
+import { PrintMissedExamsModal } from './PrintMissedExamsModal';
+import { PrintApprovedStudentsModal } from './PrintApprovedStudentsModal';
+import { triggerFlash } from '../common/FlashMessage';
 import {
   TeacherProfile,
   TeacherRights,
@@ -149,6 +153,8 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   const [faculties, setFaculties] = useState(() => getStoredFaculties());
   const [missedExams, setMissedExams] = useState<MissedExamRecord[]>(() => getStoredMissedExams());
   const [resitRequests, setResitRequests] = useState<ResitRequest[]>(() => getStoredResitRequests());
+  const [isPrintMissedModalOpen, setIsPrintMissedModalOpen] = useState(false);
+  const [isPrintApprovedModalOpen, setIsPrintApprovedModalOpen] = useState(false);
 
   // Real-time synchronization of submissions, admissions, missed exams, and resit clearances across Super Admin Directorate
   useEffect(() => {
@@ -335,6 +341,10 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
+    triggerFlash({
+      type: 'success',
+      text: msg,
+    });
     setTimeout(() => setToastMessage(null), 4000);
   };
 
@@ -1171,9 +1181,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         if (selectedExamEnrollments.includes(ex.id)) {
           const missedCheck = checkMissedExamRegistrationBlock(updatedCandidate.studentNumber, ex.courseCode, ex.title);
           if (missedCheck.isBlocked) {
-            alert(
-              `Registration Blocked for [Code: ${ex.courseCode} | Title: "${ex.title}"]: Candidate ${updatedCandidate.name} (Admission: ${updatedCandidate.studentNumber}) previously registered to sit this examination but missed it. Admin clearance is required before re-registration is permitted.`
-            );
+            triggerFlash({
+              type: 'error',
+              text: 'Re-registration Rejected (Missed Exam)',
+              subtext: `Candidate ${updatedCandidate.name} (${updatedCandidate.studentNumber}) missed ${ex.courseCode}. Administrator clearance is required before re-registration.`,
+            });
             return;
           }
           registerStudentToExamWithValidation(editingStudentId, ex.id);
@@ -1202,9 +1214,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         if (ex) {
           const missedCheck = checkMissedExamRegistrationBlock(newCandidate.studentNumber, ex.courseCode, ex.title);
           if (missedCheck.isBlocked) {
-            alert(
-              `Registration Blocked for [Code: ${ex.courseCode} | Title: "${ex.title}"]: Candidate ${newCandidate.name} (Admission: ${newCandidate.studentNumber}) previously registered to sit this examination but missed it. Admin clearance is required before re-registration is permitted.`
-            );
+            triggerFlash({
+              type: 'error',
+              text: 'Registration Rejected (Missed Exam)',
+              subtext: `Candidate ${newCandidate.name} (${newCandidate.studentNumber}) missed ${ex.courseCode}. Administrator clearance is required before re-registration.`,
+            });
             return;
           }
           approvedEnrollments.push(exId);
@@ -2423,15 +2437,21 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                           if (targetExam) {
                             const missedCheck = hasUnapprovedMissedExam(student.id, targetExam.courseCode, targetExam.title);
                             if (missedCheck.isBlocked) {
-                              alert(
-                                `Registration Blocked: Candidate ${student.name} previously registered for ${targetExam.courseCode} — ${targetExam.title} but missed sitting. Admin clearance approval is required before candidate details can be accepted on this examination.`
-                              );
+                              triggerFlash({
+                                type: 'error',
+                                text: 'Re-registration Rejected (Missed Exam)',
+                                subtext: `Candidate ${student.name} (${student.studentNumber}) missed ${targetExam.courseCode}. Administrator clearance is required before re-registration.`,
+                              });
                               e.target.value = '';
                               return;
                             }
                             const res = registerStudentToExamWithValidation(student.id, examId);
                             if (!res.success) {
-                              alert(res.error);
+                              triggerFlash({
+                                type: 'error',
+                                text: 'Enrollment Failed',
+                                subtext: res.error || 'Unable to enroll candidate.',
+                              });
                               e.target.value = '';
                               return;
                             }
@@ -2837,7 +2857,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
             {/* SECTION 1: EXAM ATTENDANCE SUM-UP TABLE */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
-              <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/40 flex flex-wrap items-center justify-between gap-2">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/40 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="font-bold text-slate-900 dark:text-white text-sm">
                     Institutional Examination Attendance Sum-Up ({attendanceSummaries.length} Exams)
@@ -2845,6 +2865,27 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                   <p className="text-xs text-slate-500 font-mono">
                     Official census of registered candidates, completed sittings, and missed examination sessions.
                   </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsPrintMissedModalOpen(true)}
+                    className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                    title="Print and export official roster of candidates who missed examinations"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Print Missed Candidates Roll</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsPrintApprovedModalOpen(true)}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                    title="Print and export official roll of candidates approved for examinations"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Print Approved Candidates Roll</span>
+                  </button>
                 </div>
               </div>
 
@@ -3241,6 +3282,16 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                     Candidates registered previously but failed to connect and sit. Identified by Student Admission number, Examination code, and Title. Re-registration is strictly blocked without approved clearance.
                   </p>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPrintMissedModalOpen(true)}
+                  className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                  title="Print official list of missed candidates"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Print Official Missed List</span>
+                </button>
               </div>
 
               <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
@@ -4739,6 +4790,23 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           </div>
         </div>
       )}
+      {/* Modal for Printing List of Students Who Missed Examination */}
+      <PrintMissedExamsModal
+        isOpen={isPrintMissedModalOpen}
+        onClose={() => setIsPrintMissedModalOpen(false)}
+        missedExams={missedExams}
+        students={students}
+        exams={exams}
+      />
+
+      {/* Modal for Printing List of Students Approved for Examination */}
+      <PrintApprovedStudentsModal
+        isOpen={isPrintApprovedModalOpen}
+        onClose={() => setIsPrintApprovedModalOpen(false)}
+        exams={exams}
+        students={students}
+        resitRequests={resitRequests}
+      />
     </div>
   );
 };
