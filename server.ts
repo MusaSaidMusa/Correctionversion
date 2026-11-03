@@ -166,6 +166,192 @@ app.post('/api/resit-requests/:id/review', (req: Request, res: Response) => {
   });
 });
 
+// -------------------------------------------------------------
+// REAL-TIME EXAMINATION WAITING ROOM & INSTANT ADMISSION SSE
+// -------------------------------------------------------------
+interface RealtimeClient {
+  id: string;
+  res: Response;
+}
+const sseClients = new Set<RealtimeClient>();
+const waitingRooms = new Map<string, Set<string>>(); // examId -> Set of studentIds
+const admittedStudents = new Map<string, Set<string>>(); // examId -> Set of studentIds
+
+function broadcastSSE(event: string, data: any) {
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const client of sseClients) {
+    try {
+      client.res.write(payload);
+    } catch {
+      sseClients.delete(client);
+    }
+  }
+}
+
+// Server-Sent Events real-time event bus
+app.get('/api/realtime/stream', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  const clientId = `client-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const client: RealtimeClient = { id: clientId, res };
+  sseClients.add(client);
+
+  res.write(`event: connected\ndata: ${JSON.stringify({ clientId, timestamp: Date.now() })}\n\n`);
+
+  const keepAlive = setInterval(() => {
+    try {
+      res.write(': keepalive\n\n');
+    } catch {
+      clearInterval(keepAlive);
+      sseClients.delete(client);
+    }
+  }, 15000);
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    sseClients.delete(client);
+  });
+});
+
+// Waiting Room Endpoints
+app.get('/api/exams/:id/waiting-room', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const set = waitingRooms.get(id) || new Set<string>();
+  const list = Array.from(set).map((studentId) => ({ studentId, timestamp: Date.now() }));
+  res.json({
+    success: true,
+    data: {
+      examId: id,
+      waitingCandidates: list,
+    },
+  });
+});
+
+app.post('/api/exams/:id/waiting-room', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { studentId, action } = req.body; // action: 'join' | 'leave'
+
+  if (!waitingRooms.has(id)) {
+    waitingRooms.set(id, new Set<string>());
+  }
+  const room = waitingRooms.get(id)!;
+
+  if (action === 'leave') {
+    if (studentId) room.delete(studentId);
+  } else if (studentId) {
+    room.add(studentId);
+  }
+
+  const waitingList = Array.from(room).map((s) => ({ studentId: s, timestamp: Date.now() }));
+
+  // Broadcast in real-time
+  broadcastSSE('waiting_room_updated', {
+    examId: id,
+    studentId,
+    action: action || 'join',
+    waitingCandidates: waitingList,
+    count: waitingList.length,
+    timestamp: Date.now(),
+  });
+
+  res.json({
+    success: true,
+    data: {
+      examId: id,
+      waitingCandidates: waitingList,
+    },
+  });
+});
+
+// Instant Admission Endpoints
+app.get('/api/exams/:id/admissions', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const set = admittedStudents.get(id) || new Set<string>();
+  res.json({
+    success: true,
+    data: {
+      examId: id,
+      admittedStudentIds: Array.from(set),
+    },
+  });
+});
+
+app.post('/api/exams/:id/admit', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { studentId, studentIds, all } = req.body;
+
+  if (!admittedStudents.has(id)) {
+    admittedStudents.set(id, new Set<string>());
+  }
+  const admitted = admittedStudents.get(id)!;
+
+  if (all && Array.isArray(studentIds)) {
+    studentIds.forEach((sid: string) => admitted.add(sid));
+  } else if (studentId) {
+    admitted.add(studentId);
+  }
+
+  // Remove admitted from waiting room
+  if (waitingRooms.has(id)) {
+    const room = waitingRooms.get(id)!;
+    if (all && Array.isArray(studentIds)) {
+      studentIds.forEach((sid: string) => room.delete(sid));
+    } else if (studentId) {
+      room.delete(studentId);
+    }
+  }
+
+  // Broadcast INSTANTLY to all connected students and teachers via SSE
+  broadcastSSE('admission_updated', {
+    examId: id,
+    studentId,
+    studentIds: Array.isArray(studentIds) ? studentIds : (studentId ? [studentId] : []),
+    all: Boolean(all),
+    admitted: true,
+    timestamp: Date.now(),
+  });
+
+  res.json({
+    success: true,
+    message: 'Candidate admitted in real-time.',
+    data: {
+      examId: id,
+      admittedStudentIds: Array.from(admitted),
+      timestamp: Date.now(),
+    },
+  });
+});
+
+app.post('/api/exams/:id/revoke-admission', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { studentId } = req.body;
+
+  if (admittedStudents.has(id) && studentId) {
+    admittedStudents.get(id)!.delete(studentId);
+  }
+
+  broadcastSSE('admission_updated', {
+    examId: id,
+    studentId,
+    revoked: true,
+    admitted: false,
+    timestamp: Date.now(),
+  });
+
+  res.json({
+    success: true,
+    message: 'Candidate admission revoked.',
+    data: {
+      examId: id,
+      studentId,
+      timestamp: Date.now(),
+    },
+  });
+});
+
 // Dev server Vite integration & SPA HTML serving
 async function startServer() {
   if (!isStandaloneApi) {

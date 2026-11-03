@@ -22,6 +22,7 @@ import {
   Building2,
   CheckCheck,
   FolderArchive,
+  X,
 } from 'lucide-react';
 import { Exam, ExamSubmission, StudentProfile } from '../../types';
 import { PreExamDiagnosticModal } from './PreExamDiagnosticModal';
@@ -85,6 +86,64 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   const [isResitModalOpen, setIsResitModalOpen] = useState(false);
   const [resitTargetExam, setResitTargetExam] = useState<Exam | null>(null);
 
+  // Real-time live admission alert banner state
+  const [realtimeAdmissionAlert, setRealtimeAdmissionAlert] = useState<{
+    exam: Exam;
+    timestamp: number;
+  } | null>(null);
+
+  // Audio chime for instant admission
+  const playAdmissionChime = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.12);
+      osc.frequency.exponentialRampToValueAtTime(1046.5, ctx.currentTime + 0.25);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.52);
+    } catch {}
+  };
+
+  useEffect(() => {
+    const handleAdmissionUpdated = (e: any) => {
+      const detail = e.detail;
+      if (!detail || detail.revoked) return;
+      const isTarget =
+        detail.all ||
+        detail.studentId === student.id ||
+        (Array.isArray(detail.studentIds) && detail.studentIds.includes(student.id));
+
+      if (isTarget) {
+        const found = exams.find((x) => x.id === detail.examId);
+        if (found) {
+          const isEnrolled =
+            student.enrolledCourseCodes?.includes(found.courseCode) ||
+            found.registeredStudentIds?.includes(student.id) ||
+            found.courseCode === 'ALL';
+          const missedCheck = hasUnapprovedMissedExam(student.id, found.courseCode, found.title);
+          if (isEnrolled && !missedCheck.isBlocked) {
+            playAdmissionChime();
+            setRealtimeAdmissionAlert({ exam: found, timestamp: Date.now() });
+          }
+        }
+      }
+    };
+
+    window.addEventListener('examguard_admission_updated', handleAdmissionUpdated);
+    return () => {
+      window.removeEventListener('examguard_admission_updated', handleAdmissionUpdated);
+    };
+  }, [exams, student.id, student.enrolledCourseCodes]);
+
   // Reset all selections and modals when resetKey changes (e.g. logo clicked)
   useEffect(() => {
     setSelectedExamId(null);
@@ -97,6 +156,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     setSelectedProfileModal(null);
     setIsResitModalOpen(false);
     setResitTargetExam(null);
+    setRealtimeAdmissionAlert(null);
     setFilter('all');
   }, [resetKey]);
 
@@ -253,6 +313,51 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-16">
+      {/* Real-Time Invigilator Admission Alert Banner */}
+      {realtimeAdmissionAlert && (
+        <div className="p-4 bg-emerald-600 text-white rounded-2xl shadow-xl border-2 border-emerald-400 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300 ring-4 ring-emerald-500/30">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 shadow-xs">
+              <Sparkles className="w-6 h-6 text-white animate-spin" />
+            </div>
+            <div>
+              <div className="font-extrabold text-sm flex items-center gap-2">
+                <span>⚡ Real-Time Admission Granted by Invigilator!</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-800 text-[10px] font-mono uppercase font-bold tracking-wider">
+                  Live Room Unlocked
+                </span>
+              </div>
+              <p className="text-xs text-emerald-100 mt-0.5">
+                Chief Invigilator <strong>{realtimeAdmissionAlert.exam.instructorName}</strong> has admitted you to{' '}
+                <strong>{realtimeAdmissionAlert.exam.courseCode}</strong> ({realtimeAdmissionAlert.exam.title}). You may commence immediately.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                const ex = realtimeAdmissionAlert.exam;
+                setRealtimeAdmissionAlert(null);
+                handleInitiateExam(ex);
+              }}
+              className="w-full sm:w-auto px-5 py-2.5 bg-white text-emerald-900 font-extrabold rounded-xl text-xs hover:bg-emerald-50 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer hover:scale-105 active:scale-95"
+            >
+              <Play className="w-4 h-4 fill-current text-emerald-700" />
+              <span>Commence Examination Now →</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setRealtimeAdmissionAlert(null)}
+              className="p-2 text-white/80 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+              title="Dismiss Alert"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Student Welcome Banner (Hue Section) */}
       <div
         className="relative rounded-2xl p-6 md:p-8 text-white shadow-md flex flex-col md:flex-row md:items-end justify-between gap-6 border border-indigo-700/60 overflow-hidden bg-slate-900 min-h-[220px] md:min-h-[250px]"
@@ -856,17 +961,38 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                     )}
 
                     {(statusType === 'active_now' || statusType === 'upcoming') && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedExamId(exam.id);
-                          handleInitiateExam(exam);
-                        }}
-                        className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5 text-cyan-300" />
-                        <span>Test your systems compabililty and sit this Examination</span>
-                      </button>
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                        {exam.admittedStudentIds?.includes(student.id) && (
+                          <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-[10px] uppercase font-mono flex items-center justify-center gap-1 border border-emerald-300 dark:border-emerald-700 animate-pulse">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>Admitted by Invigilator ✓</span>
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedExamId(exam.id);
+                            handleInitiateExam(exam);
+                          }}
+                          className={`w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer ${
+                            exam.admittedStudentIds?.includes(student.id)
+                              ? 'bg-emerald-600 hover:bg-emerald-700 font-bold ring-2 ring-emerald-400/50'
+                              : 'bg-indigo-600 hover:bg-indigo-500'
+                          }`}
+                        >
+                          {exam.admittedStudentIds?.includes(student.id) ? (
+                            <>
+                              <Play className="w-3.5 h-3.5 fill-current" />
+                              <span>Commence Examination (Admitted)</span>
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck className="w-3.5 h-3.5 text-cyan-300" />
+                              <span>Test your systems compabililty and sit this Examination</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

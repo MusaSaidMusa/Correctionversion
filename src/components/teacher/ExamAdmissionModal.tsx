@@ -252,10 +252,14 @@ export const ExamAdmissionModal: React.FC<ExamAdmissionModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleAdmitOne(st.id)}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 cursor-pointer flex items-center gap-1 shadow-xs"
+                        className={`px-3 py-1.5 rounded-lg font-bold cursor-pointer flex items-center gap-1 shadow-xs transition-all ${
+                          isWaiting
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse ring-2 ring-emerald-400'
+                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                        }`}
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Admit to Exam</span>
+                        <span>{isWaiting ? 'Admit Waiting Candidate ⚡' : 'Admit to Exam'}</span>
                       </button>
                     )}
                   </div>

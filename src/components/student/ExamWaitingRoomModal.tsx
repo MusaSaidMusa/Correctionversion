@@ -33,6 +33,26 @@ interface ExamWaitingRoomModalProps {
   allExams?: Exam[];
 }
 
+function playAdmissionChime() {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+    osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.12); // G5
+    osc.frequency.exponentialRampToValueAtTime(1046.5, ctx.currentTime + 0.25); // C6
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.52);
+  } catch {}
+}
+
 export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
   exam,
   student,
@@ -46,9 +66,11 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
   const [isAdmitted, setIsAdmitted] = useState<boolean>(() =>
     isStudentAdmittedToExam(exam.id, student.id)
   );
+  const [isAutoLaunching, setIsAutoLaunching] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isResitModalOpen, setIsResitModalOpen] = useState(false);
+  const passwordInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Verification 1: Course Registration Check
   const isEnrolledInCourse =
@@ -67,14 +89,39 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
     }
 
     // Initial check
-    setIsAdmitted(isStudentAdmittedToExam(exam.id, student.id));
+    const currentlyAdmitted = isStudentAdmittedToExam(exam.id, student.id);
+    setIsAdmitted(currentlyAdmitted);
 
     // Listen for real-time invigilator admission updates
     const handleAdmission = (e: any) => {
       const detail = e.detail;
       if (detail && detail.examId === exam.id) {
-        if (detail.all || detail.studentId === student.id) {
-          setIsAdmitted(!detail.revoked);
+        const isTarget =
+          detail.all ||
+          detail.studentId === student.id ||
+          (Array.isArray(detail.studentIds) && detail.studentIds.includes(student.id));
+
+        if (isTarget) {
+          if (!detail.revoked) {
+            setIsAdmitted(true);
+            playAdmissionChime();
+
+            // If no password required, trigger instant commencement
+            if (!exam.accessPassword || exam.accessPassword.trim().length === 0) {
+              setIsAutoLaunching(true);
+              const timer = setTimeout(() => {
+                onAdmittedAndUnlocked();
+              }, 400);
+              return () => clearTimeout(timer);
+            } else {
+              setTimeout(() => {
+                passwordInputRef.current?.focus();
+              }, 150);
+            }
+          } else {
+            setIsAdmitted(false);
+            setIsAutoLaunching(false);
+          }
         }
       }
     };
@@ -92,7 +139,7 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
       window.removeEventListener('examguard_admission_updated', handleAdmission);
       window.removeEventListener('examguard_resit_requests_updated', handleResitUpdate);
     };
-  }, [exam.id, student.id, isOpen, isEnrolledInCourse, missedCheck.isBlocked]);
+  }, [exam.id, student.id, isOpen, isEnrolledInCourse, missedCheck.isBlocked, exam.accessPassword, onAdmittedAndUnlocked]);
 
   if (!isOpen) return null;
 
@@ -103,6 +150,7 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
         return;
       }
     }
+    setIsAutoLaunching(true);
     onAdmittedAndUnlocked();
   };
 
@@ -203,21 +251,34 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
               </div>
             ) : (
               /* NORMAL ADMISSION STATUS INDICATOR */
-              <div className="p-4 rounded-xl border text-center space-y-2">
+              <div className={`p-4 rounded-xl border text-center space-y-2 transition-all ${
+                isAdmitted
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 shadow-xs'
+                  : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800'
+              }`}>
                 {isAdmitted ? (
-                  <div className="text-emerald-600 dark:text-emerald-400 space-y-1.5">
-                    <CheckCircle2 className="w-8 h-8 mx-auto" />
-                    <div className="font-bold text-sm">Admitted by Chief Invigilator ✓</div>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
-                      Identity verified and registered for course. Cleared to commence your examination.
+                  <div className="text-emerald-700 dark:text-emerald-300 space-y-1.5 animate-in fade-in zoom-in-95">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-300 flex items-center justify-center mx-auto shadow-xs">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <div className="font-extrabold text-sm flex items-center justify-center gap-1.5">
+                      <span>Admitted by Chief Invigilator ✓</span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white font-mono text-[10px] uppercase font-bold tracking-wider">
+                        Real-Time
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+                      {isAutoLaunching
+                        ? '🚀 Unlocking examination room... Launching active test session now!'
+                        : 'Identity verified and registered for course. You may commence your examination immediately.'}
                     </p>
                   </div>
                 ) : (
-                  <div className="text-amber-600 dark:text-amber-400 space-y-1.5">
-                    <RefreshCw className="w-8 h-8 mx-auto animate-spin" />
+                  <div className="text-amber-700 dark:text-amber-300 space-y-1.5">
+                    <RefreshCw className="w-8 h-8 mx-auto animate-spin text-amber-600 dark:text-amber-400" />
                     <div className="font-bold text-sm">Awaiting Invigilator Admission</div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      The chief invigilator is actively admitting candidates in real time. Your session will unlock as soon as you are admitted.
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                      The chief invigilator is actively admitting candidates in real time. Your session will unlock instantly the split second you are admitted.
                     </p>
                   </div>
                 )}
@@ -226,13 +287,16 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
 
           {/* Access passcode if exam requires one */}
           {exam.accessPassword && (
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                Exam Access Passcode
+            <div className={`space-y-1.5 p-3 rounded-xl border transition-all ${
+              isAdmitted ? 'bg-amber-50/60 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700' : 'border-slate-200 dark:border-slate-800'
+            }`}>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Examination Room Access Passcode {isAdmitted && <span className="text-amber-600 dark:text-amber-400 font-bold">(Required to Commence)</span>}
               </label>
               <div className="relative">
                 <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
+                  ref={passwordInputRef}
                   type="password"
                   placeholder="Enter passcode provided by invigilator"
                   value={passwordInput}
@@ -240,11 +304,14 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
                     setPasswordInput(e.target.value);
                     setPasswordError(null);
                   }}
-                  className="w-full pl-9 pr-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleStart();
+                  }}
+                  className="w-full pl-9 pr-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               {passwordError && (
-                <p className="text-xs text-rose-600 dark:text-rose-400">{passwordError}</p>
+                <p className="text-xs text-rose-600 dark:text-rose-400 font-semibold">{passwordError}</p>
               )}
             </div>
           )}
@@ -254,16 +321,24 @@ export const ExamWaitingRoomModal: React.FC<ExamWaitingRoomModalProps> = ({
               onClick={handleStart}
               disabled={!isAdmitted}
               className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer ${
-                isAdmitted ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-400 cursor-not-allowed'
+                isAdmitted
+                  ? 'bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] animate-pulse ring-2 ring-emerald-400/50'
+                  : 'bg-slate-400 cursor-not-allowed opacity-75'
               }`}
             >
-              <Play className="w-4 h-4" />
-              <span>Commence Examination</span>
+              <Play className="w-4 h-4 fill-current" />
+              <span>
+                {isAutoLaunching
+                  ? 'Commencing Now...'
+                  : isAdmitted
+                  ? 'Commence Examination Immediately'
+                  : 'Awaiting Invigilator Admission'}
+              </span>
             </button>
             {onOpenHelp && (
               <button
                 onClick={onOpenHelp}
-                className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 title="Get Invigilator Assistance"
               >
                 <HelpCircle className="w-5 h-5 text-slate-500" />

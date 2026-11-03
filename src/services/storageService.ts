@@ -205,6 +205,47 @@ if (syncChannel) {
   };
 }
 
+// Server-Sent Events listener for cross-browser & cross-device real-time synchronization
+if (typeof window !== 'undefined' && typeof EventSource !== 'undefined') {
+  try {
+    const sse = new EventSource('/api/realtime/stream');
+    sse.addEventListener('admission_updated', (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        const exams = getStoredExams();
+        const exam = exams.find((x) => x.id === data.examId);
+        if (exam) {
+          if (!exam.admittedStudentIds) exam.admittedStudentIds = [];
+          if (data.admitted) {
+            if (data.all && Array.isArray(data.studentIds)) {
+              data.studentIds.forEach((sid: string) => {
+                if (!exam.admittedStudentIds!.includes(sid)) exam.admittedStudentIds!.push(sid);
+              });
+            } else if (data.studentId && !exam.admittedStudentIds.includes(data.studentId)) {
+              exam.admittedStudentIds.push(data.studentId);
+            }
+            localStorage.setItem(STORAGE_KEYS.EXAMS, JSON.stringify(exams));
+          } else if (data.revoked && data.studentId) {
+            exam.admittedStudentIds = exam.admittedStudentIds.filter((id) => id !== data.studentId);
+            localStorage.setItem(STORAGE_KEYS.EXAMS, JSON.stringify(exams));
+          }
+        }
+        window.dispatchEvent(new CustomEvent('examguard_admission_updated', { detail: data }));
+        window.dispatchEvent(new CustomEvent('examguard_state_sync', { detail: data }));
+      } catch {}
+    });
+
+    sse.addEventListener('waiting_room_updated', (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        window.dispatchEvent(new CustomEvent('examguard_waiting_room_updated', { detail: data }));
+      } catch {}
+    });
+  } catch (err) {
+    console.warn('[SSE] Real-time event stream fallback:', err);
+  }
+}
+
 export function saveStoredExams(exams: Exam[]): void {
   localStorage.setItem(STORAGE_KEYS.EXAMS, JSON.stringify(exams));
   broadcastSync('examguard_exams_updated', { exams });
@@ -1199,12 +1240,22 @@ export function admitStudentToExamWithValidation(
     saveStoredExams(exams);
   }
 
-  // Dispatch custom real-time event
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(
-      new CustomEvent('examguard_admission_updated', { detail: { examId, studentId } })
-    );
-  }
+  // Instant broadcast across local window and cross-tab BroadcastChannel
+  broadcastSync('examguard_admission_updated', {
+    examId,
+    studentId,
+    admitted: true,
+    timestamp: Date.now(),
+  });
+
+  // Post to backend for real-time multi-browser / cross-device SSE synchronization
+  try {
+    fetch(`/api/exams/${encodeURIComponent(examId)}/admit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentId }),
+    }).catch(() => {});
+  } catch {}
 
   return { success: true };
 }
@@ -1249,12 +1300,23 @@ export function admitAllStudentsToExam(examId: string): { success: boolean; admi
 
   saveStoredExams(exams);
 
-  // Dispatch custom real-time event
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(
-      new CustomEvent('examguard_admission_updated', { detail: { examId, all: true } })
-    );
-  }
+  // Instant broadcast across window and BroadcastChannel
+  broadcastSync('examguard_admission_updated', {
+    examId,
+    all: true,
+    admitted: true,
+    studentIds: exam.admittedStudentIds,
+    timestamp: Date.now(),
+  });
+
+  // Post to backend for multi-browser & device sync
+  try {
+    fetch(`/api/exams/${encodeURIComponent(examId)}/admit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true, studentIds: exam.admittedStudentIds }),
+    }).catch(() => {});
+  } catch {}
 
   return { success: true, admittedCount, rejectedCount };
 }
@@ -1266,11 +1328,21 @@ export function revokeStudentAdmission(examId: string, studentId: string): boole
   exam.admittedStudentIds = exam.admittedStudentIds.filter((id) => id !== studentId);
   saveStoredExams(exams);
 
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(
-      new CustomEvent('examguard_admission_updated', { detail: { examId, studentId, revoked: true } })
-    );
-  }
+  broadcastSync('examguard_admission_updated', {
+    examId,
+    studentId,
+    revoked: true,
+    admitted: false,
+    timestamp: Date.now(),
+  });
+
+  try {
+    fetch(`/api/exams/${encodeURIComponent(examId)}/revoke-admission`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentId }),
+    }).catch(() => {});
+  } catch {}
 
   return true;
 }
@@ -1293,11 +1365,20 @@ export function registerStudentToWaitingRoom(examId: string, studentId: string):
       map[examId].push(studentId);
       localStorage.setItem(STORAGE_WAITING_ROOM, JSON.stringify(map));
 
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('examguard_waiting_room_updated', { detail: { examId, studentId } })
-        );
-      }
+      broadcastSync('examguard_waiting_room_updated', {
+        examId,
+        studentId,
+        action: 'join',
+        timestamp: Date.now(),
+      });
+
+      try {
+        fetch(`/api/exams/${encodeURIComponent(examId)}/waiting-room`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studentId, action: 'join' }),
+        }).catch(() => {});
+      } catch {}
     }
   } catch (e) {
     console.error(e);
@@ -1310,9 +1391,21 @@ export function removeStudentFromWaitingRoom(examId: string, studentId: string):
     const map: Record<string, string[]> = raw ? JSON.parse(raw) : {};
     map[examId] = (map[examId] || []).filter((id) => id !== studentId);
     localStorage.setItem(STORAGE_WAITING_ROOM, JSON.stringify(map));
-    window.dispatchEvent(
-      new CustomEvent('examguard_waiting_room_updated', { detail: { examId, studentId } })
-    );
+
+    broadcastSync('examguard_waiting_room_updated', {
+      examId,
+      studentId,
+      action: 'leave',
+      timestamp: Date.now(),
+    });
+
+    try {
+      fetch(`/api/exams/${encodeURIComponent(examId)}/waiting-room`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId, action: 'leave' }),
+      }).catch(() => {});
+    } catch {}
   } catch (error) {
     console.error('Failed to remove candidate from the local waiting room:', error);
   }

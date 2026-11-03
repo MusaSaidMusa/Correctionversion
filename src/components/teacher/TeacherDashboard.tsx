@@ -61,6 +61,7 @@ import {
   commitAllExamResults,
   getWaitingRoomStudents,
   registerStudentToWaitingRoom,
+  admitAllStudentsToExam,
 } from '../../services/storageService';
 import { StudentAnswerSheetModal } from '../student/StudentAnswerSheetModal';
 import { ProfileDetailModal } from '../common/ProfileDetailModal';
@@ -1090,6 +1091,22 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                           </span>
                         )}
                       </button>
+
+                      {getWaitingRoomStudents(exam.id).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const res = admitAllStudentsToExam(exam.id);
+                            showToast(`⚡ Admitted ${res.admittedCount} cleared candidate(s) to ${exam.courseCode} in real-time.`);
+                            if (onDataChanged) onDataChanged();
+                          }}
+                          className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-xl text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap animate-pulse hover:scale-105 active:scale-95"
+                          title="Instant Real-Time Admit: Admit all waiting candidates right now"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-slate-950 fill-current" />
+                          <span>Admit Waiting ({getWaitingRoomStudents(exam.id).length}) Now ⚡</span>
+                        </button>
+                      )}
 
                       {/* 7. Live Proctor Room */}
                       <button
