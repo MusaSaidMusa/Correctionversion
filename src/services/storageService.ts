@@ -21,6 +21,92 @@ const STORAGE_KEYS = {
   ACADEMIC_DATABASE: 'examguard_academic_database_v2',
 };
 
+/**
+ * Safe localStorage setter with QuotaExceededError protection and fallback handling.
+ */
+export function safeLocalStorageSet(key: string, value: string): boolean {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (err: any) {
+    if (err?.name === 'QuotaExceededError' || err?.code === 22 || err?.code === 1014) {
+      console.warn(`[ExamGuard Pro] localStorage quota exceeded on key "${key}". Performing memory recovery...`);
+      try {
+        localStorage.removeItem('examguard_temp_cache');
+        localStorage.removeItem('examguard_proctor_snapshots_cache');
+        localStorage.setItem(key, value);
+        return true;
+      } catch (innerErr) {
+        console.error(`[ExamGuard Pro] Critical: Storage full, could not persist key "${key}":`, innerErr);
+        return false;
+      }
+    }
+    console.error(`[ExamGuard Pro] Storage error on key "${key}":`, err);
+    return false;
+  }
+}
+
+/**
+ * Uploads a document or photo file to the backend server.
+ * Returns the hosted URL (/uploads/...), filename, and metadata.
+ * If offline or backend is unreachable, gracefully falls back to a base64 Data URL.
+ */
+export async function uploadFileToServer(file: File): Promise<{
+  url: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+}> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      try {
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileData: dataUrl,
+            fileType: file.type || 'application/octet-stream',
+          }),
+        });
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.url) {
+            resolve({
+              url: result.url,
+              fileName: result.fileName || file.name,
+              fileSize: result.size || file.size,
+              fileType: result.fileType || file.type || 'application/octet-stream',
+            });
+            return;
+          }
+        }
+      } catch (networkErr) {
+        console.warn('[ExamGuard Pro] Upload API offline or failed, falling back to local Data URL:', networkErr);
+      }
+
+      // Safe fallback to base64 Data URL
+      resolve({
+        url: dataUrl,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type || 'application/octet-stream',
+      });
+    };
+    reader.onerror = () => {
+      resolve({
+        url: '',
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type || 'application/octet-stream',
+      });
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export function getTeacherPasswordHash(email: string): string | null {
   try {
     const passwords = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHER_PASSWORDS) || '{}');
@@ -33,7 +119,7 @@ export function getTeacherPasswordHash(email: string): string | null {
 export function saveTeacherPasswordHash(email: string, hash: string): void {
   const passwords = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHER_PASSWORDS) || '{}');
   passwords[email.trim().toLowerCase()] = hash;
-  localStorage.setItem(STORAGE_KEYS.TEACHER_PASSWORDS, JSON.stringify(passwords));
+  safeLocalStorageSet(STORAGE_KEYS.TEACHER_PASSWORDS, JSON.stringify(passwords));
 }
 
 export function getAccountPasswordHash(role: 'student' | 'admin', email: string): string | null {
@@ -48,7 +134,7 @@ export function getAccountPasswordHash(role: 'student' | 'admin', email: string)
 export function saveAccountPasswordHash(role: 'student' | 'admin', email: string, hash: string): void {
   const passwords = JSON.parse(localStorage.getItem(STORAGE_KEYS.ACCOUNT_PASSWORDS) || '{}');
   passwords[`${role}:${email.trim().toLowerCase()}`] = hash;
-  localStorage.setItem(STORAGE_KEYS.ACCOUNT_PASSWORDS, JSON.stringify(passwords));
+  safeLocalStorageSet(STORAGE_KEYS.ACCOUNT_PASSWORDS, JSON.stringify(passwords));
 }
 
 export function verifyUserPassword(
@@ -257,7 +343,7 @@ if (typeof window !== 'undefined' && typeof EventSource !== 'undefined') {
 }
 
 export function saveStoredExams(exams: Exam[]): void {
-  localStorage.setItem(STORAGE_KEYS.EXAMS, JSON.stringify(exams));
+  safeLocalStorageSet(STORAGE_KEYS.EXAMS, JSON.stringify(exams));
   broadcastSync('examguard_exams_updated', { exams });
 }
 
@@ -265,7 +351,7 @@ export function getStoredQuestions(): Question[] {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.QUESTIONS);
     if (!data) {
-      localStorage.setItem(STORAGE_KEYS.QUESTIONS, JSON.stringify(INITIAL_QUESTION_BANK));
+      safeLocalStorageSet(STORAGE_KEYS.QUESTIONS, JSON.stringify(INITIAL_QUESTION_BANK));
       return INITIAL_QUESTION_BANK;
     }
     const questions: Question[] = JSON.parse(data);
@@ -280,7 +366,7 @@ export function getStoredQuestions(): Question[] {
 }
 
 export function saveStoredQuestions(questions: Question[]): void {
-  localStorage.setItem(STORAGE_KEYS.QUESTIONS, JSON.stringify(questions));
+  safeLocalStorageSet(STORAGE_KEYS.QUESTIONS, JSON.stringify(questions));
   broadcastSync('examguard_questions_updated', { questions });
 }
 
@@ -289,7 +375,7 @@ export function getStoredSubmissions(): ExamSubmission[] {
     const data = localStorage.getItem(STORAGE_KEYS.SUBMISSIONS);
     let subs: ExamSubmission[] = data ? JSON.parse(data) : INITIAL_SUBMISSIONS;
     if (!data) {
-      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(INITIAL_SUBMISSIONS));
+      safeLocalStorageSet(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(INITIAL_SUBMISSIONS));
       return INITIAL_SUBMISSIONS;
     }
 
@@ -318,7 +404,7 @@ export function getStoredSubmissions(): ExamSubmission[] {
     });
 
     if (modified) {
-      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
+      safeLocalStorageSet(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
     }
 
     return subs;
@@ -328,7 +414,7 @@ export function getStoredSubmissions(): ExamSubmission[] {
 }
 
 export function saveStoredSubmissions(submissions: ExamSubmission[]): void {
-  localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(submissions));
+  safeLocalStorageSet(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(submissions));
   broadcastSync('examguard_submissions_updated', { submissions });
 }
 
@@ -336,7 +422,7 @@ export function getStoredStudents(): StudentProfile[] {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.STUDENTS);
     if (!data) {
-      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(INITIAL_STUDENTS));
+      safeLocalStorageSet(STORAGE_KEYS.STUDENTS, JSON.stringify(INITIAL_STUDENTS));
       return INITIAL_STUDENTS;
     }
     const students: StudentProfile[] = JSON.parse(data);
@@ -350,7 +436,7 @@ export function getStoredStudents(): StudentProfile[] {
 }
 
 export function saveStoredStudents(students: StudentProfile[]): void {
-  localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+  safeLocalStorageSet(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
   broadcastSync('examguard_students_updated', { students });
 }
 
@@ -635,7 +721,7 @@ export function getStoredMissedExams(): MissedExamRecord[] {
 }
 
 export function saveStoredMissedExams(records: MissedExamRecord[]): void {
-  localStorage.setItem(STORAGE_KEYS.MISSED_EXAMS, JSON.stringify(records));
+  safeLocalStorageSet(STORAGE_KEYS.MISSED_EXAMS, JSON.stringify(records));
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('examguard_missed_exams_updated', { detail: { records } }));
   }
@@ -645,7 +731,7 @@ export function getStoredResitRequests(): ResitRequest[] {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.RESIT_REQUESTS);
     if (!data) {
-      localStorage.setItem(STORAGE_KEYS.RESIT_REQUESTS, JSON.stringify(INITIAL_RESIT_REQUESTS));
+      safeLocalStorageSet(STORAGE_KEYS.RESIT_REQUESTS, JSON.stringify(INITIAL_RESIT_REQUESTS));
       return INITIAL_RESIT_REQUESTS;
     }
     const parsed = JSON.parse(data);
@@ -656,7 +742,7 @@ export function getStoredResitRequests(): ResitRequest[] {
 }
 
 export function saveStoredResitRequests(requests: ResitRequest[]): void {
-  localStorage.setItem(STORAGE_KEYS.RESIT_REQUESTS, JSON.stringify(requests));
+  safeLocalStorageSet(STORAGE_KEYS.RESIT_REQUESTS, JSON.stringify(requests));
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('examguard_resit_requests_updated', { detail: { requests } }));
   }
@@ -2879,7 +2965,7 @@ export function syncSubmissionToAcademicDatabase(
       records.unshift(resultingRecord);
     }
 
-    localStorage.setItem(STORAGE_KEYS.ACADEMIC_DATABASE, JSON.stringify(records));
+    safeLocalStorageSet(STORAGE_KEYS.ACADEMIC_DATABASE, JSON.stringify(records));
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('examguard_academic_database_updated', {
@@ -3055,7 +3141,7 @@ export function syncAcademicDatabaseWithSubmissions(): AcademicRecord[] {
     });
 
     if (hasChanges || !raw) {
-      localStorage.setItem(STORAGE_KEYS.ACADEMIC_DATABASE, JSON.stringify(records));
+      safeLocalStorageSet(STORAGE_KEYS.ACADEMIC_DATABASE, JSON.stringify(records));
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('examguard_academic_database_updated', { detail: { records } })
@@ -3079,7 +3165,7 @@ export function getStoredAcademicRecords(): AcademicRecord[] {
 
 export function saveStoredAcademicRecords(records: AcademicRecord[]): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.ACADEMIC_DATABASE, JSON.stringify(records));
+    safeLocalStorageSet(STORAGE_KEYS.ACADEMIC_DATABASE, JSON.stringify(records));
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('examguard_academic_database_updated', { detail: { records } })

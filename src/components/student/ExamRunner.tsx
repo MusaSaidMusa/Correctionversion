@@ -32,6 +32,7 @@ import { MathRenderer, AudioPromptPlayer, TechnicalDiagram } from '../common/Que
 import { CameraSettingsModal } from '../common/CameraSettingsModal';
 import { ExamSentencesRenderer } from '../../services/sentenceFormatter';
 import { InstitutionLogo } from '../common/InstitutionLogo';
+import { uploadFileToServer } from '../../services/storageService';
 
 interface ExamRunnerProps {
   exam: Exam;
@@ -657,12 +658,38 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
     });
   };
 
-  const handleAnswerFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAnswerFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     const currentQ = questions[currentIndex];
     if (!file || !currentQ) return;
 
     setAnswerUploadError(null);
+
+    try {
+      const uploadRes = await uploadFileToServer(file);
+      if (uploadRes.url) {
+        setAnswers((prev) => {
+          const existing = prev[currentQ.id] || { questionId: currentQ.id, isFlaggedForReview: false, timeSpentSeconds: 0 };
+          return {
+            ...prev,
+            [currentQ.id]: {
+              ...existing,
+              ...(file.type.startsWith('image/')
+                ? { uploadedPhotoUrl: uploadRes.url }
+                : {
+                    uploadedFileUrl: uploadRes.url,
+                    uploadedFileName: file.name,
+                    uploadedFileType: file.type || 'application/octet-stream',
+                  }),
+            },
+          };
+        });
+        return;
+      }
+    } catch {
+      // Fallback to local Data URL
+    }
+
     const reader = new FileReader();
     reader.onload = (uploadEvent) => {
       const fileUrl = uploadEvent.target?.result;

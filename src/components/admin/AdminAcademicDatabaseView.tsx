@@ -22,6 +22,11 @@ import {
   Clock,
   ShieldCheck,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Rows,
   Download,
   KeyRound,
   FileCheck,
@@ -48,6 +53,8 @@ interface AdminAcademicDatabaseViewProps {
   exams: Exam[];
 }
 
+export type RowsPerPageOption = 5 | 10 | 20 | 30 | 'all';
+
 type PeriodFilterType =
   | 'all'
   | 'today'
@@ -70,6 +77,10 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
   const [periodFilter, setPeriodFilter] = useState<PeriodFilterType>('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+
+  // Pagination & Rows Per Page State: 5, 10, 20, 30, 'all'
+  const [rowsPerPage, setRowsPerPage] = useState<RowsPerPageOption>(20);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -207,6 +218,25 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
       return true;
     });
   }, [records, periodFilter, dateBounds, selectedDeptFilter, selectedGradeFilter, selectedStatusFilter, searchQuery]);
+
+  // Reset page to 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedDeptFilter, selectedGradeFilter, selectedStatusFilter, periodFilter, customStartDate, customEndDate, rowsPerPage]);
+
+  // Pagination calculations: 5, 10, 20, 30, or all rows
+  const totalRows = filteredRecords.length;
+  const isAllRows = rowsPerPage === 'all';
+  const totalPages = isAllRows ? 1 : Math.max(1, Math.ceil(totalRows / (typeof rowsPerPage === 'number' ? rowsPerPage : totalRows || 1)));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const numericPageSize = typeof rowsPerPage === 'number' ? rowsPerPage : totalRows;
+  const startIndex = isAllRows ? 0 : (safeCurrentPage - 1) * numericPageSize;
+  const endIndex = isAllRows ? totalRows : Math.min(startIndex + numericPageSize, totalRows);
+
+  const displayedRecords = useMemo(() => {
+    if (isAllRows) return filteredRecords;
+    return filteredRecords.slice(startIndex, endIndex);
+  }, [filteredRecords, isAllRows, startIndex, endIndex]);
 
   // Dynamic Statistics
   const stats = useMemo(() => {
@@ -826,10 +856,45 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
           </div>
         </div>
 
-        {/* Export Action Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs">
-          <div className="text-slate-500 font-mono text-[11px]">
-            Showing <strong>{filteredRecords.length}</strong> of <strong>{records.length}</strong> academic records in current period
+        {/* Rows Per Page & Export Action Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200/80 dark:border-slate-800 text-xs">
+          {/* Rows Display Selector: 5, 10, 20, 30, all */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-slate-600 dark:text-slate-400 font-bold flex items-center gap-1.5 text-xs">
+              <Rows className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>View Rows:</span>
+            </span>
+            <div className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+              {([5, 10, 20, 30, 'all'] as const).map((opt) => {
+                const isSelected = rowsPerPage === opt;
+                return (
+                  <button
+                    key={String(opt)}
+                    type="button"
+                    onClick={() => {
+                      setRowsPerPage(opt);
+                      setCurrentPage(1);
+                    }}
+                    className={`px-2.5 py-1 text-xs rounded-lg transition-all cursor-pointer ${
+                      isSelected
+                        ? 'active-pear font-bold shadow-xs'
+                        : 'border border-transparent text-slate-700 dark:text-slate-300 hover-light-amber'
+                    }`}
+                    title={opt === 'all' ? 'Display all records without pagination' : `Display ${opt} records per page`}
+                  >
+                    {opt === 'all' ? 'All' : opt}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="text-slate-500 font-mono text-[11px] ml-1">
+              Showing <strong>{filteredRecords.length > 0 ? (isAllRows ? `All ${filteredRecords.length}` : `${startIndex + 1}–${endIndex}`) : 0}</strong> of <strong>{filteredRecords.length}</strong> records
+              {!isAllRows && totalPages > 1 && (
+                <span className="text-indigo-600 dark:text-indigo-400 font-semibold ml-1">
+                  (Page {safeCurrentPage} of {totalPages})
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -906,9 +971,10 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
                   </td>
                 </tr>
               ) : (
-                filteredRecords.map((r, index) => {
+                displayedRecords.map((r, index) => {
                   const compKey = r.compositePrimaryKey || buildCompositeKey(r.studentAdmission, r.course);
-                  const isEven = index % 2 === 0;
+                  const actualIndex = isAllRows ? index : startIndex + index;
+                  const isEven = actualIndex % 2 === 0;
                   // Two beautiful light colors alternating row-by-row for crystal-clear visual distinction:
                   // Even: Soft Warm Amber/Alabaster Cream (Color 1)
                   // Odd:  Soft Cool Sky/Azure Mist (Color 2)
@@ -1044,6 +1110,117 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination Controls & Navigation Footer */}
+        <div className="p-3.5 bg-slate-50/90 dark:bg-slate-950/90 border-t border-slate-200 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-semibold">
+              <Rows className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>Rows per page:</span>
+              <select
+                value={rowsPerPage}
+                onChange={(e) => {
+                  const val = e.target.value === 'all' ? 'all' : (Number(e.target.value) as RowsPerPageOption);
+                  setRowsPerPage(val);
+                  setCurrentPage(1);
+                }}
+                className="py-1 px-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-slate-100 cursor-pointer"
+              >
+                <option value={5}>5 rows</option>
+                <option value={10}>10 rows</option>
+                <option value={20}>20 rows</option>
+                <option value={30}>30 rows</option>
+                <option value="all">All rows ({filteredRecords.length})</option>
+              </select>
+            </div>
+
+            <span className="text-slate-500 font-mono text-[11px]">
+              Showing <strong>{filteredRecords.length > 0 ? (isAllRows ? 1 : startIndex + 1) : 0}</strong> to{' '}
+              <strong>{endIndex}</strong> of <strong>{filteredRecords.length}</strong> entries
+            </span>
+          </div>
+
+          {!isAllRows && totalPages > 1 ? (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={safeCurrentPage === 1}
+                onClick={() => setCurrentPage(1)}
+                className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-35 disabled:cursor-not-allowed hover-light-amber cursor-pointer font-medium"
+                title="First Page"
+              >
+                <ChevronsLeft className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                disabled={safeCurrentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-35 disabled:cursor-not-allowed hover-light-amber cursor-pointer flex items-center gap-1 font-semibold"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Prev</span>
+              </button>
+
+              {/* Page Number Buttons */}
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((page) => {
+                    if (totalPages <= 7) return true;
+                    if (page === 1 || page === totalPages) return true;
+                    return Math.abs(page - safeCurrentPage) <= 1;
+                  })
+                  .map((page, idx, arr) => {
+                    const isCurrent = page === safeCurrentPage;
+                    const prev = arr[idx - 1];
+                    const hasGap = prev && page - prev > 1;
+
+                    return (
+                      <React.Fragment key={page}>
+                        {hasGap && <span className="px-1 text-slate-400 font-mono">...</span>}
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(page)}
+                          className={`min-w-[28px] h-7 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            isCurrent
+                              ? 'active-pear shadow-xs'
+                              : 'border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover-light-amber'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+              </div>
+
+              <button
+                type="button"
+                disabled={safeCurrentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-35 disabled:cursor-not-allowed hover-light-amber cursor-pointer flex items-center gap-1 font-semibold"
+              >
+                <span>Next</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                disabled={safeCurrentPage === totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-35 disabled:cursor-not-allowed hover-light-amber cursor-pointer font-medium"
+                title="Last Page"
+              >
+                <ChevronsRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="text-slate-500 text-[11px] font-medium flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>All {filteredRecords.length} academic records displayed on single view</span>
+            </div>
+          )}
         </div>
       </div>
 

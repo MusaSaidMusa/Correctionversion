@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { X, Printer, CheckCircle2, Award, Lock, ShieldAlert } from 'lucide-react';
+import { X, Printer, CheckCircle2, Award, Lock, ShieldAlert, FileCheck, ExternalLink } from 'lucide-react';
 import { Exam } from '../../types';
 
 interface OfficialMarkingSchemeModalProps {
@@ -147,6 +147,33 @@ export const OfficialMarkingSchemeModal: React.FC<OfficialMarkingSchemeModalProp
               <strong>Examination Session:</strong> {exam.scheduledDate || new Date(exam.scheduledStartTime).toLocaleDateString()}
             </div>
           </div>
+
+          {/* Attached Document Banner if available */}
+          {exam.officialMarkingSchemeUrl && (
+            <div className="my-4 p-3.5 bg-indigo-50 border border-indigo-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs font-sans print:hidden shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0">
+                  <FileCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="font-bold text-slate-900 block">Attached Official Marking Scheme Document</span>
+                  <span className="text-slate-600 font-mono text-[11px] truncate max-w-sm block">
+                    {exam.officialMarkingSchemeUrl.split('/').pop()}
+                  </span>
+                </div>
+              </div>
+              <a
+                href={exam.officialMarkingSchemeUrl}
+                target="_blank"
+                rel="noreferrer"
+                download
+                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors inline-flex items-center gap-1.5 shadow-2xs"
+              >
+                <span>Download / Open Document</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          )}
 
           {/* Clean Line-by-Line Marking Scheme Points */}
           <div className="space-y-6 mt-6">

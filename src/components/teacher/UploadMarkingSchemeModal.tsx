@@ -7,8 +7,12 @@ import {
   CheckCircle2,
   FileCheck,
   AlertCircle,
+  Loader2,
+  ExternalLink,
 } from 'lucide-react';
 import { Exam } from '../../types';
+import { uploadFileToServer } from '../../services/storageService';
+import { readUploadedFileText } from '../../services/examDocumentParser';
 
 interface UploadMarkingSchemeModalProps {
   exam: Exam;
@@ -30,18 +34,47 @@ export const UploadMarkingSchemeModal: React.FC<UploadMarkingSchemeModalProps> =
   );
   const [isReleased, setIsReleased] = useState(exam.isMarkingSchemeReleased || false);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(exam.officialMarkingSchemeUrl || null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setUploadedFileName(file.name);
-      setMarkingSchemeNotes((prev) =>
-        prev
-          ? `${prev}\n\n[Uploaded Document: ${file.name}]`
-          : `[Official Institutional Marking Guide: ${file.name}]`
-      );
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadError(null);
+    setUploadedFileName(file.name);
+
+    try {
+      // 1. Upload to backend server
+      const uploadRes = await uploadFileToServer(file);
+      setUploadedUrl(uploadRes.url);
+
+      // 2. Try to extract textual rubrics if it is text/csv/xlsx/doc
+      try {
+        const textExtract = await readUploadedFileText(file);
+        if (textExtract.content && textExtract.content.trim()) {
+          setMarkingSchemeNotes((prev) => {
+            const heading = `=== OFFICIAL MARKING CRITERIA: ${file.name} ===\n`;
+            if (!prev.trim()) return heading + textExtract.content.slice(0, 5000);
+            return `${prev}\n\n${heading}${textExtract.content.slice(0, 5000)}`;
+          });
+        }
+      } catch (extractErr) {
+        // Non-fatal text extraction error (e.g. binary PDF)
+        setMarkingSchemeNotes((prev) =>
+          prev
+            ? `${prev}\n\n[Uploaded Official Guide Document: ${file.name}]`
+            : `[Official Institutional Marking Guide: ${file.name}]`
+        );
+      }
+    } catch (err: any) {
+      setUploadError(err?.message || 'Failed to upload document.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -50,9 +83,7 @@ export const UploadMarkingSchemeModal: React.FC<UploadMarkingSchemeModalProps> =
       ...exam,
       markingSchemeNotes: markingSchemeNotes.trim(),
       isMarkingSchemeReleased: isReleased,
-      officialMarkingSchemeUrl: uploadedFileName
-        ? `/schemes/${exam.courseCode.toLowerCase()}-marking-scheme.pdf`
-        : exam.officialMarkingSchemeUrl,
+      officialMarkingSchemeUrl: uploadedUrl || exam.officialMarkingSchemeUrl,
     };
     onSaveExam(updated);
   };
@@ -85,21 +116,61 @@ export const UploadMarkingSchemeModal: React.FC<UploadMarkingSchemeModalProps> =
             <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
               Attach Scheme Document (.PDF, .DOCX, .XLSX)
             </label>
-            <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-6 text-center hover:border-indigo-400 transition-colors">
-              <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <div className="text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                {uploadedFileName || 'Drag and drop marking scheme or click to browse'}
-              </div>
-              <p className="text-[11px] text-slate-400 mb-3">Institutional marking rubrics & solutions</p>
-              <label className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold cursor-pointer inline-block">
-                Choose Document
-                <input
-                  type="file"
-                  accept=".pdf,.docx,.doc,.txt,.xlsx"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-              </label>
+            <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-6 text-center hover:border-indigo-400 transition-colors bg-slate-50/50 dark:bg-slate-900/50">
+              {isUploading ? (
+                <div className="py-2 space-y-2">
+                  <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mx-auto" />
+                  <p className="font-semibold text-indigo-600">Uploading and saving document to server...</p>
+                </div>
+              ) : (
+                <>
+                  <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                  <div className="text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                    {uploadedFileName || (uploadedUrl ? 'Document currently attached' : 'Drag and drop marking scheme or click to browse')}
+                  </div>
+                  <p className="text-[11px] text-slate-400 mb-3">Institutional marking rubrics &amp; solutions (.pdf, .docx, .xlsx, .txt)</p>
+
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <label className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold cursor-pointer inline-flex items-center gap-1.5 shadow-xs">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{uploadedFileName || uploadedUrl ? 'Replace Document' : 'Choose Document'}</span>
+                      <input
+                        type="file"
+                        accept=".pdf,.docx,.doc,.txt,.xlsx,.csv"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {uploadedUrl && (
+                      <a
+                        href={uploadedUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-2 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-lg font-bold inline-flex items-center gap-1 hover:bg-emerald-100 transition-colors"
+                      >
+                        <FileCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>View / Download Attachment</span>
+                        <ExternalLink className="w-3 h-3 ml-0.5" />
+                      </a>
+                    )}
+                  </div>
+
+                  {uploadError && (
+                    <div className="mt-3 p-2 rounded-lg bg-rose-50 text-rose-800 border border-rose-200 text-xs flex items-center justify-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-rose-600" />
+                      <span>{uploadError}</span>
+                    </div>
+                  )}
+
+                  {uploadedUrl && !uploadError && (
+                    <div className="mt-3 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center justify-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Stored persistently on server ({uploadedUrl})</span>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
 

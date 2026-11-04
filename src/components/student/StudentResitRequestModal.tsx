@@ -27,6 +27,7 @@ import {
   submitResitRequest,
   getStoredResitRequests,
   getStoredMissedExams,
+  uploadFileToServer,
 } from '../../services/storageService';
 import { triggerFlash } from '../common/FlashMessage';
 
@@ -91,34 +92,50 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
   // Student's historical resit requests
   const myRequests = getStoredResitRequests().filter((r) => r.studentId === student.id);
 
-  const processSelectedFile = (file: File) => {
+  const processSelectedFile = async (file: File) => {
     setFileUploadError(null);
     setErrorMsg(null);
 
-    // Size limit: 16MB
-    if (file.size > 16 * 1024 * 1024) {
-      setFileUploadError('File size exceeds 16MB limit. Please upload a compressed document or photo.');
+    // Size limit: 25MB
+    if (file.size > 25 * 1024 * 1024) {
+      setFileUploadError('File size exceeds 25MB limit. Please upload a compressed document or photo.');
       return;
+    }
+
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
+    let detectedType = file.type;
+    if (!detectedType) {
+      if (fileExt === 'pdf') detectedType = 'application/pdf';
+      else if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'].includes(fileExt || '')) {
+        detectedType = `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`;
+      } else {
+        detectedType = 'application/octet-stream';
+      }
+    }
+
+    setAttachmentFileName(file.name);
+    setAttachmentFileType(detectedType);
+    setAttachmentFileSize(file.size);
+
+    try {
+      const uploadRes = await uploadFileToServer(file);
+      if (uploadRes.url) {
+        setAttachmentFileUrl(uploadRes.url);
+        triggerFlash({
+          type: 'success',
+          text: 'Document Stored & Attached',
+          subtext: `${file.name} (${(file.size / 1024).toFixed(0)} KB) saved to server and linked.`,
+        });
+        return;
+      }
+    } catch {
+      // Fallback to local Data URL
     }
 
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
-        const fileExt = file.name.split('.').pop()?.toLowerCase();
-        let detectedType = file.type;
-        if (!detectedType) {
-          if (fileExt === 'pdf') detectedType = 'application/pdf';
-          else if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'].includes(fileExt || '')) {
-            detectedType = `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`;
-          } else {
-            detectedType = 'application/octet-stream';
-          }
-        }
         setAttachmentFileUrl(reader.result);
-        setAttachmentFileName(file.name);
-        setAttachmentFileType(detectedType);
-        setAttachmentFileSize(file.size);
-        setFileUploadError(null);
         triggerFlash({
           type: 'success',
           text: 'Document Attached',

@@ -33,6 +33,7 @@ import {
   saveStoredSuperAdmin,
   verifyUserPassword,
   updateUserPassword,
+  uploadFileToServer,
 } from '../../services/storageService';
 
 interface ProfileDetailModalProps {
@@ -96,13 +97,22 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Handle Image File Upload -> Data URL
-  const handleAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle Image File Upload -> Server Storage or Data URL
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 3 * 1024 * 1024) {
-        setErrorMessage('Profile image must be less than 3MB.');
+      if (file.size > 8 * 1024 * 1024) {
+        setErrorMessage('Profile image must be less than 8MB.');
         return;
+      }
+      try {
+        const res = await uploadFileToServer(file);
+        if (res.url) {
+          setAvatar(res.url);
+          return;
+        }
+      } catch {
+        // Fallback
       }
       const reader = new FileReader();
       reader.onload = (evt) => {

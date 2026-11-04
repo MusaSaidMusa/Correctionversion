@@ -9,9 +9,12 @@ import {
   Search,
   AlertTriangle,
   ShieldAlert,
+  Camera,
+  Loader2,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { Exam, StudentProfile } from '../../types';
-import { checkMissedExamRegistrationBlock } from '../../services/storageService';
+import { checkMissedExamRegistrationBlock, uploadFileToServer } from '../../services/storageService';
 import { triggerFlash } from '../common/FlashMessage';
 
 interface StudentRegistrationModalProps {
@@ -48,8 +51,31 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
   const [newRegNo, setNewRegNo] = useState('');
   const [newDept, setNewDept] = useState('Computer Science & Software Engineering');
   const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
+  const [newAvatar, setNewAvatar] = useState<string>('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
 
   if (!isOpen) return null;
+
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingPhoto(true);
+    try {
+      const res = await uploadFileToServer(file);
+      if (res.url) {
+        setNewAvatar(res.url);
+        triggerFlash({
+          type: 'success',
+          text: 'Candidate Photo Uploaded',
+          subtext: `Uploaded and attached candidate portrait.`,
+        });
+      }
+    } catch {
+      // safe fallback
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
 
   const currentExam = exams.find((e) => e.id === selectedExamId) || targetExam || exams[0];
 
@@ -78,7 +104,7 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
       name: newName.trim(),
       email: newEmail.trim(),
       studentNumber: formattedRegNo,
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+      avatar: newAvatar,
       department: newDept,
       faculty: currentExam?.faculty || 'Faculty of Computing & Information Technologies',
       enrolledCourseCodes: selectedCourses.length > 0 ? selectedCourses : [currentExam?.courseCode || 'CS401'],
@@ -291,6 +317,40 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
 
           {tab === 'new' && (
             <form onSubmit={handleRegisterNew} className="space-y-4">
+              {/* Candidate Photo / Avatar Upload */}
+              <div className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div className="relative">
+                  <img
+                    src={newAvatar}
+                    alt="Candidate portrait"
+                    className="w-14 h-14 rounded-full object-cover border-2 border-indigo-400 shadow-sm"
+                  />
+                  {isUploadingPhoto && (
+                    <div className="absolute inset-0 bg-slate-900/60 rounded-full flex items-center justify-center">
+                      <Loader2 className="w-5 h-5 text-white animate-spin" />
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                    Candidate Portrait Photo
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    Upload official examination identification photo (.jpg, .png)
+                  </p>
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-2xs">
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>{isUploadingPhoto ? 'Uploading...' : 'Choose / Take Photo'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarFile}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
                   Full Candidate Name
