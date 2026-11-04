@@ -16,6 +16,11 @@ import {
   UserCheck,
   Check,
   Download,
+  Camera,
+  Image as ImageIcon,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
 } from 'lucide-react';
 import { StudentProfile, Exam, ResitRequest } from '../../types';
 import {
@@ -74,40 +79,69 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
     fileUrl?: string;
     fileType?: string;
   } | null>(null);
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewRotate, setPreviewRotate] = useState(0);
 
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
   if (!isOpen) return null;
 
   // Student's historical resit requests
   const myRequests = getStoredResitRequests().filter((r) => r.studentId === student.id);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const processSelectedFile = (file: File) => {
     setFileUploadError(null);
     setErrorMsg(null);
-    const file = e.target.files?.[0];
-    if (!file) return;
 
-    // Check size limit: 12MB
-    if (file.size > 12 * 1024 * 1024) {
-      setFileUploadError('File size exceeds 12MB limit. Please upload a compressed document or photo.');
+    // Size limit: 16MB
+    if (file.size > 16 * 1024 * 1024) {
+      setFileUploadError('File size exceeds 16MB limit. Please upload a compressed document or photo.');
       return;
     }
 
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
+        const fileExt = file.name.split('.').pop()?.toLowerCase();
+        let detectedType = file.type;
+        if (!detectedType) {
+          if (fileExt === 'pdf') detectedType = 'application/pdf';
+          else if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'].includes(fileExt || '')) {
+            detectedType = `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`;
+          } else {
+            detectedType = 'application/octet-stream';
+          }
+        }
         setAttachmentFileUrl(reader.result);
         setAttachmentFileName(file.name);
-        setAttachmentFileType(file.type || 'application/octet-stream');
+        setAttachmentFileType(detectedType);
         setAttachmentFileSize(file.size);
         setFileUploadError(null);
+        triggerFlash({
+          type: 'success',
+          text: 'Document Attached',
+          subtext: `${file.name} (${(file.size / 1024).toFixed(0)} KB) successfully loaded.`,
+        });
       }
     };
     reader.onerror = () => {
-      setFileUploadError('Failed to read the file. Please try again.');
+      setFileUploadError('Failed to read the file. Please try selecting again.');
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processSelectedFile(file);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processSelectedFile(file);
   };
 
   const handleRemoveAttachment = () => {
@@ -115,9 +149,8 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
     setAttachmentFileUrl(null);
     setAttachmentFileType('');
     setAttachmentFileSize(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -440,39 +473,84 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
 
                 {/* Upload Trigger / Dropzone */}
                 {!attachmentFileUrl ? (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDragging(true);
+                      }}
+                      onDragLeave={() => setIsDragging(false)}
+                      onDrop={handleDrop}
                       onClick={() => fileInputRef.current?.click()}
-                      className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all hover:bg-white dark:hover:bg-slate-900 ${
-                        reasonCategory === 'medical'
-                          ? 'border-rose-300 dark:border-rose-700 bg-rose-50/40 dark:bg-rose-950/10 hover:border-rose-500'
-                          : 'border-slate-300 dark:border-slate-700 bg-white/50 dark:bg-slate-900/50 hover:border-indigo-400'
+                      className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
+                        isDragging
+                          ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 ring-4 ring-indigo-500/20'
+                          : reasonCategory === 'medical'
+                          ? 'border-rose-300 dark:border-rose-700 bg-rose-50/40 dark:bg-rose-950/10 hover:border-rose-500 hover:bg-rose-50/70'
+                          : 'border-slate-300 dark:border-slate-700 bg-white/50 dark:bg-slate-900/50 hover:border-indigo-400 hover:bg-slate-50'
                       }`}
                     >
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept=".pdf,image/png,image/jpeg,image/webp,.doc,.docx"
+                        accept=".pdf,application/pdf,image/*,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.doc,.docx"
                         onChange={handleFileUpload}
                         className="hidden"
                       />
-                      <Upload
-                        className={`w-7 h-7 mx-auto mb-1.5 ${
-                          reasonCategory === 'medical' ? 'text-rose-500' : 'text-slate-400'
-                        }`}
+                      <input
+                        ref={cameraInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleFileUpload}
+                        className="hidden"
                       />
-                      <p className="font-semibold text-xs text-slate-800 dark:text-slate-200">
+
+                      <div className="flex items-center justify-center gap-2 mb-2">
+                        <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 flex items-center justify-center">
+                          <Upload className="w-4 h-4" />
+                        </div>
+                        <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-400 flex items-center justify-center">
+                          <ImageIcon className="w-4 h-4" />
+                        </div>
+                        <div className="w-9 h-9 rounded-xl bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-400 flex items-center justify-center">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                      </div>
+
+                      <p className="font-bold text-xs text-slate-800 dark:text-slate-200">
                         {reasonCategory === 'medical'
-                          ? 'Click to attach compulsory Medical Certificate / Doctor’s Note'
-                          : 'Click to attach supporting evidence document'}
+                          ? 'Click or Drag & Drop Compulsory Medical Document (PDF or Photo)'
+                          : 'Click or Drag & Drop Supporting Evidence Document'}
                       </p>
-                      <p className="text-[11px] text-slate-500 font-mono mt-0.5">
-                        Accepted formats: PDF, PNG, JPG, WEBP, DOCX (Max: 12MB)
+                      <p className="text-[11px] text-slate-500 font-mono mt-1">
+                        Accepted formats: <strong>Photo Images (JPG, PNG, WEBP, HEIC)</strong> &bull; <strong>PDF Documents</strong> (Max: 16MB)
                       </p>
                     </div>
 
+                    {/* Dual Action Buttons: File Picker & Camera Capture */}
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                        <span>Browse File (PDF or Photo)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors border border-indigo-200 dark:border-indigo-800"
+                      >
+                        <Camera className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                        <span>Take Photo with Camera</span>
+                      </button>
+                    </div>
+
                     {fileUploadError && (
-                      <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                      <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium text-center">
                         {fileUploadError}
                       </p>
                     )}
@@ -482,7 +560,11 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
                   <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-emerald-300 dark:border-emerald-800 flex items-center justify-between gap-3 shadow-xs">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                        <FileCheck className="w-5 h-5" />
+                        {attachmentFileType.startsWith('image/') || attachmentFileName.match(/\.(jpg|jpeg|png|webp|heic|heif)$/i) ? (
+                          <ImageIcon className="w-5 h-5" />
+                        ) : (
+                          <FileCheck className="w-5 h-5" />
+                        )}
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
@@ -491,6 +573,13 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
                           </span>
                           <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-mono text-[10px] font-bold">
                             ✓ Attached
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 font-mono text-[10px] font-semibold">
+                            {attachmentFileType.startsWith('image/') || attachmentFileName.match(/\.(jpg|jpeg|png|webp|heic|heif)$/i)
+                              ? '🖼️ Photo Document'
+                              : attachmentFileType.includes('pdf') || attachmentFileName.endsWith('.pdf')
+                              ? '📄 PDF Document'
+                              : '📁 Evidence File'}
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-500 font-mono mt-0.5">
@@ -502,13 +591,15 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
+                          setPreviewZoom(1);
+                          setPreviewRotate(0);
                           setPreviewEvidence({
                             fileName: attachmentFileName,
                             fileUrl: attachmentFileUrl,
                             fileType: attachmentFileType,
-                          })
-                        }
+                          });
+                        }}
                         className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs flex items-center gap-1 cursor-pointer transition-colors"
                         title="Preview attached document"
                       >
@@ -690,18 +781,58 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
       {/* Document Preview Modal */}
       {previewEvidence && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
               <div className="flex items-center gap-2 min-w-0">
                 <FileCheck className="w-5 h-5 text-emerald-600 shrink-0" />
-                <h4 className="font-bold text-sm truncate">{previewEvidence.fileName}</h4>
+                <div className="min-w-0">
+                  <h4 className="font-bold text-sm truncate">{previewEvidence.fileName}</h4>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    {previewEvidence.fileUrl?.startsWith('data:image/') || previewEvidence.fileName.match(/\.(jpg|jpeg|png|webp|heic|heif)$/i)
+                      ? '📸 High-Resolution Photo Document'
+                      : '📄 Portable Document Format (PDF)'}
+                  </span>
+                </div>
               </div>
               <div className="flex items-center gap-2">
+                {/* Photo Zoom and Rotate Controls */}
+                {(previewEvidence.fileUrl?.startsWith('data:image/') || previewEvidence.fileName.match(/\.(jpg|jpeg|png|webp|heic|heif)$/i)) && (
+                  <div className="flex items-center gap-1 bg-slate-200/70 dark:bg-slate-800/80 p-1 rounded-lg mr-2">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewZoom((z) => Math.max(0.5, z - 0.2))}
+                      className="p-1 rounded text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 cursor-pointer"
+                      title="Zoom Out"
+                    >
+                      <ZoomOut className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-[10px] font-mono font-bold px-1 text-slate-700 dark:text-slate-300">
+                      {Math.round(previewZoom * 100)}%
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewZoom((z) => Math.min(3, z + 0.2))}
+                      className="p-1 rounded text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 cursor-pointer"
+                      title="Zoom In"
+                    >
+                      <ZoomIn className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewRotate((r) => (r + 90) % 360)}
+                      className="p-1 rounded text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 cursor-pointer ml-1"
+                      title="Rotate 90 degrees"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
                 {previewEvidence.fileUrl && (
                   <a
                     href={previewEvidence.fileUrl}
                     download={previewEvidence.fileName}
-                    className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400"
+                    className="p-1.5 rounded-lg text-slate-600 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
                     title="Download attached document"
                   >
                     <Download className="w-4 h-4" />
@@ -710,26 +841,34 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
                 <button
                   type="button"
                   onClick={() => setPreviewEvidence(null)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            <div className="p-4 overflow-y-auto flex-1 flex items-center justify-center bg-slate-100 dark:bg-slate-950">
-              {previewEvidence.fileUrl && previewEvidence.fileUrl.startsWith('data:image/') ? (
-                <img
-                  src={previewEvidence.fileUrl}
-                  alt={previewEvidence.fileName}
-                  className="max-h-[65vh] object-contain rounded-lg shadow-sm border border-slate-200 dark:border-slate-800"
-                />
-              ) : previewEvidence.fileUrl && previewEvidence.fileUrl.startsWith('data:application/pdf') ? (
-                <iframe
-                  src={previewEvidence.fileUrl}
-                  title={previewEvidence.fileName}
-                  className="w-full h-[65vh] rounded-lg border border-slate-200 dark:border-slate-800"
-                />
+            <div className="p-4 overflow-auto flex-1 flex items-center justify-center bg-slate-100 dark:bg-slate-950 min-h-[350px]">
+              {previewEvidence.fileUrl && (previewEvidence.fileUrl.startsWith('data:image/') || previewEvidence.fileName.match(/\.(jpg|jpeg|png|webp|heic|heif)$/i)) ? (
+                <div className="overflow-auto max-h-[68vh] max-w-full flex items-center justify-center p-2">
+                  <img
+                    src={previewEvidence.fileUrl}
+                    alt={previewEvidence.fileName}
+                    style={{
+                      transform: `scale(${previewZoom}) rotate(${previewRotate}deg)`,
+                      transition: 'transform 0.2s ease',
+                    }}
+                    className="max-h-[62vh] object-contain rounded-lg shadow-md border border-slate-200 dark:border-slate-800"
+                  />
+                </div>
+              ) : previewEvidence.fileUrl && (previewEvidence.fileUrl.startsWith('data:application/pdf') || previewEvidence.fileName.endsWith('.pdf')) ? (
+                <div className="w-full h-[68vh] rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden bg-white shadow-xs">
+                  <iframe
+                    src={previewEvidence.fileUrl}
+                    title={previewEvidence.fileName}
+                    className="w-full h-full border-0"
+                  />
+                </div>
               ) : (
                 <div className="p-8 text-center space-y-3">
                   <div className="w-16 h-16 rounded-2xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto">
@@ -737,13 +876,13 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
                   </div>
                   <div>
                     <p className="font-bold text-slate-900 dark:text-white">{previewEvidence.fileName}</p>
-                    <p className="text-xs text-slate-500 mt-1">Official Document Stored in Institutional Registry</p>
+                    <p className="text-xs text-slate-500 mt-1">Institutional Document Stored in Registry</p>
                   </div>
                   {previewEvidence.fileUrl && (
                     <a
                       href={previewEvidence.fileUrl}
                       download={previewEvidence.fileName}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 shadow-xs cursor-pointer"
                     >
                       <Download className="w-4 h-4" />
                       <span>Download / Open File</span>
@@ -753,11 +892,14 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
               )}
             </div>
 
-            <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex justify-end">
+            <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between">
+              <span className="text-[11px] text-slate-500 font-mono">
+                Rifkins Assessment &amp; Governance Archive
+              </span>
               <button
                 type="button"
                 onClick={() => setPreviewEvidence(null)}
-                className="px-4 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-800 dark:text-slate-200 text-xs font-semibold cursor-pointer"
+                className="px-4 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold cursor-pointer transition-colors"
               >
                 Close Preview
               </button>

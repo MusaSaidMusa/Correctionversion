@@ -1,4 +1,4 @@
-import { Exam, Question, ExamSubmission, ProctorIncident, StudentProfile, TeacherProfile, HelpTicket, ThemeMode, Course, AuthUser, MissedExamRecord, ResitRequest, ExamAttendanceSummary } from '../types';
+import { Exam, Question, ExamSubmission, ProctorIncident, StudentProfile, TeacherProfile, HelpTicket, ThemeMode, Course, AuthUser, MissedExamRecord, ResitRequest, ExamAttendanceSummary, AcademicRecord } from '../types';
 import { INITIAL_EXAMS, INITIAL_QUESTION_BANK, INITIAL_SUBMISSIONS, INITIAL_STUDENTS, CURRENT_TEACHER, INITIAL_TEACHERS, INITIAL_HELP_TICKETS, INITIAL_COURSES, SUPER_ADMIN, INITIAL_MISSED_EXAMS, INITIAL_RESIT_REQUESTS } from '../data/mockData';
 import { triggerFlash } from '../components/common/FlashMessage';
 
@@ -18,6 +18,7 @@ const STORAGE_KEYS = {
   SUPER_ADMIN: 'examguard_super_admin_v1',
   MISSED_EXAMS: 'examguard_missed_exams_v1',
   RESIT_REQUESTS: 'examguard_resit_requests_v1',
+  ACADEMIC_DATABASE: 'examguard_academic_database_v2',
 };
 
 export function getTeacherPasswordHash(email: string): string | null {
@@ -1610,6 +1611,11 @@ export function saveSubmission(submission: ExamSubmission): void {
     window.dispatchEvent(new CustomEvent('examguard_submissions_updated', { detail: { submission } }));
     window.dispatchEvent(new CustomEvent('examguard_admissions_updated', { detail: { examId: submission.examId, studentId: submission.studentId, status: submission.status } }));
   }
+
+  // Immediately update academic database for consistency when marks exist or status is graded
+  if (submission.status === 'graded' || submission.score != null || submission.isResultCommitted) {
+    syncSubmissionToAcademicDatabase(submission);
+  }
 }
 
 export function addProctorIncidentToSubmission(examId: string, studentId: string, incident: ProctorIncident): void {
@@ -1795,6 +1801,13 @@ export function overrideQuestionMark(
   sub.status = 'graded';
 
   saveStoredSubmissions(subs);
+
+  // Immediately update academic database for consistency upon mark modification
+  syncSubmissionToAcademicDatabase(
+    sub,
+    `Faculty mark override by ${instructorName} on Question ${questionId}: ${reason.trim()}`
+  );
+
   return { success: true, updatedSubmission: sub };
 }
 
@@ -1839,6 +1852,10 @@ export function commitSubmissionResult(
       sub.committedAt = result.data?.committedAt || new Date().toISOString();
       sub.committedBy = instructorName;
       saveStoredSubmissions(subs);
+
+      // Immediately synchronize into the Admin Academic Database
+      syncSubmissionToAcademicDatabase(sub, `Official result committed by ${instructorName}.`);
+
       return { success: true, updatedSubmission: sub };
     })
     .catch((error: unknown) => ({
@@ -1894,6 +1911,8 @@ export function commitAllExamResults(
         submission.isResultCommitted = true;
         submission.committedAt = committedAt;
         submission.committedBy = instructorName;
+        // Immediately sync each committed submission to academic database
+        syncSubmissionToAcademicDatabase(submission, `Batch result committed by ${instructorName}.`);
       });
       saveStoredSubmissions(subs);
       return { success: true, count: eligible.length };
@@ -2129,6 +2148,7 @@ export function reviewMarkOverride(
   }
 
   saveStoredSubmissions(subs);
+  syncAcademicDatabaseWithSubmissions();
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('examguard_submissions_updated', { detail: { submission: sub } }));
     window.dispatchEvent(new CustomEvent('examguard_state_sync'));
@@ -2245,6 +2265,13 @@ export function manualGradeFullSubmission(
   sub.status = 'graded';
 
   saveStoredSubmissions(subs);
+
+  // Immediately update academic database for consistency upon manual mark evaluation
+  syncSubmissionToAcademicDatabase(
+    sub,
+    overallRemarks || `Manual grading evaluation conducted by ${instructorName}.`
+  );
+
   return { success: true, submission: sub };
 }
 
@@ -2417,7 +2444,836 @@ export async function reviewCommittedMarkChange(
     ).catch(() => {});
   } catch {}
 
+  // Dynamically sync academic database so modified results reflect immediately
+  syncAcademicDatabaseWithSubmissions();
+
   return { success: true, updatedSubmission: sub };
+}
+
+// -------------------------------------------------------------
+// INSTITUTIONAL ACADEMIC RECORDS DATABASE (COMPOSITE PRIMARY KEY: [Student Admission + Course Code])
+// -------------------------------------------------------------
+export function calculateAcademicGrade(percentage: number): string {
+  const p = Math.round(percentage);
+  if (p >= 80) return 'A';
+  if (p >= 75) return 'A-';
+  if (p >= 70) return 'B+';
+  if (p >= 65) return 'B';
+  if (p >= 60) return 'B-';
+  if (p >= 55) return 'C+';
+  if (p >= 50) return 'C';
+  if (p >= 40) return 'D';
+  return 'F';
+}
+
+/**
+ * Builds the composite primary key string from student admission number and course code.
+ * Format: "${studentAdmission}#${course}"
+ * Enforces database integrity: A single student can take multiple different units (e.g. CS401, CS302, CYBER201),
+ * while preventing duplicate entries for the exact same unit.
+ */
+export function buildCompositeKey(studentAdmission: string, course: string): string {
+  const normAdmission = (studentAdmission || '').trim().toUpperCase();
+  const normCourse = (course || '').trim().toUpperCase();
+  return `${normAdmission}#${normCourse}`;
+}
+
+export const INITIAL_ACADEMIC_RECORDS: AcademicRecord[] = [
+  // Student Alex Rivera (STU-2024-8842) taking 3 distinct units
+  {
+    id: 'acad-stu-2024-8842-cs401',
+    compositePrimaryKey: 'STU-2024-8842#CS401',
+    studentAdmission: 'STU-2024-8842',
+    studentName: 'Alex Rivera',
+    course: 'CS401',
+    unitName: 'Principles of Distributed Computing & Consensus',
+    score: 88,
+    totalPoints: 100,
+    percentage: 88,
+    grade: 'A',
+    department: 'Computer Science & Software Engineering',
+    faculty: 'Faculty of Computing & Information Technologies',
+    status: 'approved',
+    period: '2025/2026 Academic Session',
+    recordedAt: '2025-11-16T14:30:00.000Z',
+    approvedAt: '2025-11-16T15:00:00.000Z',
+    approvedBy: 'Prof. Evelyn Vance (Chair)',
+    examId: 'exam-past-2025',
+    submissionId: 'sub-alex-past',
+  },
+  {
+    id: 'acad-stu-2024-8842-cs302',
+    compositePrimaryKey: 'STU-2024-8842#CS302',
+    studentAdmission: 'STU-2024-8842',
+    studentName: 'Alex Rivera',
+    course: 'CS302',
+    unitName: 'Database Systems Architecture & Query Optimization',
+    score: 91,
+    totalPoints: 100,
+    percentage: 91,
+    grade: 'A',
+    department: 'Computer Science & Software Engineering',
+    faculty: 'Faculty of Computing & Information Technologies',
+    status: 'approved',
+    period: '2025/2026 Academic Session',
+    recordedAt: '2025-12-04T11:00:00.000Z',
+    approvedAt: '2025-12-05T09:00:00.000Z',
+    approvedBy: 'Prof. Evelyn Vance',
+  },
+  {
+    id: 'acad-stu-2024-8842-cyber201',
+    compositePrimaryKey: 'STU-2024-8842#CYBER201',
+    studentAdmission: 'STU-2024-8842',
+    studentName: 'Alex Rivera',
+    course: 'CYBER201',
+    unitName: 'Applied Cryptography & Zero-Knowledge Verification',
+    score: 85,
+    totalPoints: 100,
+    percentage: 85,
+    grade: 'A',
+    department: 'Computer Science & Software Engineering',
+    faculty: 'Faculty of Computing & Information Technologies',
+    status: 'approved',
+    period: '2025/2026 Academic Session',
+    recordedAt: '2026-01-10T12:00:00.000Z',
+    approvedAt: '2026-01-10T14:00:00.000Z',
+    approvedBy: 'Dr. David Chen',
+  },
+  // Student Maya Lin (STU-2024-7721) taking 2 distinct units
+  {
+    id: 'acad-stu-2024-7721-cs302',
+    compositePrimaryKey: 'STU-2024-7721#CS302',
+    studentAdmission: 'STU-2024-7721',
+    studentName: 'Maya Lin',
+    course: 'CS302',
+    unitName: 'Database Systems Architecture & Query Optimization',
+    score: 92,
+    totalPoints: 100,
+    percentage: 92,
+    grade: 'A',
+    department: 'Computer Science & Software Engineering',
+    faculty: 'Faculty of Computing & Information Technologies',
+    status: 'approved',
+    period: '2025/2026 Academic Session',
+    recordedAt: '2025-12-04T10:15:00.000Z',
+    approvedAt: '2025-12-05T09:00:00.000Z',
+    approvedBy: 'Prof. Evelyn Vance',
+  },
+  {
+    id: 'acad-stu-2024-7721-cs401',
+    compositePrimaryKey: 'STU-2024-7721#CS401',
+    studentAdmission: 'STU-2024-7721',
+    studentName: 'Maya Lin',
+    course: 'CS401',
+    unitName: 'Principles of Distributed Computing & Consensus',
+    score: 84,
+    totalPoints: 100,
+    percentage: 84,
+    grade: 'A',
+    department: 'Computer Science & Software Engineering',
+    faculty: 'Faculty of Computing & Information Technologies',
+    status: 'approved',
+    period: '2025/2026 Academic Session',
+    recordedAt: '2026-01-08T15:00:00.000Z',
+    approvedAt: '2026-01-09T10:00:00.000Z',
+    approvedBy: 'Prof. Evelyn Vance',
+  },
+  // Student Samuel K. Ochieng (STU-2024-9031) taking 2 distinct units
+  {
+    id: 'acad-stu-2024-9031-cyber201',
+    compositePrimaryKey: 'STU-2024-9031#CYBER201',
+    studentAdmission: 'STU-2024-9031',
+    studentName: 'Samuel K. Ochieng',
+    course: 'CYBER201',
+    unitName: 'Applied Cryptography & Zero-Knowledge Verification',
+    score: 78,
+    totalPoints: 100,
+    percentage: 78,
+    grade: 'A-',
+    department: 'Computer Science & Software Engineering',
+    faculty: 'Faculty of Computing & Information Technologies',
+    status: 'approved',
+    period: '2025/2026 Academic Session',
+    recordedAt: '2026-01-10T11:45:00.000Z',
+    approvedAt: '2026-01-10T14:00:00.000Z',
+    approvedBy: 'Dr. David Chen',
+  },
+  {
+    id: 'acad-stu-2024-9031-cs401',
+    compositePrimaryKey: 'STU-2024-9031#CS401',
+    studentAdmission: 'STU-2024-9031',
+    studentName: 'Samuel K. Ochieng',
+    course: 'CS401',
+    unitName: 'Principles of Distributed Computing & Consensus',
+    score: 82,
+    totalPoints: 100,
+    percentage: 82,
+    grade: 'A-',
+    department: 'Computer Science & Software Engineering',
+    faculty: 'Faculty of Computing & Information Technologies',
+    status: 'approved',
+    period: '2025/2026 Academic Session',
+    recordedAt: '2026-01-15T09:30:00.000Z',
+    approvedAt: '2026-01-15T12:00:00.000Z',
+    approvedBy: 'Dr. Marcus Sterling',
+  },
+  // Student David Kiprono (RBC/2026/014) taking 2 distinct units
+  {
+    id: 'acad-rbc-2026-014-bus205',
+    compositePrimaryKey: 'RBC/2026/014#BUS205',
+    studentAdmission: 'RBC/2026/014',
+    studentName: 'David Kiprono',
+    course: 'BUS205',
+    unitName: 'Quantitative Business Analytics & Financial Auditing',
+    score: 84,
+    totalPoints: 100,
+    percentage: 84,
+    grade: 'A',
+    department: 'Business Administration & Accounting',
+    faculty: 'Faculty of Commerce & Management',
+    status: 'approved',
+    period: '2025/2026 Academic Session',
+    recordedAt: '2026-02-14T09:20:00.000Z',
+    approvedAt: '2026-02-14T12:00:00.000Z',
+    approvedBy: 'Dr. Marcus Sterling (Super Admin)',
+  },
+  {
+    id: 'acad-rbc-2026-014-eng101',
+    compositePrimaryKey: 'RBC/2026/014#ENG101',
+    studentAdmission: 'RBC/2026/014',
+    studentName: 'David Kiprono',
+    course: 'ENG101',
+    unitName: 'Discrete Mathematics & Digital Logic Circuit Design',
+    score: 74,
+    totalPoints: 100,
+    percentage: 74,
+    grade: 'B+',
+    department: 'Electrical & Electronic Engineering',
+    faculty: 'Faculty of Engineering & Built Environment',
+    status: 'approved',
+    period: '2025/2026 Academic Session',
+    recordedAt: '2026-02-18T10:00:00.000Z',
+    approvedAt: '2026-02-19T11:00:00.000Z',
+    approvedBy: 'Dr. Marcus Sterling',
+  },
+  // Student Faith Chebet (RBC/2026/028)
+  {
+    id: 'acad-rbc-2026-028-eng101',
+    compositePrimaryKey: 'RBC/2026/028#ENG101',
+    studentAdmission: 'RBC/2026/028',
+    studentName: 'Faith Chebet',
+    course: 'ENG101',
+    unitName: 'Discrete Mathematics & Digital Logic Circuit Design',
+    score: 71,
+    totalPoints: 100,
+    percentage: 71,
+    grade: 'B+',
+    department: 'Electrical & Electronic Engineering',
+    faculty: 'Faculty of Engineering & Built Environment',
+    status: 'approved',
+    period: '2025/2026 Academic Session',
+    recordedAt: '2026-02-20T16:00:00.000Z',
+    approvedAt: '2026-02-21T08:30:00.000Z',
+    approvedBy: 'Dr. Marcus Sterling',
+  },
+  // Student Brian Mwangi (RBC/2026/045)
+  {
+    id: 'acad-rbc-2026-045-cs401',
+    compositePrimaryKey: 'RBC/2026/045#CS401',
+    studentAdmission: 'RBC/2026/045',
+    studentName: 'Brian Mwangi',
+    course: 'CS401',
+    unitName: 'Principles of Distributed Computing & Consensus',
+    score: 64,
+    totalPoints: 100,
+    percentage: 64,
+    grade: 'B-',
+    department: 'Computer Science & Software Engineering',
+    faculty: 'Faculty of Computing & Information Technologies',
+    status: 'modified',
+    period: '2025/2026 Academic Session',
+    recordedAt: '2026-02-22T13:00:00.000Z',
+    lastModifiedAt: '2026-02-25T11:00:00.000Z',
+    approvedAt: '2026-02-25T11:00:00.000Z',
+    approvedBy: 'Dr. Marcus Sterling (Super Admin)',
+    modifiedReason: 'Super Admin Directorate approved mark adjustment following second-marker moderation audit.',
+  },
+  // Student Esther Wanjiku (RBC/2026/052)
+  {
+    id: 'acad-rbc-2026-052-law301',
+    compositePrimaryKey: 'RBC/2026/052#LAW301',
+    studentAdmission: 'RBC/2026/052',
+    studentName: 'Esther Wanjiku',
+    course: 'LAW301',
+    unitName: 'Jurisprudence & Intellectual Property In Cyberspace',
+    score: 89,
+    totalPoints: 100,
+    percentage: 89,
+    grade: 'A',
+    department: 'Law & Legal Studies',
+    faculty: 'Faculty of Law',
+    status: 'approved',
+    period: '2025/2026 Academic Session',
+    recordedAt: '2026-03-01T14:10:00.000Z',
+    approvedAt: '2026-03-02T10:00:00.000Z',
+    approvedBy: 'Academic Registrar',
+  },
+  // Student Kevin Omondi (RBC/2026/063)
+  {
+    id: 'acad-rbc-2026-063-med204',
+    compositePrimaryKey: 'RBC/2026/063#MED204',
+    studentAdmission: 'RBC/2026/063',
+    studentName: 'Kevin Omondi',
+    course: 'MED204',
+    unitName: 'Clinical Pharmacology & Diagnostic Pathology',
+    score: 76,
+    totalPoints: 100,
+    percentage: 76,
+    grade: 'A-',
+    department: 'Health Sciences & Clinical Medicine',
+    faculty: 'Faculty of Health Sciences',
+    status: 'approved',
+    period: '2025/2026 Academic Session',
+    recordedAt: '2026-03-05T08:45:00.000Z',
+    approvedAt: '2026-03-05T12:00:00.000Z',
+    approvedBy: 'Dean of Health Sciences',
+  },
+];
+
+/**
+ * Immediately synchronizes an exam submission result into the institutional academic database.
+ * Uses Composite Primary Key: [Student Admission Number + Course Code].
+ * Enforces consistency immediately whenever marks are created or modified.
+ */
+export function syncSubmissionToAcademicDatabase(
+  submission: ExamSubmission,
+  reason?: string
+): AcademicRecord | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.ACADEMIC_DATABASE);
+    let records: AcademicRecord[] = raw ? JSON.parse(raw) : [...INITIAL_ACADEMIC_RECORDS];
+
+    const exams = getStoredExams();
+    const students = getStoredStudents();
+
+    const exam = exams.find((e) => e.id === submission.examId);
+    const student = students.find(
+      (s) => s.id === submission.studentId || (submission.studentNumber && s.studentNumber === submission.studentNumber)
+    );
+
+    const studentAdmission = (
+      student?.studentNumber || submission.studentNumber || submission.studentId || 'UNKNOWN_ADMISSION'
+    ).trim().toUpperCase();
+    const studentName = student?.name || submission.studentName || 'Enrolled Candidate';
+    const course = (exam?.courseCode || 'GENERAL').trim().toUpperCase();
+    const unitName = exam?.title || exam?.courseTitle || 'Curriculum Examination Unit';
+    const department = exam?.department || student?.department || 'Computer Science & Software Engineering';
+    const faculty = exam?.faculty || student?.faculty || 'Faculty of Academic Studies';
+
+    const compositeKey = buildCompositeKey(studentAdmission, course);
+
+    const totalPoints =
+      submission.totalPoints || exam?.questions.reduce((sum, q) => sum + q.points, 0) || 100;
+    const score = submission.score != null ? submission.score : 0;
+    const percentage =
+      submission.percentage != null
+        ? submission.percentage
+        : totalPoints > 0
+        ? Math.round((score / totalPoints) * 100)
+        : 0;
+    const grade = calculateAcademicGrade(percentage);
+
+    // Determine approval / modification status
+    const isCommittedApproved = submission.committedMarkChangeRequest?.status === 'approved';
+    const hasApprovedOverride = Object.values(submission.answers || {}).some(
+      (a) => a.overrideStatus === 'approved'
+    );
+    const hasAnyOverride = Object.values(submission.answers || {}).some(
+      (a) => a.isOverridden
+    );
+    const isModified = isCommittedApproved || hasApprovedOverride || hasAnyOverride || !!reason;
+
+    const status: 'approved' | 'modified' | 'provisional' = isModified
+      ? 'modified'
+      : submission.isResultCommitted || submission.status === 'graded'
+      ? 'approved'
+      : 'provisional';
+
+    const modifiedReason =
+      reason ||
+      (isCommittedApproved
+        ? submission.committedMarkChangeRequest?.adminReviewNote || submission.committedMarkChangeRequest?.explanation
+        : hasApprovedOverride
+        ? 'Audited mark override approved by Super Administrator.'
+        : hasAnyOverride
+        ? 'Faculty mark override recorded in system.'
+        : undefined);
+
+    const recordId = `acad-${studentAdmission.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${course.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+
+    const existingIndex = records.findIndex(
+      (r) =>
+        r.compositePrimaryKey === compositeKey ||
+        (r.studentAdmission.trim().toUpperCase() === studentAdmission &&
+          r.course.trim().toUpperCase() === course) ||
+        (submission.id && r.submissionId === submission.id)
+    );
+
+    const now = new Date().toISOString();
+    const submissionDate = submission.submittedAt || submission.startedAt || now;
+    const periodYear = new Date(submissionDate).getFullYear();
+    const period = `${periodYear}/${periodYear + 1} Academic Session`;
+
+    let resultingRecord: AcademicRecord;
+
+    if (existingIndex !== -1) {
+      const existing = records[existingIndex];
+      resultingRecord = {
+        ...existing,
+        compositePrimaryKey: compositeKey,
+        studentAdmission,
+        studentName,
+        course,
+        unitName,
+        score,
+        totalPoints,
+        percentage,
+        grade,
+        department,
+        faculty,
+        status,
+        period: existing.period || period,
+        lastModifiedAt: now,
+        modifiedReason: modifiedReason || existing.modifiedReason,
+        submissionId: submission.id,
+        examId: submission.examId,
+        approvedAt: existing.approvedAt || now,
+        approvedBy:
+          existing.approvedBy ||
+          (submission.committedBy ? `${submission.committedBy} (Approved)` : 'Super Admin Directorate'),
+      };
+      records[existingIndex] = resultingRecord;
+    } else {
+      resultingRecord = {
+        id: recordId,
+        compositePrimaryKey: compositeKey,
+        studentAdmission,
+        studentName,
+        course,
+        unitName,
+        score,
+        totalPoints,
+        percentage,
+        grade,
+        department,
+        faculty,
+        status,
+        period,
+        recordedAt: submission.submittedAt || now,
+        approvedAt: now,
+        approvedBy: submission.committedBy ? `${submission.committedBy} (Approved)` : 'Super Admin Directorate',
+        submissionId: submission.id,
+        examId: submission.examId,
+        modifiedReason,
+      };
+      records.unshift(resultingRecord);
+    }
+
+    localStorage.setItem(STORAGE_KEYS.ACADEMIC_DATABASE, JSON.stringify(records));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('examguard_academic_database_updated', {
+          detail: { records, updatedRecord: resultingRecord },
+        })
+      );
+    }
+
+    return resultingRecord;
+  } catch (err) {
+    console.error('[storageService] Failed to sync submission to academic database:', err);
+    return null;
+  }
+}
+
+export function syncAcademicDatabaseWithSubmissions(): AcademicRecord[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.ACADEMIC_DATABASE);
+    let records: AcademicRecord[] = raw ? JSON.parse(raw) : [...INITIAL_ACADEMIC_RECORDS];
+
+    // Ensure all existing records have compositePrimaryKey populated
+    let hasKeysPopulated = false;
+    records = records.map((r) => {
+      if (!r.compositePrimaryKey) {
+        hasKeysPopulated = true;
+        return {
+          ...r,
+          compositePrimaryKey: buildCompositeKey(r.studentAdmission, r.course),
+        };
+      }
+      return r;
+    });
+
+    const submissions = getStoredSubmissions();
+    const students = getStoredStudents();
+    const exams = getStoredExams();
+
+    let hasChanges = hasKeysPopulated;
+
+    submissions.forEach((sub) => {
+      // Only process submissions that have reached graded/committed status or have final scores
+      if (sub.status !== 'graded' && !sub.isResultCommitted && sub.score == null) {
+        return;
+      }
+
+      const exam = exams.find((e) => e.id === sub.examId);
+      const student = students.find(
+        (s) => s.id === sub.studentId || (sub.studentNumber && s.studentNumber === sub.studentNumber)
+      );
+
+      const studentAdmission = (
+        student?.studentNumber || sub.studentNumber || sub.studentId || 'UNKNOWN_ADMISSION'
+      ).trim().toUpperCase();
+      const studentName = student?.name || sub.studentName || 'Enrolled Candidate';
+      const course = (exam?.courseCode || 'GENERAL').trim().toUpperCase();
+      const unitName = exam?.title || exam?.courseTitle || 'Curriculum Examination Unit';
+      const department =
+        exam?.department ||
+        student?.department ||
+        'Computer Science & Software Engineering';
+      const faculty = exam?.faculty || student?.faculty || 'Faculty of Academic Studies';
+
+      const compositeKey = buildCompositeKey(studentAdmission, course);
+
+      const totalPoints = sub.totalPoints || 100;
+      const score = sub.score != null ? sub.score : 0;
+      const percentage = sub.percentage != null
+        ? sub.percentage
+        : totalPoints > 0
+        ? Math.round((score / totalPoints) * 100)
+        : 0;
+      const grade = calculateAcademicGrade(percentage);
+
+      // Determine approval / modification status
+      const isCommittedApproved = sub.committedMarkChangeRequest?.status === 'approved';
+      const hasApprovedOverride = Object.values(sub.answers || {}).some(
+        (a) => a.overrideStatus === 'approved'
+      );
+      const hasAnyOverride = Object.values(sub.answers || {}).some(
+        (a) => a.isOverridden
+      );
+      const status: 'approved' | 'modified' | 'provisional' =
+        isCommittedApproved || hasApprovedOverride || hasAnyOverride
+          ? 'modified'
+          : sub.isResultCommitted || sub.status === 'graded'
+          ? 'approved'
+          : 'provisional';
+
+      const modifiedReason = isCommittedApproved
+        ? sub.committedMarkChangeRequest?.adminReviewNote || sub.committedMarkChangeRequest?.explanation
+        : hasApprovedOverride
+        ? 'Audited mark override approved by Super Administrator.'
+        : hasAnyOverride
+        ? 'Faculty mark override recorded in system.'
+        : undefined;
+
+      const recordId = `acad-${studentAdmission.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${course.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+
+      const existingIndex = records.findIndex(
+        (r) =>
+          r.compositePrimaryKey === compositeKey ||
+          (r.studentAdmission.trim().toUpperCase() === studentAdmission &&
+            r.course.trim().toUpperCase() === course) ||
+          (sub.id && r.submissionId === sub.id)
+      );
+
+      const now = new Date().toISOString();
+      const submissionDate = sub.submittedAt || sub.startedAt || now;
+      const periodYear = new Date(submissionDate).getFullYear();
+      const period = `${periodYear}/${periodYear + 1} Academic Session`;
+
+      if (existingIndex !== -1) {
+        // Update existing record dynamically
+        const existing = records[existingIndex];
+        const isDifferent =
+          existing.score !== score ||
+          existing.percentage !== percentage ||
+          existing.grade !== grade ||
+          existing.status !== status ||
+          existing.compositePrimaryKey !== compositeKey;
+
+        if (isDifferent) {
+          records[existingIndex] = {
+            ...existing,
+            compositePrimaryKey: compositeKey,
+            studentAdmission,
+            studentName,
+            course,
+            unitName,
+            score,
+            totalPoints,
+            percentage,
+            grade,
+            department,
+            faculty,
+            status,
+            period: existing.period || period,
+            lastModifiedAt: now,
+            modifiedReason: modifiedReason || existing.modifiedReason,
+            submissionId: sub.id,
+            examId: sub.examId,
+            approvedAt: existing.approvedAt || now,
+            approvedBy: existing.approvedBy || (sub.committedBy ? `${sub.committedBy} (Approved)` : 'Super Admin Directorate'),
+          };
+          hasChanges = true;
+        }
+      } else {
+        // Insert new record dynamically into the database
+        records.push({
+          id: recordId,
+          compositePrimaryKey: compositeKey,
+          studentAdmission,
+          studentName,
+          course,
+          unitName,
+          score,
+          totalPoints,
+          percentage,
+          grade,
+          department,
+          faculty,
+          status,
+          period,
+          recordedAt: sub.submittedAt || now,
+          approvedAt: now,
+          approvedBy: sub.committedBy ? `${sub.committedBy} (Approved)` : 'Super Admin Directorate',
+          submissionId: sub.id,
+          examId: sub.examId,
+          modifiedReason,
+        });
+        hasChanges = true;
+      }
+    });
+
+    if (hasChanges || !raw) {
+      localStorage.setItem(STORAGE_KEYS.ACADEMIC_DATABASE, JSON.stringify(records));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('examguard_academic_database_updated', { detail: { records } })
+        );
+      }
+    }
+
+    return records;
+  } catch {
+    return INITIAL_ACADEMIC_RECORDS;
+  }
+}
+
+export function getStoredAcademicRecords(): AcademicRecord[] {
+  try {
+    return syncAcademicDatabaseWithSubmissions();
+  } catch {
+    return INITIAL_ACADEMIC_RECORDS;
+  }
+}
+
+export function saveStoredAcademicRecords(records: AcademicRecord[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.ACADEMIC_DATABASE, JSON.stringify(records));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('examguard_academic_database_updated', { detail: { records } })
+      );
+    }
+  } catch (e) {
+    console.error('[storageService] Failed to save academic records:', e);
+  }
+}
+
+export function addAcademicRecord(
+  data: Omit<AcademicRecord, 'id' | 'recordedAt' | 'compositePrimaryKey'>
+): { success: boolean; record?: AcademicRecord; error?: string } {
+  if (!data.studentAdmission || !data.studentAdmission.trim()) {
+    return { success: false, error: 'Student Admission Number (Primary Key 1/2) is strictly required.' };
+  }
+  if (!data.course || !data.course.trim()) {
+    return { success: false, error: 'Course Code (Primary Key 2/2) is strictly required.' };
+  }
+  if (!data.unitName || !data.unitName.trim()) {
+    return { success: false, error: 'Units Name is required.' };
+  }
+  if (!data.department || !data.department.trim()) {
+    return { success: false, error: 'Department is required.' };
+  }
+
+  const records = getStoredAcademicRecords();
+  const normAdmission = data.studentAdmission.trim().toUpperCase();
+  const normCourse = data.course.trim().toUpperCase();
+  const compositeKey = buildCompositeKey(normAdmission, normCourse);
+
+  // Enforce Composite Primary Key Integrity Constraint:
+  // A single student can sit for several different units (different course codes),
+  // but CANNOT have duplicate records for the exact same unit.
+  const exists = records.some(
+    (r) =>
+      r.compositePrimaryKey === compositeKey ||
+      (r.studentAdmission.trim().toUpperCase() === normAdmission &&
+        r.course.trim().toUpperCase() === normCourse)
+  );
+  if (exists) {
+    return {
+      success: false,
+      error: `Integrity Constraint Violation: An academic record for Composite Primary Key [${normAdmission} # ${normCourse}] already exists. A student can enroll in multiple units, but cannot have duplicate entries for the exact same unit.`,
+    };
+  }
+
+  const totalPoints = data.totalPoints || 100;
+  const score = Number(data.score) || 0;
+  const percentage = data.percentage != null
+    ? data.percentage
+    : totalPoints > 0
+    ? Math.round((score / totalPoints) * 100)
+    : 0;
+  const grade = data.grade || calculateAcademicGrade(percentage);
+
+  const newRecord: AcademicRecord = {
+    ...data,
+    id: `acad-${normAdmission.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${normCourse.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`,
+    compositePrimaryKey: compositeKey,
+    studentAdmission: normAdmission,
+    course: normCourse,
+    unitName: data.unitName.trim(),
+    score,
+    totalPoints,
+    percentage,
+    grade,
+    department: data.department.trim(),
+    status: data.status || 'approved',
+    period: data.period || '2025/2026 Academic Session',
+    recordedAt: new Date().toISOString(),
+    approvedAt: data.approvedAt || new Date().toISOString(),
+    approvedBy: data.approvedBy || 'Super Admin Directorate',
+  };
+
+  const updated = [newRecord, ...records];
+  saveStoredAcademicRecords(updated);
+
+  triggerFlash({
+    type: 'success',
+    text: 'Academic Record Created',
+    subtext: `Composite PK [${normAdmission} # ${normCourse}] registered in Admin Database.`,
+  });
+
+  return { success: true, record: newRecord };
+}
+
+export function updateAcademicRecord(
+  id: string,
+  updates: Partial<AcademicRecord>
+): { success: boolean; record?: AcademicRecord; error?: string } {
+  const records = getStoredAcademicRecords();
+  const index = records.findIndex((r) => r.id === id);
+  if (index === -1) {
+    return { success: false, error: 'Academic record not found in database.' };
+  }
+
+  const existing = records[index];
+  const newAdmission = (updates.studentAdmission || existing.studentAdmission).trim().toUpperCase();
+  const newCourse = (updates.course || existing.course).trim().toUpperCase();
+  const newCompositeKey = buildCompositeKey(newAdmission, newCourse);
+
+  // If changing admission or course, ensure no collision with another record's composite key
+  if (newCompositeKey !== existing.compositePrimaryKey) {
+    const collision = records.some(
+      (r) =>
+        r.id !== id &&
+        (r.compositePrimaryKey === newCompositeKey ||
+          (r.studentAdmission.trim().toUpperCase() === newAdmission &&
+            r.course.trim().toUpperCase() === newCourse))
+    );
+    if (collision) {
+      return {
+        success: false,
+        error: `Integrity Constraint Violation: Cannot update to [${newAdmission} # ${newCourse}] because another record already exists with this Composite Primary Key.`,
+      };
+    }
+  }
+
+  const totalPoints = updates.totalPoints != null ? updates.totalPoints : existing.totalPoints;
+  const score = updates.score != null ? Number(updates.score) : existing.score;
+  const percentage = updates.percentage != null
+    ? updates.percentage
+    : totalPoints > 0
+    ? Math.round((score / totalPoints) * 100)
+    : existing.percentage;
+  const grade = updates.grade || calculateAcademicGrade(percentage);
+
+  const updatedRecord: AcademicRecord = {
+    ...existing,
+    ...updates,
+    studentAdmission: newAdmission,
+    course: newCourse,
+    compositePrimaryKey: newCompositeKey,
+    score,
+    totalPoints,
+    percentage,
+    grade,
+    lastModifiedAt: new Date().toISOString(),
+    status: updates.status || (score !== existing.score ? 'modified' : existing.status),
+  };
+
+  records[index] = updatedRecord;
+  saveStoredAcademicRecords(records);
+
+  triggerFlash({
+    type: 'success',
+    text: 'Academic Record Updated',
+    subtext: `Result for Composite PK [${newCompositeKey}] modified and updated immediately.`,
+  });
+
+  return { success: true, record: updatedRecord };
+}
+
+export function deleteAcademicRecord(id: string): { success: boolean; error?: string } {
+  const records = getStoredAcademicRecords();
+  const target = records.find((r) => r.id === id);
+  if (!target) {
+    return { success: false, error: 'Record not found in academic database.' };
+  }
+
+  const filtered = records.filter((r) => r.id !== id);
+  saveStoredAcademicRecords(filtered);
+
+  triggerFlash({
+    type: 'info',
+    text: 'Academic Record Deleted',
+    subtext: `Record for Admission ${target.studentAdmission} (${target.course}) removed from database.`,
+  });
+
+  return { success: true };
+}
+
+export function deleteAcademicRecordsByAdmission(
+  studentAdmission: string
+): { success: boolean; deletedCount: number } {
+  const records = getStoredAcademicRecords();
+  const normAdmission = studentAdmission.trim().toUpperCase();
+  const beforeCount = records.length;
+  const filtered = records.filter(
+    (r) => r.studentAdmission.trim().toUpperCase() !== normAdmission
+  );
+  const deletedCount = beforeCount - filtered.length;
+
+  if (deletedCount > 0) {
+    saveStoredAcademicRecords(filtered);
+    triggerFlash({
+      type: 'info',
+      text: 'Student Admission Records Cleared',
+      subtext: `Deleted ${deletedCount} record(s) associated with Admission ${normAdmission}.`,
+    });
+  }
+
+  return { success: true, deletedCount };
 }
 
 export function resetToDefaults(): void {
@@ -2429,4 +3285,6 @@ export function resetToDefaults(): void {
   localStorage.setItem(STORAGE_KEYS.HELP_TICKETS, JSON.stringify(INITIAL_HELP_TICKETS));
   localStorage.setItem(STORAGE_KEYS.MISSED_EXAMS, JSON.stringify(INITIAL_MISSED_EXAMS));
   localStorage.setItem(STORAGE_KEYS.RESIT_REQUESTS, JSON.stringify(INITIAL_RESIT_REQUESTS));
+  localStorage.setItem(STORAGE_KEYS.ACADEMIC_DATABASE, JSON.stringify(INITIAL_ACADEMIC_RECORDS));
 }
+

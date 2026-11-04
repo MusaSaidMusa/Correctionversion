@@ -657,11 +657,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 setResitTargetExam(null);
                 setIsResitModalOpen(true);
               }}
-              className="px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border border-amber-400/60 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-500 dark:hover:bg-amber-950/40 text-xs font-semibold"
-              title="Apply for Admin clearance if you missed a scheduled examination"
+              className="px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border border-rose-300 dark:border-rose-800 bg-rose-50 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 hover:bg-rose-100 hover:text-rose-900 hover:border-rose-400 text-xs font-bold shadow-xs"
+              title="Attach medical certificate (photo or PDF) or apply for clearance if you missed an examination"
             >
-              <FileText className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-              <span>Request Resit / Clearance</span>
+              <FileText className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+              <span>Attach Medical Document / Request Resit</span>
             </button>
           </div>
         </div>

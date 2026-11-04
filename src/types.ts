@@ -415,3 +415,28 @@ export interface ExamAttendanceSummary {
     clearanceStatus: 'uncleared' | 'resit_pending' | 'cleared' | 'resit_declined';
   }[];
 }
+
+export interface AcademicRecord {
+  id: string; // Internal record identifier
+  compositePrimaryKey: string; // COMPOSITE PRIMARY KEY: [Student Admission + Course Code] e.g. "STU-2024-8842#CS401" enforcing data integrity while allowing one student to do several units
+  studentAdmission: string; // PRIMARY KEY Component 1: Student Admission Number (e.g., STU-2024-8842, RBC/2026/042)
+  studentName: string;
+  course: string; // PRIMARY KEY Component 2: Course code (e.g. CS401, CS302)
+  unitName: string; // Units Name / Examination Unit Title (e.g. Principles of Distributed Computing)
+  score: number; // Candidate raw or moderated score
+  totalPoints: number; // Maximum possible points
+  percentage: number; // Percentage score (0 - 100%)
+  grade: string; // Letter grade: A, A-, B+, B, B-, C+, C, D, F
+  department: string; // Department name
+  faculty?: string;
+  status: 'approved' | 'modified' | 'provisional';
+  period: string; // Academic Period e.g. '2026-11', 'Semester 1 2026', 'Academic Session 2025/2026'
+  recordedAt: string; // ISO date when recorded
+  approvedAt?: string;
+  approvedBy?: string;
+  lastModifiedAt?: string;
+  examId?: string;
+  submissionId?: string;
+  modifiedReason?: string;
+}
+

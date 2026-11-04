@@ -44,8 +44,10 @@ import {
   Printer,
   Stethoscope,
   FileCheck,
+  Database,
 } from 'lucide-react';
 import { AdminReportGeneratorView } from './AdminReportGeneratorView';
+import { AdminAcademicDatabaseView } from './AdminAcademicDatabaseView';
 import { PrintMissedExamsModal } from './PrintMissedExamsModal';
 import { PrintApprovedStudentsModal } from './PrintApprovedStudentsModal';
 import { triggerFlash } from '../common/FlashMessage';
@@ -147,8 +149,8 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   resetKey,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'all_exams' | 'teachers' | 'mark_overrides' | 'student_registrations' | 'tickets' | 'departments' | 'reports' | 'attendance_missed'
-  >('all_exams');
+    'all_exams' | 'teachers' | 'academic_database' | 'mark_overrides' | 'student_registrations' | 'tickets' | 'departments' | 'reports' | 'attendance_missed'
+  >('academic_database');
 
   const [teachers, setTeachers] = useState<TeacherProfile[]>(() => getStoredTeachers());
   const [tickets, setTickets] = useState<HelpTicket[]>(() => getStoredHelpTickets());
@@ -1350,7 +1352,35 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       </div>
 
       {/* RESPONSIVE & CLICKABLE METRIC CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3.5">
+        {/* Card: Academic Database (PK: Student Admission) */}
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('academic_database');
+            showToast('Opening Institutional Academic Database & Results Ledger.');
+          }}
+          className={`p-4 rounded-2xl border text-left cursor-pointer transition-all duration-200 group relative overflow-hidden shadow-xs hover:shadow-md hover:-translate-y-0.5 ${
+            activeTab === 'academic_database'
+              ? 'bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-500/20'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-300'
+          }`}
+        >
+          <div className="flex items-center justify-between text-xs font-semibold text-indigo-700 dark:text-indigo-400">
+            <span>Academic Database</span>
+            <Database className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
+          </div>
+          <div className="text-xl font-extrabold font-mono text-indigo-600 dark:text-indigo-400 mt-1.5 flex items-baseline gap-1">
+            <span>PK: Admission</span>
+          </div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-between">
+            <span>Dynamic Ledger</span>
+            <span className="font-semibold text-indigo-600 dark:text-indigo-400 flex items-center text-[10px]">
+              Access <ChevronRight className="w-3 h-3" />
+            </span>
+          </div>
+        </button>
+
         {/* Card 1: Total Examinations */}
         <button
           type="button"
@@ -1507,6 +1537,19 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
       {/* Navigation Tabs Bar */}
       <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold">
+        <button
+          type="button"
+          onClick={() => setActiveTab('academic_database')}
+          className={`flex-1 min-w-[160px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
+            activeTab === 'academic_database'
+              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+          }`}
+        >
+          <Database className={`w-4 h-4 ${activeTab === 'academic_database' ? 'text-[#1a2200]' : 'text-indigo-600'}`} />
+          <span>Academic Database [PK: Admission]</span>
+        </button>
+
         <button
           type="button"
           onClick={() => setActiveTab('all_exams')}
@@ -3415,6 +3458,14 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           submissions={submissions}
           teachers={teachers}
           faculties={faculties}
+        />
+      )}
+
+      {/* TAB 8: ADMIN ACADEMIC DATABASE & RESULTS LEDGER (PRIMARY KEY: Student Admission) */}
+      {activeTab === 'academic_database' && (
+        <AdminAcademicDatabaseView
+          students={students}
+          exams={exams}
         />
       )}
 
