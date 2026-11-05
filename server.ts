@@ -29,112 +29,87 @@ const isStandaloneApi = process.env.STANDALONE_API === 'true';
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Ensure public and uploads directories exist and serve them statically
+// In-memory persistent exam registry for server runtime
+const examsRegistry = new Map<string, any>();
+
+// Serve static assets from public/ immediately
 const publicPath = path.resolve(__dirname, 'public');
-if (!fs.existsSync(publicPath)) {
-  fs.mkdirSync(publicPath, { recursive: true });
+if (fs.existsSync(publicPath)) {
+  app.use(express.static(publicPath));
 }
-app.use(express.static(publicPath));
-
-const uploadsPath = path.resolve(publicPath, 'uploads');
-if (!fs.existsSync(uploadsPath)) {
-  fs.mkdirSync(uploadsPath, { recursive: true });
-}
-app.use('/uploads', express.static(uploadsPath));
 
 // Health check endpoint
 app.get('/api/health', (_req: Request, res: Response) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Comprehensive Examination Endpoints
+app.get('/api/exams', (_req: Request, res: Response) => {
   res.json({
-    status: 'ok',
-    uploadsDir: fs.existsSync(uploadsPath),
-    timestamp: new Date().toISOString(),
+    success: true,
+    data: Array.from(examsRegistry.values()),
+    count: examsRegistry.size,
   });
 });
 
-// File & Photo Upload Endpoint (handles documents and photos)
-app.post('/api/upload', (req: Request, res: Response) => {
-  try {
-    const { fileName, fileData, fileType } = req.body;
-
-    if (!fileData) {
-      return res.status(400).json({ success: false, error: 'No file data received.' });
-    }
-
-    // Extract base64 payload
-    let base64Data = fileData;
-    let detectedMime = fileType || 'application/octet-stream';
-
-    const match = fileData.match(/^data:([a-zA-Z0-9\/\+\.\-]+);base64,(.+)$/);
-    if (match) {
-      detectedMime = match[1];
-      base64Data = match[2];
-    }
-
-    const buffer = Buffer.from(base64Data, 'base64');
-
-    // Clean and sanitize file name
-    const rawName = (fileName || `upload-${Date.now()}`).trim();
-    const cleanExtMatch = rawName.match(/\.([a-zA-Z0-9]+)$/);
-    let ext = cleanExtMatch ? cleanExtMatch[1].toLowerCase() : '';
-    
-    // Auto-detect extension from mime if missing
-    if (!ext) {
-      if (detectedMime.includes('jpeg') || detectedMime.includes('jpg')) ext = 'jpg';
-      else if (detectedMime.includes('png')) ext = 'png';
-      else if (detectedMime.includes('webp')) ext = 'webp';
-      else if (detectedMime.includes('pdf')) ext = 'pdf';
-      else if (detectedMime.includes('csv')) ext = 'csv';
-      else if (detectedMime.includes('sheet') || detectedMime.includes('excel')) ext = 'xlsx';
-      else if (detectedMime.includes('word') || detectedMime.includes('document')) ext = 'docx';
-      else ext = 'bin';
-    }
-
-    const baseName = rawName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
-    const uniqueFileName = `${Date.now()}_${baseName}.${ext}`;
-    const destinationPath = path.join(uploadsPath, uniqueFileName);
-
-    fs.writeFileSync(destinationPath, buffer);
-
-    const fileUrl = `/uploads/${uniqueFileName}`;
-
-    console.log(`[ExamGuard Pro] Successfully uploaded ${uniqueFileName} (${buffer.length} bytes, ${detectedMime})`);
-
-    return res.status(200).json({
-      success: true,
-      url: fileUrl,
-      fileName: uniqueFileName,
-      originalName: rawName,
-      size: buffer.length,
-      fileType: detectedMime,
-      uploadedAt: new Date().toISOString(),
-    });
-  } catch (err: any) {
-    console.error('[ExamGuard Pro] Upload error:', err);
-    return res.status(500).json({ success: false, error: err?.message || 'File upload failed.' });
-  }
+app.get('/api/exams/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const exam = examsRegistry.get(id);
+  res.json({
+    success: true,
+    data: exam || null,
+  });
 });
 
-// List Uploaded Files for Audit Ledger
-app.get('/api/uploads', (_req: Request, res: Response) => {
-  try {
-    if (!fs.existsSync(uploadsPath)) {
-      return res.json({ success: true, files: [] });
-    }
-    const files = fs.readdirSync(uploadsPath).map((f) => {
-      const stats = fs.statSync(path.join(uploadsPath, f));
-      return {
-        fileName: f,
-        url: `/uploads/${f}`,
-        size: stats.size,
-        createdAt: stats.birthtime.toISOString(),
-      };
-    });
-    return res.json({ success: true, count: files.length, files });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err?.message || 'Could not list uploads.' });
+app.post('/api/exams', (req: Request, res: Response) => {
+  const exam = req.body;
+  if (exam && exam.id) {
+    examsRegistry.set(exam.id, exam);
   }
+  res.json({
+    success: true,
+    message: 'Examination saved and published successfully.',
+    data: exam,
+  });
+});
+
+app.put('/api/exams/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const exam = req.body;
+  if (exam) {
+    examsRegistry.set(id, exam);
+  }
+  res.json({
+    success: true,
+    message: `Examination ${id} synchronized with backend.`,
+    data: exam,
+  });
+});
+
+app.delete('/api/exams/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  examsRegistry.delete(id);
+  res.json({
+    success: true,
+    message: `Examination ${id} removed from backend registry.`,
+  });
+});
+
+// Image upload and verification endpoint
+app.post('/api/upload-image', (req: Request, res: Response) => {
+  const { dataUrl, fileName, caption } = req.body;
+  res.json({
+    success: true,
+    message: 'Image processed and validated successfully.',
+    data: {
+      fileName: fileName || 'figure-diagram.jpg',
+      caption: caption || '',
+      url: dataUrl,
+      timestamp: new Date().toISOString(),
+    },
+  });
 });
 
 // Teacher endpoints

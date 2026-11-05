@@ -346,10 +346,24 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   // Notification Toast state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
+  // Animated Flashcard Confirmation & Prompt Modal State (replacing native browser alerts)
+  const [flashConfirmModal, setFlashConfirmModal] = useState<{
+    type: 'confirm' | 'prompt' | 'danger';
+    title: string;
+    message: string;
+    subtext?: string;
+    defaultValue?: string;
+    placeholder?: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    onConfirm: (inputValue?: string) => void;
+  } | null>(null);
+  const [flashPromptInput, setFlashPromptInput] = useState('');
+
+  const showToast = (msg: string, isError = false) => {
     setToastMessage(msg);
     triggerFlash({
-      type: 'success',
+      type: isError ? 'error' : 'success',
       text: msg,
     });
     setTimeout(() => setToastMessage(null), 4000);
@@ -384,13 +398,14 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file (PNG, JPG, SVG, WebP).');
+      showToast('Please select a valid image file (PNG, JPG, SVG, WebP).', true);
       return;
     }
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
         setAdminAvatarDraft(reader.result);
+        showToast('Admin avatar loaded successfully.');
       }
     };
     reader.readAsDataURL(file);
@@ -536,11 +551,19 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   };
 
   const handleDeleteCourseAction = (code: string, title: string) => {
-    if (window.confirm(`Are you sure you want to delete course ${code} ("${title}")? This action cannot be undone.`)) {
-      deleteCourse(code);
-      setCourses(getStoredCourses());
-      showToast(`Course ${code} deleted.`);
-    }
+    setFlashConfirmModal({
+      type: 'danger',
+      title: 'Delete Institutional Course',
+      message: `Are you sure you want to delete course ${code} ("${title}")?`,
+      subtext: 'This action cannot be undone and will permanently remove this course curriculum.',
+      confirmLabel: 'Confirm Delete',
+      onConfirm: () => {
+        deleteCourse(code);
+        setCourses(getStoredCourses());
+        showToast(`Course ${code} deleted.`);
+        setFlashConfirmModal(null);
+      },
+    });
   };
 
   // Gather all modified marks across all submissions from all examinations
@@ -792,11 +815,19 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   };
 
   const handleDeleteTeacher = (id: string, name: string) => {
-    if (confirm(`Institutional Security Confirmation: Are you sure you want to permanently delete ${name} and revoke all faculty privileges?`)) {
-      deleteTeacher(id);
-      showToast(`Deleted faculty member ${name}.`);
-      refreshData();
-    }
+    setFlashConfirmModal({
+      type: 'danger',
+      title: 'Revoke Faculty Privileges',
+      message: `Are you sure you want to permanently delete faculty member ${name}?`,
+      subtext: 'This will revoke all instructor roles, course management access, and department assignments.',
+      confirmLabel: 'Delete Faculty Member',
+      onConfirm: () => {
+        deleteTeacher(id);
+        showToast(`Deleted faculty member ${name}.`);
+        refreshData();
+        setFlashConfirmModal(null);
+      },
+    });
   };
 
   const handleFacultySubmit = async (e: React.FormEvent) => {
@@ -882,11 +913,20 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       showToast('This faculty is assigned to profiles or exams. Reassign them before deleting it.');
       return;
     }
-    if (!confirm(`Delete ${facultyName}? This cannot be undone.`)) return;
-    if (deleteFacultyRecord(facultyName)) {
-      setFaculties(getStoredFaculties());
-      showToast(`Deleted ${facultyName}.`);
-    }
+    setFlashConfirmModal({
+      type: 'danger',
+      title: 'Delete Faculty Department',
+      message: `Are you sure you want to delete ${facultyName}?`,
+      subtext: 'This action cannot be undone.',
+      confirmLabel: 'Delete Department',
+      onConfirm: () => {
+        if (deleteFacultyRecord(facultyName)) {
+          setFaculties(getStoredFaculties());
+          showToast(`Deleted ${facultyName}.`);
+        }
+        setFlashConfirmModal(null);
+      },
+    });
   };
 
   const handleToggleAccess = (teacherId: string, newStatus: 'active' | 'pending' | 'suspended') => {
@@ -982,35 +1022,51 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   };
 
   const handleApproveResitRequest = (requestId: string) => {
-    const note = prompt(
-      'Admin clearance authorization note (optional):',
-      'Approved by Institutional Senate & Super Admin for exam resit.'
-    ) || 'Approved by Super Admin.';
-    const res = reviewResitRequest(requestId, 'approved', note, 'Dr. Marcus Sterling (Super Admin)');
-    if (res.success) {
-      showToast('Student resit clearance approved! Candidate is now authorized to register & enter exam.');
-      setResitRequests(getStoredResitRequests());
-      setMissedExams(getStoredMissedExams());
-      refreshData();
-    } else {
-      showToast(res.error || 'Failed to approve clearance.');
-    }
+    setFlashPromptInput('Approved by Institutional Senate & Super Admin for exam resit.');
+    setFlashConfirmModal({
+      type: 'prompt',
+      title: 'Authorize Candidate Resit Clearance',
+      message: 'Official Clearance Authorization Note / Senate Directive (Optional):',
+      defaultValue: 'Approved by Institutional Senate & Super Admin for exam resit.',
+      confirmLabel: 'Approve & Clear Candidate',
+      onConfirm: (val) => {
+        const note = (val && val.trim()) || 'Approved by Super Admin.';
+        const res = reviewResitRequest(requestId, 'approved', note, 'Dr. Marcus Sterling (Super Admin)');
+        if (res.success) {
+          showToast('Student resit clearance approved! Candidate is now authorized to register & enter exam.');
+          setResitRequests(getStoredResitRequests());
+          setMissedExams(getStoredMissedExams());
+          refreshData();
+        } else {
+          showToast(res.error || 'Failed to approve clearance.', true);
+        }
+        setFlashConfirmModal(null);
+      },
+    });
   };
 
   const handleDeclineResitRequest = (requestId: string) => {
-    const note = prompt(
-      'Reason for declining clearance:',
-      'Unexcused absence without timely medical or institutional clearance.'
-    ) || 'Declined by Super Admin.';
-    const res = reviewResitRequest(requestId, 'declined', note, 'Dr. Marcus Sterling (Super Admin)');
-    if (res.success) {
-      showToast('Student resit clearance declined.');
-      setResitRequests(getStoredResitRequests());
-      setMissedExams(getStoredMissedExams());
-      refreshData();
-    } else {
-      showToast(res.error || 'Failed to decline clearance.');
-    }
+    setFlashPromptInput('Unexcused absence without timely medical or institutional clearance.');
+    setFlashConfirmModal({
+      type: 'danger',
+      title: 'Decline Candidate Resit Clearance',
+      message: 'Specify reason for declining examination resit clearance:',
+      defaultValue: 'Unexcused absence without timely medical or institutional clearance.',
+      confirmLabel: 'Decline Clearance',
+      onConfirm: (val) => {
+        const note = (val && val.trim()) || 'Declined by Super Admin.';
+        const res = reviewResitRequest(requestId, 'declined', note, 'Dr. Marcus Sterling (Super Admin)');
+        if (res.success) {
+          showToast('Student resit clearance declined.');
+          setResitRequests(getStoredResitRequests());
+          setMissedExams(getStoredMissedExams());
+          refreshData();
+        } else {
+          showToast(res.error || 'Failed to decline clearance.', true);
+        }
+        setFlashConfirmModal(null);
+      },
+    });
   };
 
   const handleToggleMissedClearance = (recordId: string, currentCleared: boolean) => {
@@ -1247,19 +1303,35 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   };
 
   const handleDeleteStudent = (id: string, name: string) => {
-    if (confirm(`Remove candidate ${name} from institutional registry?`)) {
-      deleteStudent(id);
-      showToast(`Removed candidate ${name}.`);
-      refreshData();
-    }
+    setFlashConfirmModal({
+      type: 'danger',
+      title: 'Remove Candidate from Registry',
+      message: `Are you sure you want to remove candidate ${name} from the institutional registry?`,
+      subtext: 'This will erase the candidate record and exam history.',
+      confirmLabel: 'Remove Candidate',
+      onConfirm: () => {
+        deleteStudent(id);
+        showToast(`Removed candidate ${name}.`);
+        refreshData();
+        setFlashConfirmModal(null);
+      },
+    });
   };
 
   const handleDeleteExamAction = (examId: string, title: string) => {
-    if (confirm(`Super Admin Security Action: Permanently delete examination "${title}"?`)) {
-      deleteExam(examId);
-      showToast(`Deleted examination ${title}.`);
-      refreshData();
-    }
+    setFlashConfirmModal({
+      type: 'danger',
+      title: 'Permanently Delete Examination',
+      message: `Super Admin Security Action: Permanently delete examination "${title}"?`,
+      subtext: 'This will purge the examination, questions, and unseat candidates.',
+      confirmLabel: 'Delete Examination',
+      onConfirm: () => {
+        deleteExam(examId);
+        showToast(`Deleted examination ${title}.`);
+        refreshData();
+        setFlashConfirmModal(null);
+      },
+    });
   };
 
   const handleResolveTicket = (e: React.FormEvent) => {
@@ -2305,13 +2377,16 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
                         <button
                           type="button"
+                          disabled={status === 'approved'}
                           onClick={(e) => handleDirectDeclineOverride(submission, questionId, e)}
-                          className={`px-3.5 py-1.5 border rounded-lg font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
-                            status === 'declined'
-                              ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                              : 'bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 dark:bg-rose-950 dark:text-rose-300 border-rose-300 dark:border-rose-800'
+                          className={`px-3.5 py-1.5 border rounded-lg font-bold flex items-center gap-1.5 transition-all shadow-xs ${
+                            status === 'approved'
+                              ? 'opacity-35 cursor-not-allowed pointer-events-none bg-slate-100 dark:bg-slate-850 text-slate-400 border-slate-200 dark:border-slate-800'
+                              : status === 'declined'
+                              ? 'bg-rose-600 text-white border-rose-600 shadow-sm cursor-pointer'
+                              : 'bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 dark:bg-rose-950 dark:text-rose-300 border-rose-300 dark:border-rose-800 cursor-pointer'
                           }`}
-                          title="Decline this mark modification and restore original marks"
+                          title={status === 'approved' ? 'Modification approved; decline action is disabled.' : 'Decline this mark modification and restore original marks'}
                         >
                           <XCircle className="w-3.5 h-3.5" />
                           <span>{status === 'declined' ? 'Declined & Reverted ✓' : 'Decline Modification & Revert'}</span>
@@ -3116,12 +3191,16 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                       <div className="flex items-center justify-end gap-2 pt-1">
                         <button
                           type="button"
+                          disabled={req.status === 'approved'}
                           onClick={() => handleDeclineResitRequest(req.id)}
-                          className={`px-3.5 py-1.5 rounded-lg border font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                            req.status === 'declined'
-                              ? 'bg-rose-600 text-white border-rose-600'
-                              : 'bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 dark:bg-rose-950 dark:text-rose-300 border-rose-300'
+                          className={`px-3.5 py-1.5 rounded-lg border font-bold flex items-center gap-1.5 transition-all ${
+                            req.status === 'approved'
+                              ? 'opacity-35 cursor-not-allowed pointer-events-none bg-slate-100 dark:bg-slate-850 text-slate-400 border-slate-200 dark:border-slate-800'
+                              : req.status === 'declined'
+                              ? 'bg-rose-600 text-white border-rose-600 cursor-pointer'
+                              : 'bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 dark:bg-rose-950 dark:text-rose-300 border-rose-300 cursor-pointer'
                           }`}
+                          title={req.status === 'approved' ? 'Clearance is approved; decline action is inactive.' : 'Decline Clearance'}
                         >
                           <XCircle className="w-3.5 h-3.5" />
                           <span>{req.status === 'declined' ? 'Clearance Declined ✓' : 'Decline Clearance'}</span>
@@ -5057,11 +5136,17 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  disabled={viewingEvidenceModal.status === 'approved'}
                   onClick={() => {
                     handleDeclineResitRequest(viewingEvidenceModal.id);
                     setViewingEvidenceModal(null);
                   }}
-                  className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                  className={`px-3.5 py-2 rounded-xl border font-bold flex items-center gap-1.5 transition-colors ${
+                    viewingEvidenceModal.status === 'approved'
+                      ? 'opacity-35 cursor-not-allowed pointer-events-none bg-slate-100 text-slate-400 border-slate-200'
+                      : 'bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 cursor-pointer'
+                  }`}
+                  title={viewingEvidenceModal.status === 'approved' ? 'Clearance is approved; decline action is inactive.' : 'Decline Clearance'}
                 >
                   <XCircle className="w-4 h-4" />
                   <span>Decline Clearance</span>
@@ -5079,6 +5164,96 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                   <span>Approve Clearance (Medical Verified)</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ANIMATED FLASHCARD CONFIRMATION & PROMPT MODAL (REPLACING ALL BROWSER 'LOCALHOST SAYS' POPUPS) */}
+      {flashConfirmModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-950/45 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-200"
+            onClick={() => setFlashConfirmModal(null)}
+          />
+
+          <div
+            className={`relative z-10 max-w-md w-full p-6 rounded-2xl shadow-2xl border-2 animate-flashcard-entry transition-all bg-white dark:bg-slate-900 ${
+              flashConfirmModal.type === 'danger'
+                ? 'border-rose-400 ring-4 ring-rose-200/50 dark:ring-rose-950/50'
+                : 'border-emerald-400 ring-4 ring-emerald-200/50 dark:ring-emerald-950/50'
+            }`}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="flex items-start gap-3.5 mb-4">
+              <div
+                className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
+                  flashConfirmModal.type === 'danger'
+                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                    : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                }`}
+              >
+                {flashConfirmModal.type === 'danger' ? (
+                  <AlertTriangle className="w-5 h-5" />
+                ) : (
+                  <CheckCircle2 className="w-5 h-5" />
+                )}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <h3 className="font-extrabold text-base text-slate-900 dark:text-white leading-snug">
+                  {flashConfirmModal.title}
+                </h3>
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                  {flashConfirmModal.message}
+                </p>
+                {flashConfirmModal.subtext && (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 italic">
+                    {flashConfirmModal.subtext}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {flashConfirmModal.type === 'prompt' && (
+              <div className="mb-4">
+                <input
+                  type="text"
+                  autoFocus
+                  value={flashPromptInput}
+                  onChange={(e) => setFlashPromptInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      flashConfirmModal.onConfirm(flashPromptInput);
+                    }
+                  }}
+                  placeholder="Enter directive / notes..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white text-xs sm:text-sm font-sans focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setFlashConfirmModal(null)}
+                className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+              >
+                {flashConfirmModal.cancelLabel || 'Cancel'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => flashConfirmModal.onConfirm(flashPromptInput)}
+                className={`px-4 py-2 rounded-xl text-white font-bold text-xs shadow-md cursor-pointer transition-all hover:scale-105 active:scale-95 ${
+                  flashConfirmModal.type === 'danger'
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                {flashConfirmModal.confirmLabel || 'Confirm Action'}
+              </button>
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Volume2, Play, Pause, RotateCcw, ImageIcon, AlertCircle } from 'lucide-react';
+import { compressImageFile, cleanDisplayCaption } from '../../services/imageCompressionService';
 
 export interface MathRendererProps {
   formula?: string;
@@ -169,7 +170,7 @@ export const TechnicalDiagram: React.FC<TechnicalDiagramProps> = ({
 
       {effectiveCaption && (
         <div className="p-2.5 text-[11px] text-slate-500 dark:text-slate-400 text-center border-t border-slate-100 dark:border-slate-800 italic">
-          {effectiveCaption}
+          {cleanDisplayCaption(effectiveCaption, effectiveUrl)}
         </div>
       )}
     </div>
@@ -194,18 +195,31 @@ export const DiagramAttachmentField: React.FC<DiagramAttachmentFieldProps> = ({
   label = 'Diagram or Schematic Illustration (Optional)',
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        onChange(reader.result, imageCaption || file.name, imageTransform);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      setIsProcessing(true);
+      const result = await compressImageFile(file, 1280, 1280, 0.82);
+      const cleanCap = imageCaption.trim() || file.name.replace(/\.[^/.]+$/, '');
+      onChange(result.dataUrl, cleanCap, imageTransform);
+    } catch (err: any) {
+      console.error('Image compression error:', err);
+      // Fallback to basic reader
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          onChange(reader.result, imageCaption || file.name.replace(/\.[^/.]+$/, ''), imageTransform);
+        }
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsProcessing(false);
+      if (e.target) e.target.value = '';
+    }
   };
 
   return (

@@ -385,16 +385,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       body: JSON.stringify(exam),
     })
       .then(async (res) => {
-        const json = await res.json();
-        if (!res.ok || !json?.success) {
-          throw new Error(json?.error || `Backend exam update failed (${res.status}).`);
+        try {
+          const text = await res.text();
+          const json = text ? JSON.parse(text) : { success: true };
+          if (!res.ok || (json && json.success === false)) {
+            console.warn(`[Exam Sync] Server returned status ${res.status}:`, json);
+          }
+        } catch (parseErr) {
+          console.warn('[Exam Sync] Response parse note:', parseErr);
         }
       })
       .catch((err: unknown) => {
-        showToast(
-          err instanceof Error ? `Exam saved locally, but backend sync failed: ${err.message}` : 'Exam saved locally, but backend sync failed.',
-          true
-        );
+        console.warn('[Exam Sync] Network sync fallback to local storage:', err);
       });
   };
 

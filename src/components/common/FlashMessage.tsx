@@ -82,11 +82,24 @@ export const FlashMessage: React.FC<FlashMessageProps> = ({ message, onClose }) 
 
       {/* Centered Popup Flashcard with Light Green (success) or Light Red (unsuccessful) background */}
       <div
-        className={`relative z-10 pointer-events-auto max-w-sm sm:max-w-md w-full px-4 py-3.5 rounded-2xl flex items-center gap-3.5 animate-in fade-in zoom-in-95 duration-200 transition-all ${colorStyles}`}
+        className={`relative z-10 pointer-events-auto max-w-sm sm:max-w-md w-full px-4 py-3.5 rounded-2xl flex items-center gap-3.5 animate-flashcard-entry transition-all overflow-hidden ${colorStyles}`}
         role="alert"
         aria-live="assertive"
       >
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${iconContainerStyles}`}>
+        {/* Animated Timer Progress Bar */}
+        <div
+          className={`absolute bottom-0 left-0 h-1 animate-flashcard-timer ${
+            type === 'success'
+              ? 'bg-emerald-500'
+              : type === 'error'
+              ? 'bg-rose-500'
+              : type === 'warning'
+              ? 'bg-amber-500'
+              : 'bg-sky-500'
+          }`}
+        />
+
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs transition-transform transform hover:scale-105 ${iconContainerStyles}`}>
           {icon}
         </div>
 

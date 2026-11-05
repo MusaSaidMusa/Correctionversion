@@ -175,15 +175,20 @@ export const UploadMarkingSchemeModal: React.FC<UploadMarkingSchemeModalProps> =
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-              Marking Guidelines & Grading Criteria Notes
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                Marking Guidelines & Grading Criteria Notes
+              </label>
+              <span className="text-[10px] font-mono text-emerald-600 font-semibold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
+                15 lines view
+              </span>
+            </div>
             <textarea
-              rows={4}
+              rows={15}
               value={markingSchemeNotes}
               onChange={(e) => setMarkingSchemeNotes(e.target.value)}
-              placeholder="Enter special scoring criteria, partial credit allowances, or question steps..."
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+              placeholder="Enter special scoring criteria, partial credit allowances, step-by-step marks allocation, or model solutions..."
+              className="w-full min-h-[300px] px-3.5 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs sm:text-sm leading-relaxed font-sans focus:ring-2 focus:ring-emerald-500"
             />
           </div>
 

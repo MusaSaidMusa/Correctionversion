@@ -34,7 +34,12 @@ import { ProfileDetailModal } from '../common/ProfileDetailModal';
 import { ExaminationPaperModal } from '../common/ExaminationPaperModal';
 import { OfficialMarkingSchemeModal } from '../common/OfficialMarkingSchemeModal';
 import { PastPapersSection } from '../common/PastPapersSection';
-import { getActiveInProgressExamForStudent, hasUnapprovedMissedExam } from '../../services/storageService';
+import {
+  getActiveInProgressExamForStudent,
+  hasUnapprovedMissedExam,
+  getStoredResitRequests,
+} from '../../services/storageService';
+import { triggerFlash } from '../common/FlashMessage';
 
 interface StudentDashboardProps {
   student: StudentProfile;
@@ -92,7 +97,17 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     timestamp: number;
   } | null>(null);
 
-  // Audio chime for instant admission
+  // Student Resit Approval Notification Alert Banner state
+  const [approvedResitAlert, setApprovedResitAlert] = useState<{
+    requestId: string;
+    courseCode: string;
+    examTitle: string;
+    adminNotes?: string;
+    reviewedBy?: string;
+    targetExam?: Exam;
+  } | null>(null);
+
+  // Audio chime for instant admission & resit approval
   const playAdmissionChime = () => {
     try {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -112,6 +127,35 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
       osc.stop(ctx.currentTime + 0.52);
     } catch {}
   };
+
+  // Check for approved resits on mount or state change
+  useEffect(() => {
+    try {
+      const allResits = getStoredResitRequests();
+      const approvedForMe = allResits.filter(
+        (r) =>
+          r.status === 'approved' &&
+          (r.studentId === student.id || r.studentNumber === student.studentNumber) &&
+          sessionStorage.getItem(`dismissed_resit_${r.id}`) !== 'true'
+      );
+      if (approvedForMe.length > 0) {
+        const latest = approvedForMe[approvedForMe.length - 1];
+        const matchingExam = exams.find(
+          (x) =>
+            x.courseCode.toUpperCase() === latest.courseCode.toUpperCase() ||
+            x.title.toLowerCase() === latest.examTitle.toLowerCase()
+        );
+        setApprovedResitAlert({
+          requestId: latest.id,
+          courseCode: latest.courseCode,
+          examTitle: latest.examTitle,
+          adminNotes: latest.adminNotes || latest.adminDecisionNote,
+          reviewedBy: latest.reviewedBy,
+          targetExam: matchingExam,
+        });
+      }
+    } catch {}
+  }, [exams, student.id, student.studentNumber]);
 
   useEffect(() => {
     const handleAdmissionUpdated = (e: any) => {
@@ -138,11 +182,44 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
       }
     };
 
+    const handleResitApproved = (e: any) => {
+      const detail = e.detail;
+      if (!detail) return;
+      const isForMe =
+        detail.studentId === student.id ||
+        detail.studentNumber === student.studentNumber;
+
+      if (isForMe) {
+        playAdmissionChime();
+        const matchingExam = exams.find(
+          (x) =>
+            x.courseCode.toUpperCase() === detail.courseCode.toUpperCase() ||
+            x.title.toLowerCase() === detail.examTitle.toLowerCase()
+        );
+        setApprovedResitAlert({
+          requestId: detail.requestId,
+          courseCode: detail.courseCode,
+          examTitle: detail.examTitle,
+          adminNotes: detail.adminNotes,
+          reviewedBy: detail.reviewedBy,
+          targetExam: matchingExam,
+        });
+
+        triggerFlash({
+          type: 'success',
+          text: 'Official Resit Clearance Approved! 🎉',
+          subtext: `Your request for ${detail.courseCode} (${detail.examTitle}) has been approved by the Directorate.`,
+        });
+      }
+    };
+
     window.addEventListener('examguard_admission_updated', handleAdmissionUpdated);
+    window.addEventListener('examguard_resit_approved', handleResitApproved);
     return () => {
       window.removeEventListener('examguard_admission_updated', handleAdmissionUpdated);
+      window.removeEventListener('examguard_resit_approved', handleResitApproved);
     };
-  }, [exams, student.id, student.enrolledCourseCodes]);
+  }, [exams, student.id, student.studentNumber, student.enrolledCourseCodes]);
 
   // Reset all selections and modals when resetKey changes (e.g. logo clicked)
   useEffect(() => {
@@ -313,6 +390,60 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-16">
+      {/* Official Approved Resit Clearance Celebration Notification Banner */}
+      {approvedResitAlert && (
+        <div className="p-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 text-white rounded-2xl shadow-xl border-2 border-emerald-300 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300 ring-4 ring-emerald-400/30">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 shadow-xs">
+              <CheckCircle2 className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <div className="font-extrabold text-sm flex items-center gap-2">
+                <span>🎉 Official Examination Resit Clearance Approved!</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-900/80 text-[10px] font-mono uppercase font-bold tracking-wider">
+                  Registration Cleared
+                </span>
+              </div>
+              <p className="text-xs text-emerald-50 mt-0.5 leading-relaxed">
+                The Directorate of Examinations ({approvedResitAlert.reviewedBy || 'Super Admin'}) has approved your resit clearance for <strong>{approvedResitAlert.courseCode}</strong> &mdash; <strong>{approvedResitAlert.examTitle}</strong>.
+                {approvedResitAlert.adminNotes && (
+                  <span className="block mt-0.5 italic text-emerald-200">
+                    Decision Note: &ldquo;{approvedResitAlert.adminNotes}&rdquo;
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
+            {approvedResitAlert.targetExam && (
+              <button
+                type="button"
+                onClick={() => {
+                  const target = approvedResitAlert.targetExam!;
+                  setApprovedResitAlert(null);
+                  handleInitiateExam(target);
+                }}
+                className="w-full sm:w-auto px-4 py-2 bg-white text-emerald-900 font-extrabold rounded-xl text-xs hover:bg-emerald-50 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer hover:scale-105 active:scale-95"
+              >
+                <Play className="w-4 h-4 fill-current text-emerald-700" />
+                <span>Sit Examination Now →</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                sessionStorage.setItem(`dismissed_resit_${approvedResitAlert.requestId}`, 'true');
+                setApprovedResitAlert(null);
+              }}
+              className="p-2 text-white/80 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+              title="Acknowledge & Dismiss Notification"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Real-Time Invigilator Admission Alert Banner */}
       {realtimeAdmissionAlert && (
         <div className="p-4 bg-emerald-600 text-white rounded-2xl shadow-xl border-2 border-emerald-400 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300 ring-4 ring-emerald-500/30">

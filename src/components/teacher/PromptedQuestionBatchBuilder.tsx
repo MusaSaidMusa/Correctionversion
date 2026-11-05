@@ -373,33 +373,36 @@ export const PromptedQuestionBatchBuilder: React.FC<PromptedQuestionBatchBuilder
 
           {/* Question Prompt Field */}
           <div>
-            <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
-              Question Statement / Problem Prompt #{currentStep + 1}:
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                Question Statement / Problem Prompt #{currentStep + 1}:
+              </label>
+              <span className="text-[10px] font-mono text-slate-400">15 lines view</span>
+            </div>
             <textarea
               disabled={isLocked}
-              rows={3}
+              rows={15}
               value={activeQ.prompt}
               placeholder={`Enter the full question statement, analytical scenario, or problem description for Question ${currentStep + 1}...`}
               onChange={(e) => handleUpdateQuestion(currentStep, { prompt: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 leading-relaxed font-normal focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+              className="w-full min-h-[280px] px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 leading-relaxed font-sans focus:ring-2 focus:ring-indigo-500 shadow-2xs"
             />
           </div>
 
           {/* Dedicated Official Marking Scheme & Model Answer Field */}
-          <div className="p-3.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/20 border-2 border-emerald-200 dark:border-emerald-800/60 space-y-2 shadow-2xs">
+          <div className="p-3.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/20 border-2 border-emerald-300 dark:border-emerald-800/60 space-y-2 shadow-2xs">
             <div className="flex items-center justify-between text-xs font-bold text-emerald-950 dark:text-emerald-300">
               <span className="flex items-center gap-1.5">
                 <Key className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Official Answer, Model Solution & Marking Scheme for Q{currentStep + 1}:</span>
+                <span>Official Answer, Model Solution & Marking Scheme for Q{currentStep + 1} (15 lines view):</span>
               </span>
-              <span className="text-[11px] font-mono text-emerald-700 dark:text-emerald-400 font-semibold bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded">
+              <span className="text-[11px] font-mono text-emerald-800 dark:text-emerald-400 font-semibold bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded">
                 Max Marks: {activeQ.points || 10}
               </span>
             </div>
             <textarea
               disabled={isLocked}
-              rows={3}
+              rows={15}
               value={activeQ.sampleAnswer || ''}
               placeholder={`Provide the official model answer, grading breakdown, and rubric criteria for Question ${currentStep + 1}...\nExample:\n- Concept formulation & definitions (4 Marks)\n- Step-by-step mathematical working or technical architecture (4 Marks)\n- Final evaluation and synthesis (2 Marks)`}
               onChange={(e) =>
@@ -409,7 +412,7 @@ export const PromptedQuestionBatchBuilder: React.FC<PromptedQuestionBatchBuilder
                   rubric: e.target.value,
                 })
               }
-              className="w-full px-3 py-2 rounded-lg border border-emerald-300 dark:border-emerald-700/60 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-200 leading-relaxed font-sans focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+              className="w-full min-h-[280px] px-3.5 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700/60 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-sans focus:ring-2 focus:ring-emerald-500 shadow-2xs"
             />
             <p className="text-[11px] text-emerald-800 dark:text-emerald-400 italic">
               This answer & marking scheme is automatically linked to the official examination key and used for student answer grading.
@@ -558,35 +561,39 @@ export const PromptedQuestionBatchBuilder: React.FC<PromptedQuestionBatchBuilder
                 </div>
 
                 <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-bold text-slate-700">Question Statement (15 lines view):</span>
+                    <span className="text-[10px] font-mono text-slate-400">Expanded Matrix View</span>
+                  </div>
                   <textarea
                     disabled={isLocked}
-                    rows={2}
+                    rows={15}
                     value={q.prompt}
                     placeholder={`Enter question prompt statement for item #${idx + 1}...`}
                     onChange={(e) => handleUpdateQuestion(idx, { prompt: e.target.value })}
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-normal focus:ring-1 focus:ring-indigo-500 leading-relaxed"
+                    className="w-full min-h-[260px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-sans focus:ring-2 focus:ring-indigo-500 leading-relaxed shadow-2xs"
                   />
                 </div>
 
-                <div className="p-2.5 rounded-lg bg-emerald-50/60 border border-emerald-200 space-y-1">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900">
+                <div className="p-3.5 rounded-xl bg-emerald-50/70 border-2 border-emerald-300 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-bold text-emerald-950">
                     <span className="flex items-center gap-1.5">
-                      <Key className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Official Marking Scheme & Model Answer for Q{idx + 1}:</span>
+                      <Key className="w-4 h-4 text-emerald-600" />
+                      <span>Official Marking Scheme & Model Answer for Q{idx + 1} (15 lines view):</span>
                     </span>
-                    <span className="text-[10px] font-mono text-emerald-700 font-semibold">
+                    <span className="text-[11px] font-mono text-emerald-800 font-semibold bg-emerald-100 px-2 py-0.5 rounded">
                       Allocated: {q.points || 10} Marks
                     </span>
                   </div>
                   <textarea
                     disabled={isLocked}
-                    rows={2}
+                    rows={15}
                     value={q.sampleAnswer || ''}
                     placeholder={`Detail model solution, key evaluation criteria, and mark distribution breakdown for Question ${idx + 1}...`}
                     onChange={(e) =>
                       handleUpdateQuestion(idx, { sampleAnswer: e.target.value, explanation: e.target.value, rubric: e.target.value })
                     }
-                    className="w-full px-2.5 py-1.5 rounded border border-emerald-300 bg-white text-xs text-slate-800 font-sans leading-relaxed focus:ring-1 focus:ring-emerald-500"
+                    className="w-full min-h-[260px] p-3 rounded-xl border border-emerald-300 bg-white text-xs sm:text-sm text-slate-800 font-sans leading-relaxed focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                   />
                 </div>
               </div>

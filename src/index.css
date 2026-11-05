@@ -194,3 +194,48 @@
     display: none !important;
   }
 }
+
+/* Flashcard Animations */
+@keyframes flashcard-bounce-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.85) translateY(-24px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.03) translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes flashcard-progress-bar {
+  0% {
+    width: 100%;
+  }
+  100% {
+    width: 0%;
+  }
+}
+
+@keyframes flashcard-pulse-ring {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+  }
+}
+
+.animate-flashcard-entry {
+  animation: flashcard-bounce-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+.animate-flashcard-timer {
+  animation: flashcard-progress-bar 4.5s linear forwards !important;
+}
+

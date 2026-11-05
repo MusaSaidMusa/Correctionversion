@@ -63,6 +63,7 @@ import {
 } from '../../services/examDocumentParser';
 import { parseUniversalExamDocument } from '../../services/universalDocumentService';
 import { getDepartmentForFaculty, getStoredFaculties } from '../../services/facultyResolutionService';
+import { cleanDisplayCaption } from '../../services/imageCompressionService';
 import { ExaminationPaperModal } from '../common/ExaminationPaperModal';
 import { OfficialMarkingSchemeModal } from '../common/OfficialMarkingSchemeModal';
 import { MathRenderer, DiagramAttachmentField, TechnicalDiagram } from '../common/QuestionMedia';
@@ -1385,31 +1386,37 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
                     </div>
 
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">
-                        Question Prompt / Problem Statement:
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-semibold text-slate-700">
+                          Question Prompt / Problem Statement:
+                        </label>
+                        <span className="text-[11px] font-mono text-slate-400">15 lines view</span>
+                      </div>
                       <textarea
-                        rows={3}
+                        rows={15}
                         required
                         value={customPrompt}
                         onChange={(e) => setCustomPrompt(e.target.value)}
-                        placeholder="Type question prompt, analytical problem statement, or essay topic..."
-                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-800 leading-relaxed"
+                        placeholder="Type question prompt, analytical problem statement, case study or essay topic..."
+                        className="w-full min-h-[320px] p-3 bg-white border border-slate-300 rounded-xl text-slate-800 leading-relaxed font-sans text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                       />
                     </div>
 
                     {customType === 'sub_question' && (
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1">
-                          Sub-questions (one per line)
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="font-semibold text-slate-700">
+                            Sub-questions (one per line)
+                          </label>
+                          <span className="text-[11px] font-mono text-slate-400">15 lines view</span>
+                        </div>
                         <textarea
-                          rows={4}
+                          rows={15}
                           required
                           value={customSubQuestionText}
                           onChange={(e) => setCustomSubQuestionText(e.target.value)}
-                          placeholder={'a) Explain the first part.\nb) Analyze the second part.'}
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs"
+                          placeholder={'a) Explain the first part.\nb) Analyze the second part.\nc) Provide architectural recommendations.\nd) Derive the theoretical bounds.'}
+                          className="w-full min-h-[300px] p-3 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                         />
                       </div>
                     )}
@@ -1417,15 +1424,20 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
                     {/* Essay Rubric */}
                     {customType === 'essay' && (
                       <div className="space-y-1">
-                        <label className="block font-semibold text-slate-700">
-                          Sample Answer & Evaluation Rubric:
-                        </label>
+                        <div className="flex items-center justify-between">
+                          <label className="font-semibold text-slate-700">
+                            Sample Answer & Evaluation Rubric:
+                          </label>
+                          <span className="text-[11px] font-mono text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded">
+                            Official Marking Scheme (15 lines view)
+                          </span>
+                        </div>
                         <textarea
-                          rows={2}
+                          rows={15}
                           value={customSampleAnswer}
                           onChange={(e) => setCustomSampleAnswer(e.target.value)}
-                          placeholder="Provide model solution, key theoretical criteria, and marks distribution breakdown..."
-                          className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
+                          placeholder="Provide model solution, key theoretical criteria, and marks distribution breakdown (like marking scheme)..."
+                          className="w-full min-h-[320px] p-3 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm leading-relaxed focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                         />
                       </div>
                     )}
@@ -1948,11 +1960,14 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
                         </div>
 
                         <div>
-                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                            Question Statement:
-                          </label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[11px] font-semibold text-slate-700">
+                              Question Statement:
+                            </label>
+                            <span className="text-[10px] font-mono text-slate-400">15 lines view</span>
+                          </div>
                           <textarea
-                            rows={2}
+                            rows={15}
                             value={question.prompt}
                             disabled={isLocked}
                             onChange={(e) => {
@@ -1963,8 +1978,8 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
                                 )
                               );
                             }}
-                            className="w-full rounded-lg border border-slate-300 bg-slate-50/40 p-2 text-xs text-slate-900 leading-relaxed font-medium focus:bg-white focus:ring-1 focus:ring-indigo-500"
-                            placeholder="Enter question statement..."
+                            className="w-full min-h-[300px] rounded-xl border border-slate-300 bg-white p-3 text-xs sm:text-sm text-slate-900 leading-relaxed font-sans focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                            placeholder="Enter question statement, comprehensive problem prompt, or scenario..."
                           />
                         </div>
 
@@ -2011,13 +2026,20 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
                           </ol>
                         )}
 
-                        {/* Diagram thumbnail */}
+                        {/* Diagram preview without raw base64 encryption strings */}
                         {question.imageUrl && (
-                          <div className="flex items-center gap-2 p-2 rounded-lg bg-indigo-50/50 border border-indigo-200 text-xs">
-                            <ImageIcon className="w-4 h-4 text-indigo-600 shrink-0" />
-                            <span className="font-medium text-indigo-900 truncate">
-                              Diagram Attached: {question.imageCaption || question.imageUrl}
-                            </span>
+                          <div className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-200 space-y-2">
+                            <div className="flex items-center gap-2 text-xs font-bold text-indigo-950">
+                              <ImageIcon className="w-4 h-4 text-indigo-600 shrink-0" />
+                              <span>Diagram Attached: {cleanDisplayCaption(question.imageCaption, question.imageUrl)}</span>
+                            </div>
+                            <div className="flex items-center justify-center bg-white p-2 rounded-lg border border-slate-200 max-h-56 overflow-hidden">
+                              <img
+                                src={question.imageUrl}
+                                alt={cleanDisplayCaption(question.imageCaption, question.imageUrl)}
+                                className="max-h-48 object-contain rounded"
+                              />
+                            </div>
                           </div>
                         )}
 
@@ -2056,18 +2078,18 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
                     </div>
 
                     {/* Dedicated Official Marking Scheme & Model Answer */}
-                    <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 space-y-1.5">
-                      <div className="flex items-center justify-between text-xs font-bold text-emerald-900">
+                    <div className="p-3.5 rounded-xl bg-emerald-50/80 border-2 border-emerald-300 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-emerald-950">
                         <span className="flex items-center gap-1.5">
-                          <Key className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Official Marking Scheme, Key Criteria & Model Answer:</span>
+                          <Key className="w-4 h-4 text-emerald-600" />
+                          <span>Official Marking Scheme, Key Criteria & Model Answer (15 lines view):</span>
                         </span>
-                        <span className="text-[11px] font-mono text-emerald-700 font-semibold">
+                        <span className="text-[11px] font-mono text-emerald-800 font-semibold bg-emerald-100 px-2 py-0.5 rounded">
                           Award: {question.points} Marks Max
                         </span>
                       </div>
                       <textarea
-                        rows={2}
+                        rows={15}
                         value={question.sampleAnswer || question.rubric || question.explanation || ''}
                         disabled={isLocked}
                         placeholder={`Enter official model solution, grading rubric points, and evaluation criteria for Question ${index + 1}...`}
@@ -2081,7 +2103,7 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
                             )
                           );
                         }}
-                        className="w-full rounded-lg border border-emerald-300 bg-white p-2 text-xs text-slate-800 leading-relaxed font-sans focus:ring-1 focus:ring-emerald-500"
+                        className="w-full min-h-[300px] rounded-xl border border-emerald-300 bg-white p-3 text-xs sm:text-sm text-slate-800 leading-relaxed font-sans focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                       />
                     </div>
                   </div>

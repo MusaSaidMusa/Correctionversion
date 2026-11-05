@@ -245,11 +245,14 @@ export const ExamQuestionsManagerModal: React.FC<ExamQuestionsManagerModalProps>
 
                   {/* Question Stem textarea */}
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                      Question Prompt:
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                        Question Prompt:
+                      </label>
+                      <span className="text-[10px] font-mono text-slate-400">15 lines view</span>
+                    </div>
                     <textarea
-                      rows={2}
+                      rows={15}
                       value={q.prompt}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -257,7 +260,7 @@ export const ExamQuestionsManagerModal: React.FC<ExamQuestionsManagerModalProps>
                           curr.map((item, itemIdx) => (itemIdx === idx ? { ...item, prompt: val } : item))
                         );
                       }}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-medium text-xs leading-relaxed focus:bg-white"
+                      className="w-full min-h-[260px] px-3.5 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-medium text-xs sm:text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                     />
                   </div>
 
@@ -439,15 +442,20 @@ export const ExamQuestionsManagerModal: React.FC<ExamQuestionsManagerModalProps>
                 )}
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 mb-1">
-                    Official Model Answer / Marking Scheme (Line by line)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                      Official Model Answer / Marking Scheme (15 lines view)
+                    </label>
+                    <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded">
+                      Model Solution
+                    </span>
+                  </div>
                   <textarea
-                    rows={2}
+                    rows={15}
                     value={sampleAnswer}
                     onChange={(e) => setSampleAnswer(e.target.value)}
-                    placeholder="Enter model answer and point allocations..."
-                    className="w-full px-3 py-2 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-800"
+                    placeholder="Enter model answer and point allocations line by line..."
+                    className="w-full min-h-[260px] px-3.5 py-3 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-800 text-xs sm:text-sm text-slate-800 leading-relaxed font-sans focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                   />
                 </div>
 

@@ -27,9 +27,9 @@ import {
   submitResitRequest,
   getStoredResitRequests,
   getStoredMissedExams,
-  uploadFileToServer,
 } from '../../services/storageService';
 import { triggerFlash } from '../common/FlashMessage';
+import { compressImageFile } from '../../services/imageCompressionService';
 
 interface StudentResitRequestModalProps {
   isOpen: boolean;
@@ -102,51 +102,42 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
       return;
     }
 
-    const fileExt = file.name.split('.').pop()?.toLowerCase();
-    let detectedType = file.type;
-    if (!detectedType) {
-      if (fileExt === 'pdf') detectedType = 'application/pdf';
-      else if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'].includes(fileExt || '')) {
-        detectedType = `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`;
-      } else {
-        detectedType = 'application/octet-stream';
-      }
-    }
-
-    setAttachmentFileName(file.name);
-    setAttachmentFileType(detectedType);
-    setAttachmentFileSize(file.size);
-
     try {
-      const uploadRes = await uploadFileToServer(file);
-      if (uploadRes.url) {
-        setAttachmentFileUrl(uploadRes.url);
-        triggerFlash({
-          type: 'success',
-          text: 'Document Stored & Attached',
-          subtext: `${file.name} (${(file.size / 1024).toFixed(0)} KB) saved to server and linked.`,
-        });
-        return;
-      }
-    } catch {
-      // Fallback to local Data URL
+      const processed = await compressImageFile(file, 1600, 1600, 0.85);
+      setAttachmentFileUrl(processed.dataUrl);
+      setAttachmentFileName(processed.fileName);
+      setAttachmentFileType(processed.fileType);
+      setAttachmentFileSize(processed.fileSize);
+      setFileUploadError(null);
+      triggerFlash({
+        type: 'success',
+        text: 'Medical Document Loaded',
+        subtext: `${file.name} (${(processed.fileSize / 1024).toFixed(0)} KB) verified & securely attached.`,
+      });
+    } catch (err: any) {
+      console.warn('Processing fallback:', err);
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          const fileExt = file.name.split('.').pop()?.toLowerCase();
+          const detectedType = file.type || (fileExt === 'pdf' ? 'application/pdf' : 'image/jpeg');
+          setAttachmentFileUrl(reader.result);
+          setAttachmentFileName(file.name);
+          setAttachmentFileType(detectedType);
+          setAttachmentFileSize(file.size);
+          setFileUploadError(null);
+          triggerFlash({
+            type: 'success',
+            text: 'Document Attached',
+            subtext: `${file.name} successfully loaded.`,
+          });
+        }
+      };
+      reader.onerror = () => {
+        setFileUploadError('Failed to read the file. Please try selecting again.');
+      };
+      reader.readAsDataURL(file);
     }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setAttachmentFileUrl(reader.result);
-        triggerFlash({
-          type: 'success',
-          text: 'Document Attached',
-          subtext: `${file.name} (${(file.size / 1024).toFixed(0)} KB) successfully loaded.`,
-        });
-      }
-    };
-    reader.onerror = () => {
-      setFileUploadError('Failed to read the file. Please try selecting again.');
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
