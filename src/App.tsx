@@ -39,6 +39,7 @@ import {
   updateTeacher,
   resetToDefaults,
   getStoredSuperAdmin,
+  markResitCommenced,
 } from './services/storageService';
 import { CURRENT_TEACHER } from './data/mockData';
 import { Exam, Question, ExamSubmission, StudentProfile, TeacherProfile, AuthUser, ThemeMode } from './types';
@@ -378,6 +379,7 @@ export default function App() {
       return;
     }
 
+    markResitCommenced(exam.id, currentStudent.id);
     setActiveRunningExam(exam);
     setActiveAttemptNumber(attempts + 1);
     const existing = submissions.find(

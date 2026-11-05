@@ -16,6 +16,7 @@ import {
   requestCommittedMarkChange,
 } from '../../services/storageService';
 import { triggerFlash } from '../common/FlashMessage';
+import { cleanDisplayCaption } from '../../services/imageCompressionService';
 
 interface ManualMarkingModalProps {
   isOpen: boolean;
@@ -352,6 +353,25 @@ export const ManualMarkingModal: React.FC<ManualMarkingModalProps> = ({
                       <p className="text-slate-800 dark:text-slate-200 mt-1 text-xs leading-relaxed font-serif">
                         {q.prompt}
                       </p>
+
+                      {/* Attached Diagram / Illustration fitted properly below the question */}
+                      {q.imageUrl && (
+                        <div className="my-2.5 flex flex-col items-center justify-center w-full">
+                          <div className="max-w-full overflow-hidden rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-1.5 shadow-xs">
+                            <img
+                              src={q.imageUrl}
+                              alt={cleanDisplayCaption(q.imageCaption, q.imageUrl) || `Question ${idx + 1} Figure`}
+                              className="max-h-56 max-w-full w-auto object-contain mx-auto rounded block"
+                              loading="lazy"
+                            />
+                          </div>
+                          {cleanDisplayCaption(q.imageCaption, q.imageUrl) && (
+                            <p className="mt-1 text-[11px] text-slate-500 italic text-center font-medium">
+                              {cleanDisplayCaption(q.imageCaption, q.imageUrl)}
+                            </p>
+                          )}
+                        </div>
+                      )}
 
                       {/* Official Marking Scheme & Solution Key Reference */}
                       {(q.sampleAnswer || q.explanation) && (

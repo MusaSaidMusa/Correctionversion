@@ -140,38 +140,32 @@ export const TechnicalDiagram: React.FC<TechnicalDiagramProps> = ({
   imageCaption,
   transform,
   imageTransform,
-  type = 'System Architecture Schema',
+  type,
   altText = 'Technical examination schematic',
   inExamPaper,
 }) => {
   const effectiveUrl = diagramUrl || imageUrl;
-  const effectiveCaption = caption || imageCaption;
+  const rawCaption = caption || imageCaption;
+  const effectiveCaption = cleanDisplayCaption(rawCaption, effectiveUrl);
+
+  if (!effectiveUrl) {
+    return null;
+  }
 
   return (
-    <div className="my-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-xs">
-      <div className="p-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 text-[11px] font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-2">
-        <ImageIcon className="w-3.5 h-3.5 text-indigo-500" />
-        <span>{type}</span>
+    <div className="my-3.5 flex flex-col items-center justify-center w-full">
+      <div className="relative max-w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 shadow-xs transition-all">
+        <img
+          src={effectiveUrl}
+          alt={effectiveCaption || altText}
+          className="max-h-72 md:max-h-80 max-w-full w-auto object-contain mx-auto rounded block"
+          loading="lazy"
+        />
       </div>
-
-      <div className="p-4 flex items-center justify-center bg-slate-50/50 dark:bg-slate-950/50 min-h-[140px]">
-        {effectiveUrl ? (
-          <img
-            src={effectiveUrl}
-            alt={altText}
-            className="max-h-64 object-contain rounded-lg shadow-xs"
-          />
-        ) : (
-          <div className="w-full max-w-md p-4 rounded-lg border border-dashed border-indigo-300 dark:border-indigo-800 text-center text-xs text-indigo-700 dark:text-indigo-400 font-mono">
-            [ FIGURE: Distributed Cluster Architecture - Node A ↔ Consensus Ring ↔ Node B ]
-          </div>
-        )}
-      </div>
-
       {effectiveCaption && (
-        <div className="p-2.5 text-[11px] text-slate-500 dark:text-slate-400 text-center border-t border-slate-100 dark:border-slate-800 italic">
-          {cleanDisplayCaption(effectiveCaption, effectiveUrl)}
-        </div>
+        <p className="mt-1.5 text-xs text-slate-600 dark:text-slate-400 italic text-center font-medium max-w-lg">
+          {effectiveCaption}
+        </p>
       )}
     </div>
   );

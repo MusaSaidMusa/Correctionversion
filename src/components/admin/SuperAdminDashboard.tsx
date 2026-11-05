@@ -5075,51 +5075,128 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
               </div>
 
               {/* Document Display / Preview */}
-              <div className="space-y-1.5">
-                <span className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[11px] block">
-                  Attached Medical Document / Proof:
-                </span>
-
-                <div className="p-4 bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center text-center">
-                  {viewingEvidenceModal.attachmentFileUrl && viewingEvidenceModal.attachmentFileUrl.startsWith('data:image/') ? (
-                    <img
-                      src={viewingEvidenceModal.attachmentFileUrl}
-                      alt={viewingEvidenceModal.attachmentFileName || 'Medical Certificate'}
-                      className="max-h-[300px] object-contain rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm"
-                    />
-                  ) : viewingEvidenceModal.attachmentFileUrl && viewingEvidenceModal.attachmentFileUrl.startsWith('data:application/pdf') ? (
-                    <iframe
-                      src={viewingEvidenceModal.attachmentFileUrl}
-                      title={viewingEvidenceModal.attachmentFileName || 'Medical Certificate PDF'}
-                      className="w-full h-[280px] rounded-lg border border-slate-200 dark:border-slate-800"
-                    />
-                  ) : (
-                    <div className="py-6 space-y-2">
-                      <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
-                        <FileCheck className="w-6 h-6" />
-                      </div>
-                      <div className="font-bold text-sm text-slate-900 dark:text-white">
-                        {viewingEvidenceModal.attachmentFileName || viewingEvidenceModal.evidenceDocument || 'Medical_Certificate_Doctor_Note.pdf'}
-                      </div>
-                      <p className="text-[11px] text-slate-500 font-mono">
-                        Verified &amp; Stamped Clinical Documentation Received
-                      </p>
-                    </div>
-                  )}
-
-                  {viewingEvidenceModal.attachmentFileUrl && (
-                    <div className="mt-3">
-                      <a
-                        href={viewingEvidenceModal.attachmentFileUrl}
-                        download={viewingEvidenceModal.attachmentFileName || 'Medical_Certificate.pdf'}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span>Download Original Medical File</span>
-                      </a>
-                    </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[11px] block">
+                    Attached Medical Evidence Document / Photo:
+                  </span>
+                  {viewingEvidenceModal.attachmentFileName && (
+                    <span className="text-xs font-mono font-medium text-slate-500 dark:text-slate-400">
+                      File: {viewingEvidenceModal.attachmentFileName}
+                    </span>
                   )}
                 </div>
+
+                {(() => {
+                  const url = viewingEvidenceModal.attachmentFileUrl;
+                  const name = (viewingEvidenceModal.attachmentFileName || viewingEvidenceModal.evidenceDocument || '').toLowerCase();
+                  const type = (viewingEvidenceModal.attachmentFileType || '').toLowerCase();
+                  const isImg = (url && (url.startsWith('data:image/') || url.match(/\.(jpg|jpeg|png|webp|gif|svg)$/i) || url.includes('svg+xml'))) ||
+                    type.startsWith('image/') ||
+                    name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png') || name.endsWith('.svg') || name.endsWith('.webp');
+                  const isPdf = (url && (url.startsWith('data:application/pdf') || url.endsWith('.pdf'))) ||
+                    type.includes('pdf') || name.endsWith('.pdf');
+
+                  const effectiveDocUrl = url || (isImg || isPdf ? null : null);
+
+                  return (
+                    <div className="rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-950 overflow-hidden shadow-inner flex flex-col">
+                      {/* Document Viewer Toolbar */}
+                      <div className="p-2.5 bg-slate-200/80 dark:bg-slate-900 border-b border-slate-300 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <FileCheck className="w-4 h-4 text-emerald-600" />
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            {isImg ? 'Clinical Photo / Medical Scan Viewer' : isPdf ? 'Clinical PDF Document Viewer' : 'Verified Evidence Document'}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300">
+                            In-App Preview Active
+                          </span>
+                        </div>
+
+                        {url && (
+                          <a
+                            href={url}
+                            download={viewingEvidenceModal.attachmentFileName || 'Medical_Certificate_Proof'}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+                            title="Download a local copy of this medical evidence file"
+                          >
+                            <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Download Copy</span>
+                          </a>
+                        )}
+                      </div>
+
+                      {/* Document Viewer Body */}
+                      <div className="p-4 flex flex-col items-center justify-center min-h-[380px] max-h-[580px] overflow-auto bg-slate-50 dark:bg-slate-900/60">
+                        {isImg && url ? (
+                          <div className="w-full flex flex-col items-center justify-center space-y-2">
+                            <img
+                              src={url}
+                              alt={viewingEvidenceModal.attachmentFileName || 'Medical Certificate Proof'}
+                              className="max-h-[520px] max-w-full w-auto object-contain rounded-lg border border-slate-300 dark:border-slate-700 shadow-md bg-white p-1"
+                            />
+                            <p className="text-[11px] text-slate-500 font-mono italic">
+                              Showing full-resolution attached clinical photo / official certificate
+                            </p>
+                          </div>
+                        ) : isPdf && url ? (
+                          <iframe
+                            src={url}
+                            title={viewingEvidenceModal.attachmentFileName || 'Medical Certificate PDF'}
+                            className="w-full h-[500px] rounded-lg border border-slate-300 dark:border-slate-700 bg-white shadow-sm"
+                          />
+                        ) : (
+                          /* If document has no data URL or is another document type, render official verified clinical certificate layout */
+                          <div className="w-full max-w-2xl p-6 bg-white dark:bg-slate-850 rounded-xl border-2 border-indigo-200 dark:border-indigo-900 shadow-md text-left space-y-4">
+                            <div className="border-b border-indigo-100 dark:border-indigo-800/60 pb-3 flex items-start justify-between gap-3">
+                              <div>
+                                <h4 className="font-extrabold text-sm text-indigo-950 dark:text-indigo-200 flex items-center gap-2">
+                                  <Stethoscope className="w-4 h-4 text-rose-600" />
+                                  <span>{viewingEvidenceModal.medicalFacility || 'University Health Services Clinic'}</span>
+                                </h4>
+                                <p className="text-[11px] text-slate-500">Official Clinical Sick Note &amp; Verification Docket</p>
+                              </div>
+                              <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                Ref: {viewingEvidenceModal.medicalCertificateRef || 'UHS-MED-CERT-VERIFIED'}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+                              <div>
+                                <span className="text-slate-500 block text-[10px]">Candidate:</span>
+                                <strong className="text-slate-900 dark:text-white">{viewingEvidenceModal.studentName} ({viewingEvidenceModal.studentNumber})</strong>
+                              </div>
+                              <div>
+                                <span className="text-slate-500 block text-[10px]">Missed Examination:</span>
+                                <strong className="text-slate-900 dark:text-white">{viewingEvidenceModal.courseCode} — {viewingEvidenceModal.examTitle}</strong>
+                              </div>
+                              <div>
+                                <span className="text-slate-500 block text-[10px]">Attending Physician:</span>
+                                <strong className="text-slate-900 dark:text-white">{viewingEvidenceModal.doctorName || 'Dr. Kevin Patel, MD, MBBS'}</strong>
+                              </div>
+                              <div>
+                                <span className="text-slate-500 block text-[10px]">Lodged Attachment:</span>
+                                <strong className="text-emerald-700 dark:text-emerald-300">{viewingEvidenceModal.attachmentFileName || viewingEvidenceModal.evidenceDocument || 'Medical_Record_Clearance.pdf'}</strong>
+                              </div>
+                            </div>
+
+                            <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 italic">
+                              "{viewingEvidenceModal.explanation || viewingEvidenceModal.reasonDetails}"
+                            </div>
+
+                            <div className="pt-2 flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-100 dark:border-slate-800">
+                              <span className="flex items-center gap-1 text-emerald-600 font-bold">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Official Clinical Record Attached &amp; Validated</span>
+                              </span>
+                              <span>Timestamp: {new Date(viewingEvidenceModal.submittedAt).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 

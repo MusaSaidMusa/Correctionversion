@@ -437,6 +437,54 @@ export const INITIAL_MISSED_EXAMS: MissedExamRecord[] = [
   },
 ];
 
+export const SAMPLE_MEDICAL_CERT_DATA_URL = `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1050" width="100%" height="100%">
+  <rect width="100%" height="100%" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="25" y="25" width="750" height="1000" fill="#fafafa" stroke="#1e3a8a" stroke-width="3" stroke-dasharray="8,4" rx="12"/>
+  
+  <circle cx="400" cy="90" r="36" fill="#1e3a8a"/>
+  <path d="M400 68 L400 112 M378 90 L422 90" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+  
+  <text x="400" y="150" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="#0f172a" text-anchor="middle">UNIVERSITY HEALTH SERVICES CLINIC</text>
+  <text x="400" y="174" font-family="Arial, sans-serif" font-size="13" fill="#475569" text-anchor="middle">Division of Student Health &amp; Clinical Medical Governance</text>
+  <text x="400" y="194" font-family="Arial, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Campus Medical Complex · Emergency &amp; Inpatient Admissions Wing · Tel: +1 (555) 019-4820</text>
+  <line x1="80" y1="210" x2="720" y2="210" stroke="#1e3a8a" stroke-width="2"/>
+
+  <rect x="230" y="225" width="340" height="36" rx="6" fill="#e0e7ff" stroke="#4338ca" stroke-width="1.5"/>
+  <text x="400" y="249" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#312e81" text-anchor="middle">OFFICIAL MEDICAL SICK CERTIFICATE</text>
+  
+  <text x="80" y="295" font-family="Arial, sans-serif" font-size="12" fill="#334155">Certificate Ref: UHS-MED-CERT-2025-9981</text>
+  <text x="520" y="295" font-family="Arial, sans-serif" font-size="12" fill="#334155">Issue Date: 15 Nov 2025</text>
+  <line x1="80" y1="308" x2="720" y2="308" stroke="#e2e8f0" stroke-width="1"/>
+
+  <rect x="80" y="325" width="640" height="110" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="100" y="352" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#0f172a">PATIENT IDENTITY &amp; ACADEMIC RECORD:</text>
+  <text x="100" y="380" font-family="Arial, sans-serif" font-size="12" fill="#334155">Patient Name: Maya Lin (STU-2024-7721)</text>
+  <text x="420" y="380" font-family="Arial, sans-serif" font-size="12" fill="#334155">Course: CS401 (Principles of Distributed Computing)</text>
+  <text x="100" y="410" font-family="Arial, sans-serif" font-size="12" fill="#334155">Department: Computer Science</text>
+  <text x="420" y="410" font-family="Arial, sans-serif" font-size="12" fill="#334155">Clearance Reason: Acute Medical Ground</text>
+
+  <text x="80" y="475" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#0f172a">CLINICAL EVALUATION &amp; MEDICAL CERTIFICATION:</text>
+  <text x="80" y="505" font-family="Arial, sans-serif" font-size="12" fill="#334155">This is to certify that the student was clinically examined at UHS presenting with severe acute</text>
+  <text x="80" y="525" font-family="Arial, sans-serif" font-size="12" fill="#334155">migraine and acute hyperpyrexia, verified incapacitating attendance at the examination.</text>
+  <text x="80" y="555" font-family="Arial, sans-serif" font-size="12" fill="#334155">Clinical rest and medical observation were prescribed. Student is recommended for resit clearance.</text>
+
+  <rect x="80" y="660" width="640" height="230" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  
+  <circle cx="230" cy="775" r="60" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-dasharray="6,3"/>
+  <text x="230" y="755" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#dc2626" text-anchor="middle">UNIVERSITY HEALTH SERVICES</text>
+  <text x="230" y="778" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#dc2626" text-anchor="middle">★ CLINIC APPROVED ★</text>
+  <text x="230" y="796" font-family="Arial, sans-serif" font-size="9" fill="#dc2626" text-anchor="middle">OFFICIALLY VERIFIED</text>
+
+  <text x="420" y="720" font-family="Arial, sans-serif" font-size="12" fill="#64748b">Attending Medical Practitioner:</text>
+  <path d="M420 755 Q460 725 490 765 T550 735 T600 760" fill="none" stroke="#1e3a8a" stroke-width="2.5"/>
+  <text x="420" y="785" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#0f172a">Dr. Kevin Patel, MD, MBBS</text>
+  <text x="420" y="805" font-family="Arial, sans-serif" font-size="11" fill="#475569">Senior Physician · License # KMPDC-449102</text>
+
+  <text x="400" y="980" font-family="Arial, sans-serif" font-size="10" fill="#94a3b8" text-anchor="middle">Official Institutional Health Record - AI Studio ExamGuard Pro</text>
+</svg>
+`)}`;
+
 export const INITIAL_RESIT_REQUESTS: ResitRequest[] = [
   {
     id: 'resit-maya-001',
@@ -451,8 +499,19 @@ export const INITIAL_RESIT_REQUESTS: ResitRequest[] = [
     reasonCategory: 'medical',
     reasonDetails: 'Severe migraine and fever verified by University Health Services Clinic (Dr. K. Patel). Attached medical certificate.',
     evidenceNotes: 'UHS-MED-CERT-2025-9981 officially stamped by College Clinic.',
-    attachmentFileName: 'Medical_Certificate_UHS_MayaLin.pdf',
-    status: 'pending',
+    attachmentFileName: 'Medical_Certificate_UHS_MayaLin.svg',
+    attachmentFileUrl: SAMPLE_MEDICAL_CERT_DATA_URL,
+    attachmentFileType: 'image/svg+xml',
+    medicalFacility: 'University Health Services Clinic',
+    doctorName: 'Dr. Kevin Patel, MD, MBBS',
+    medicalCertificateRef: 'UHS-MED-CERT-2025-9981',
+    isMedicalCompulsoryMet: true,
+    status: 'approved',
     submittedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    reviewedBy: 'Dr. Marcus Sterling (Super Admin Directorate)',
+    reviewedAt: new Date(Date.now() - 86400000).toISOString(),
+    adminDecisionNote: 'Approved by Institutional Senate & Super Admin for exam resit. Medical evidence verified.',
+    adminNotes: 'Approved by Institutional Senate & Super Admin for exam resit. Medical evidence verified.',
+    reRegistered: false,
   },
 ];

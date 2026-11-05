@@ -26,19 +26,17 @@ export function isDataUrl(str?: string | null): boolean {
 
 /**
  * Returns a human-friendly display label instead of raw base64 data URL
+ * If caption is missing, raw data URL, or encryption string, returns an empty string.
  */
 export function cleanDisplayCaption(caption?: string | null, url?: string | null): string {
-  if (caption && !isDataUrl(caption)) {
-    return caption.trim();
-  }
-  if (!url) return 'Attached Illustration / Figure';
-  if (isDataUrl(url)) return 'Diagram Attached (Official Figure)';
-  try {
-    const parsed = new URL(url);
-    const pathname = parsed.pathname.split('/').pop();
-    if (pathname && pathname.length < 50) return pathname;
-  } catch {}
-  return 'Attached Diagram / Schematic Figure';
+  if (!caption) return '';
+  const trimmed = caption.trim();
+  if (isDataUrl(trimmed)) return '';
+  if (trimmed.startsWith('data:') || trimmed.startsWith('blob:') || trimmed.startsWith('/uploads/')) return '';
+  // Check for long base64 or encryption strings
+  if (trimmed.length > 50 && /^[A-Za-z0-9+/=_-]+$/.test(trimmed)) return '';
+  if (url && trimmed === url.trim()) return '';
+  return trimmed;
 }
 
 /**

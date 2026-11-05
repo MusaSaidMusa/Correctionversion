@@ -46,6 +46,7 @@ import {
   ExamSubmission,
   StudentProfile,
   TeacherProfile,
+  ResitRequest,
 } from '../../types';
 import { ExamCreatorModal } from './ExamCreatorModal';
 import { ExamQuestionsManagerModal } from './ExamQuestionsManagerModal';
@@ -55,6 +56,7 @@ import { StudentRegistrationModal } from './StudentRegistrationModal';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { ManualMarkingModal } from './ManualMarkingModal';
 import { ExamAdmissionModal } from './ExamAdmissionModal';
+import { ReRegisterStudentModal } from './ReRegisterStudentModal';
 import { downloadSebConfigFile } from '../../services/sebService';
 import {
   commitSubmissionResult,
@@ -62,6 +64,7 @@ import {
   getWaitingRoomStudents,
   registerStudentToWaitingRoom,
   admitAllStudentsToExam,
+  getStoredResitRequests,
 } from '../../services/storageService';
 import { StudentAnswerSheetModal } from '../student/StudentAnswerSheetModal';
 import { ProfileDetailModal } from '../common/ProfileDetailModal';
@@ -254,22 +257,30 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     submission: ExamSubmission;
   } | null>(null);
 
+  // Resit requests and cleared candidate re-registration state
+  const [resitRequests, setResitRequests] = useState<ResitRequest[]>(() => getStoredResitRequests());
+  const [reRegisterModalTarget, setReRegisterModalTarget] = useState<ResitRequest | null>(null);
+
   // Fetch verified teacher information from backend API for hue section
   useEffect(() => {
     let isMounted = true;
     fetch(`/api/teacher-portal/info/${encodeURIComponent(teacher.id)}`)
       .then((res) => {
-        if (!res.ok) throw new Error('Backend fetch error');
+        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+        const ct = res.headers.get('content-type');
+        if (!ct || !ct.includes('application/json')) {
+          throw new Error('Non-JSON response received');
+        }
         return res.json();
       })
       .then((json) => {
-        if (isMounted && json.success && json.data) {
+        if (isMounted && json && json.success && json.data) {
           setTeacherBackendInfo(json.data);
           setIsBackendSynced(true);
         }
       })
-      .catch((err) => {
-        console.warn('[TeacherDashboard] Backend info fetch fallback:', err);
+      .catch(() => {
+        // Safe in-memory fallback maintained
       });
 
     return () => {
@@ -277,16 +288,23 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     };
   }, [teacher.id]);
 
-  // Real-time synchronization of submissions and admissions across dashboard
+  // Real-time synchronization of submissions, admissions, and approved resits across dashboard
   useEffect(() => {
     const handleRealtimeUpdate = () => {
+      setResitRequests(getStoredResitRequests());
       onDataChanged?.();
     };
     window.addEventListener('examguard_submissions_updated', handleRealtimeUpdate);
     window.addEventListener('examguard_admissions_updated', handleRealtimeUpdate);
+    window.addEventListener('examguard_resit_requests_updated', handleRealtimeUpdate);
+    window.addEventListener('examguard_resit_approved', handleRealtimeUpdate);
+    window.addEventListener('examguard_resit_reregistered', handleRealtimeUpdate);
     return () => {
       window.removeEventListener('examguard_submissions_updated', handleRealtimeUpdate);
       window.removeEventListener('examguard_admissions_updated', handleRealtimeUpdate);
+      window.removeEventListener('examguard_resit_requests_updated', handleRealtimeUpdate);
+      window.removeEventListener('examguard_resit_approved', handleRealtimeUpdate);
+      window.removeEventListener('examguard_resit_reregistered', handleRealtimeUpdate);
     };
   }, [onDataChanged]);
 
@@ -467,6 +485,81 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           </button>
         </div>
       )}
+
+      {/* Animated Student Resit Clearance & Re-Registration Banner */}
+      {(() => {
+        const approvedResitsAwaitingReReg = resitRequests.filter(
+          (r) => r.status === 'approved' && !r.reRegistered
+        );
+        if (approvedResitsAwaitingReReg.length === 0) return null;
+
+        return (
+          <div className="space-y-3">
+            {approvedResitsAwaitingReReg.map((req) => {
+              const originalExam = exams.find(
+                (e) =>
+                  e.id === req.examId ||
+                  e.courseCode.toUpperCase() === req.courseCode.toUpperCase() ||
+                  e.title.toLowerCase() === req.examTitle.toLowerCase()
+              );
+              const isSchemeReleased = Boolean(
+                originalExam?.isMarkingSchemeReleased || originalExam?.status === 'completed'
+              );
+
+              return (
+                <div
+                  key={req.id}
+                  className="relative p-4 md:p-5 rounded-2xl bg-gradient-to-r from-emerald-900 via-teal-900 to-indigo-950 text-white border-2 border-emerald-400 shadow-xl overflow-hidden animate-pear-pulse flex flex-col md:flex-row md:items-center justify-between gap-4 ring-4 ring-emerald-500/20"
+                >
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                      <GraduationCap className="w-6 h-6 text-emerald-300 animate-pulse" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-extrabold text-sm sm:text-base text-white tracking-wide">
+                          Academic Senate Resit Clearance Approved &mdash; Re-Registration Required
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-400 text-slate-950">
+                          Action Required
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-emerald-100 leading-relaxed">
+                        Candidate <strong>{req.studentName}</strong> (<span className="font-mono text-emerald-300 font-semibold">{req.studentNumber}</span>) was granted official Senate clearance for missed examination <strong>{req.courseCode}</strong> &mdash; <em>"{req.examTitle}"</em>.
+                      </p>
+
+                      {isSchemeReleased ? (
+                        <div className="mt-1 flex items-center gap-1.5 text-xs text-amber-300 font-semibold bg-amber-950/60 p-1.5 rounded-lg border border-amber-600/60">
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>
+                            Notice: Marking scheme for {req.courseCode} has already been released to candidates. You can re-register student to any other similar unit examination.
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="mt-0.5 text-[11px] text-emerald-200/90 font-mono">
+                          Clearance Note: {req.adminNotes || req.adminDecisionNote || 'Approved for exam resit sitting.'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center gap-2 self-start md:self-center w-full md:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => setReRegisterModalTarget(req)}
+                      className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-[#d1e231] hover:bg-[#c0d725] text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer border border-[#a3b817]"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>Re-Register Student for Examination</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Teacher Profile & Departmental Scoping Banner (Hue Section) */}
       <div
@@ -1846,6 +1939,23 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           onClose={() => setSelectedProfileModal(null)}
           targetType={selectedProfileModal.type}
           targetId={selectedProfileModal.id}
+        />
+      )}
+
+      {/* Candidate Examination Re-Registration Modal */}
+      {reRegisterModalTarget && (
+        <ReRegisterStudentModal
+          isOpen={Boolean(reRegisterModalTarget)}
+          onClose={() => setReRegisterModalTarget(null)}
+          resitRequest={reRegisterModalTarget}
+          exams={exams}
+          teacher={teacher}
+          onSuccess={() => {
+            setReRegisterModalTarget(null);
+            setResitRequests(getStoredResitRequests());
+            onDataChanged?.();
+            showToast('Student successfully re-registered for examination session!');
+          }}
         />
       )}
     </div>

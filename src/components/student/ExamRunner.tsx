@@ -1481,13 +1481,12 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
                   />
                 )}
 
-                {/* Diagram graphic if present (mapped neatly in middle below question) */}
+                {/* Diagram graphic if present (fitted properly below question) */}
                 {currentQ.imageUrl && (
                   <div className="my-4 flex flex-col items-center justify-center w-full">
                     <TechnicalDiagram
                       imageUrl={currentQ.imageUrl}
                       caption={currentQ.imageCaption}
-                      type={currentQ.imageUrl}
                       transform={currentQ.imageTransform}
                       inExamPaper={true}
                     />

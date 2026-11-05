@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { X, Printer, CheckCircle2, Award, Lock, ShieldAlert, FileCheck, ExternalLink } from 'lucide-react';
 import { Exam } from '../../types';
+import { cleanDisplayCaption } from '../../services/imageCompressionService';
 
 interface OfficialMarkingSchemeModalProps {
   isOpen: boolean;
@@ -202,6 +203,25 @@ export const OfficialMarkingSchemeModal: React.FC<OfficialMarkingSchemeModalProp
                     <p className="font-semibold text-slate-900 leading-snug">
                       {q.prompt}
                     </p>
+
+                    {/* Attached Diagram / Illustration fitted properly below the question */}
+                    {q.imageUrl && (
+                      <div className="my-3 flex flex-col items-center justify-center w-full">
+                        <div className="max-w-full overflow-hidden rounded-md border border-slate-300 bg-white p-2 shadow-xs">
+                          <img
+                            src={q.imageUrl}
+                            alt={cleanDisplayCaption(q.imageCaption, q.imageUrl) || `Question ${idx + 1} Figure`}
+                            className="max-h-64 max-w-full w-auto object-contain mx-auto rounded block"
+                            loading="lazy"
+                          />
+                        </div>
+                        {cleanDisplayCaption(q.imageCaption, q.imageUrl) && (
+                          <p className="mt-1 text-xs text-slate-700 italic text-center font-medium">
+                            {cleanDisplayCaption(q.imageCaption, q.imageUrl)}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Multiple Choice / Single Choice Direct Key */}
                     {q.correctAnswers && q.correctAnswers.length > 0 && (

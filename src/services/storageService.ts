@@ -1209,7 +1209,134 @@ export function reviewResitRequest(
     });
   }
 
+  if (isApp) {
+    req.reRegistered = false;
+  }
   return { success: true };
+}
+
+/**
+ * Re-registers an approved resit student into an examination.
+ * The teacher can select the original exam or any similar unit examination
+ * (especially when the marking scheme for the original exam has already been released).
+ */
+export function reRegisterStudentForResitExam(
+  requestId: string,
+  targetExamId: string,
+  teacherName = 'Course Instructor'
+): { success: boolean; error?: string; exam?: Exam; resitRequest?: ResitRequest } {
+  const requests = getStoredResitRequests();
+  const req = requests.find((r) => r.id === requestId);
+  if (!req) return { success: false, error: 'Resit clearance request record not found.' };
+
+  const exams = getStoredExams();
+  const targetExam = exams.find((e) => e.id === targetExamId);
+  if (!targetExam) return { success: false, error: 'Target examination not found.' };
+
+  // Ensure target exam registers this student
+  if (!targetExam.registeredStudentIds) {
+    targetExam.registeredStudentIds = [];
+  }
+  if (!targetExam.registeredStudentIds.includes(req.studentId)) {
+    targetExam.registeredStudentIds.push(req.studentId);
+  }
+
+  // Ensure student has this course code enrolled
+  const students = getStoredStudents();
+  const student = students.find((s) => s.id === req.studentId);
+  if (student && !student.enrolledCourseCodes.includes(targetExam.courseCode)) {
+    student.enrolledCourseCodes.push(targetExam.courseCode);
+    saveStoredStudents(students);
+  }
+
+  // Mark the resit request as re-registered
+  req.reRegistered = true;
+  req.reRegisteredExamId = targetExam.id;
+  req.reRegisteredExamTitle = targetExam.title;
+  req.reRegisteredCourseCode = targetExam.courseCode;
+  req.reRegisteredBy = teacherName;
+  req.reRegisteredAt = new Date().toISOString();
+
+  saveStoredResitRequests(requests);
+  saveStoredExams(exams);
+
+  // Notify backend API for real-time SSE stream broadcast
+  try {
+    fetch(`/api/resit-requests/${encodeURIComponent(req.id)}/re-register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        examId: targetExam.id,
+        studentId: req.studentId,
+        studentName: req.studentName,
+        examTitle: targetExam.title,
+        courseCode: targetExam.courseCode,
+        teacherName,
+      }),
+    }).catch(() => {});
+  } catch {}
+
+  const payload = {
+    requestId: req.id,
+    studentId: req.studentId,
+    studentNumber: req.studentNumber,
+    studentName: req.studentName,
+    courseCode: req.courseCode,
+    targetExamId: targetExam.id,
+    reRegisteredExamId: targetExam.id,
+    reRegisteredExamTitle: targetExam.title,
+    reRegisteredCourseCode: targetExam.courseCode,
+    reRegisteredBy: teacherName,
+    timestamp: Date.now(),
+  };
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('examguard_resit_reregistered', { detail: payload }));
+    window.dispatchEvent(new CustomEvent('examguard_resit_requests_updated', { detail: { requests } }));
+    window.dispatchEvent(new CustomEvent('examguard_exams_updated', { detail: { exams } }));
+    window.dispatchEvent(new CustomEvent('examguard_students_updated', { detail: { students } }));
+  }
+  broadcastSync('examguard_resit_reregistered', payload);
+  broadcastSync('examguard_resit_requests_updated', { requests });
+  broadcastSync('examguard_exams_updated', { exams });
+
+  triggerFlash({
+    type: 'success',
+    text: 'Candidate Re-Registered for Examination',
+    subtext: `${req.studentName} (${req.studentNumber}) successfully re-registered for ${targetExam.courseCode} — "${targetExam.title}".`,
+  });
+
+  return { success: true, exam: targetExam, resitRequest: req };
+}
+
+/**
+ * Marks that the student has commenced their re-registered examination session,
+ * which immediately removes the clearance banner from the student's dashboard.
+ */
+export function markResitCommenced(
+  requestIdOrExamId: string,
+  studentId: string
+): void {
+  const requests = getStoredResitRequests();
+  let updated = false;
+  requests.forEach((r) => {
+    if (
+      r.studentId === studentId &&
+      (r.id === requestIdOrExamId || r.reRegisteredExamId === requestIdOrExamId || r.examId === requestIdOrExamId) &&
+      r.reRegistered &&
+      !r.commencedAt
+    ) {
+      r.commencedAt = new Date().toISOString();
+      updated = true;
+    }
+  });
+  if (updated) {
+    saveStoredResitRequests(requests);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('examguard_resit_requests_updated', { detail: { requests } }));
+    }
+    broadcastSync('examguard_resit_requests_updated', { requests });
+  }
 }
 
 /**

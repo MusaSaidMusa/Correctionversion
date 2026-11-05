@@ -24,7 +24,7 @@ import {
   FolderArchive,
   X,
 } from 'lucide-react';
-import { Exam, ExamSubmission, StudentProfile } from '../../types';
+import { Exam, ExamSubmission, StudentProfile, ResitRequest } from '../../types';
 import { PreExamDiagnosticModal } from './PreExamDiagnosticModal';
 import { ExamResultsModal } from './ExamResultsModal';
 import { ExamWaitingRoomModal } from './ExamWaitingRoomModal';
@@ -38,6 +38,7 @@ import {
   getActiveInProgressExamForStudent,
   hasUnapprovedMissedExam,
   getStoredResitRequests,
+  markResitCommenced,
 } from '../../services/storageService';
 import { triggerFlash } from '../common/FlashMessage';
 
@@ -128,34 +129,56 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     } catch {}
   };
 
-  // Check for approved resits on mount or state change
+  // Real-time student resit clearance state
+  const [studentResitRequests, setStudentResitRequests] = useState<ResitRequest[]>(() =>
+    getStoredResitRequests().filter(
+      (r) => r.studentId === student.id || r.studentNumber === student.studentNumber
+    )
+  );
+
+  // Sync resit requests and listen for real-time approvals and re-registrations
   useEffect(() => {
-    try {
-      const allResits = getStoredResitRequests();
-      const approvedForMe = allResits.filter(
-        (r) =>
-          r.status === 'approved' &&
-          (r.studentId === student.id || r.studentNumber === student.studentNumber) &&
-          sessionStorage.getItem(`dismissed_resit_${r.id}`) !== 'true'
+    const handleResitSync = () => {
+      const all = getStoredResitRequests();
+      const mine = all.filter(
+        (r) => r.studentId === student.id || r.studentNumber === student.studentNumber
       );
-      if (approvedForMe.length > 0) {
-        const latest = approvedForMe[approvedForMe.length - 1];
-        const matchingExam = exams.find(
-          (x) =>
-            x.courseCode.toUpperCase() === latest.courseCode.toUpperCase() ||
-            x.title.toLowerCase() === latest.examTitle.toLowerCase()
-        );
-        setApprovedResitAlert({
-          requestId: latest.id,
-          courseCode: latest.courseCode,
-          examTitle: latest.examTitle,
-          adminNotes: latest.adminNotes || latest.adminDecisionNote,
-          reviewedBy: latest.reviewedBy,
-          targetExam: matchingExam,
+      setStudentResitRequests(mine);
+    };
+
+    window.addEventListener('examguard_resit_requests_updated', handleResitSync);
+    window.addEventListener('examguard_resit_approved', (e: any) => {
+      handleResitSync();
+      const detail = e.detail;
+      if (detail && (detail.studentId === student.id || detail.studentNumber === student.studentNumber)) {
+        playAdmissionChime();
+        triggerFlash({
+          type: 'success',
+          text: 'Official Resit Clearance Approved! 🎉',
+          subtext: `Your resit request for ${detail.courseCode} has been approved by the Directorate.`,
         });
       }
-    } catch {}
-  }, [exams, student.id, student.studentNumber]);
+    });
+
+    window.addEventListener('examguard_resit_reregistered', (e: any) => {
+      handleResitSync();
+      const detail = e.detail;
+      if (detail && (detail.studentId === student.id || detail.studentNumber === student.studentNumber)) {
+        playAdmissionChime();
+        triggerFlash({
+          type: 'success',
+          text: 'Re-Registered for Examination! 🎓',
+          subtext: `You have been re-registered for ${detail.reRegisteredCourseCode} by ${detail.reRegisteredBy || 'Course Instructor'}. Click and commence.`,
+        });
+      }
+    });
+
+    return () => {
+      window.removeEventListener('examguard_resit_requests_updated', handleResitSync);
+      window.removeEventListener('examguard_resit_approved', handleResitSync);
+      window.removeEventListener('examguard_resit_reregistered', handleResitSync);
+    };
+  }, [student.id, student.studentNumber]);
 
   useEffect(() => {
     const handleAdmissionUpdated = (e: any) => {
@@ -182,42 +205,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
       }
     };
 
-    const handleResitApproved = (e: any) => {
-      const detail = e.detail;
-      if (!detail) return;
-      const isForMe =
-        detail.studentId === student.id ||
-        detail.studentNumber === student.studentNumber;
-
-      if (isForMe) {
-        playAdmissionChime();
-        const matchingExam = exams.find(
-          (x) =>
-            x.courseCode.toUpperCase() === detail.courseCode.toUpperCase() ||
-            x.title.toLowerCase() === detail.examTitle.toLowerCase()
-        );
-        setApprovedResitAlert({
-          requestId: detail.requestId,
-          courseCode: detail.courseCode,
-          examTitle: detail.examTitle,
-          adminNotes: detail.adminNotes,
-          reviewedBy: detail.reviewedBy,
-          targetExam: matchingExam,
-        });
-
-        triggerFlash({
-          type: 'success',
-          text: 'Official Resit Clearance Approved! 🎉',
-          subtext: `Your request for ${detail.courseCode} (${detail.examTitle}) has been approved by the Directorate.`,
-        });
-      }
-    };
-
     window.addEventListener('examguard_admission_updated', handleAdmissionUpdated);
-    window.addEventListener('examguard_resit_approved', handleResitApproved);
     return () => {
       window.removeEventListener('examguard_admission_updated', handleAdmissionUpdated);
-      window.removeEventListener('examguard_resit_approved', handleResitApproved);
     };
   }, [exams, student.id, student.studentNumber, student.enrolledCourseCodes]);
 
@@ -357,8 +347,32 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   const selectedExamForSitting = studentExams.find((e) => e.id === selectedExamId);
 
+  // Active approved resit request awaiting sitting
+  const activeApprovedResit = studentResitRequests.find(
+    (r) => r.status === 'approved' && !r.commencedAt
+  );
+
+  const handleCommenceResitExam = (resitReq: ResitRequest) => {
+    markResitCommenced(resitReq.id, student.id);
+    const target =
+      (resitReq.reRegisteredExamId && exams.find((e) => e.id === resitReq.reRegisteredExamId)) ||
+      (resitReq.reRegisteredCourseCode &&
+        exams.find(
+          (e) => e.courseCode.toUpperCase() === resitReq.reRegisteredCourseCode?.toUpperCase()
+        )) ||
+      exams.find((e) => e.courseCode.toUpperCase() === resitReq.courseCode.toUpperCase()) ||
+      exams[0];
+
+    if (target) {
+      handleInitiateExam(target);
+    }
+  };
+
   // Flow: Check conflict -> Hardware diagnostics / Waiting Room
   const handleInitiateExam = (exam: Exam) => {
+    // If student commences an exam that matches their approved resit, mark commenced immediately
+    markResitCommenced(exam.id, student.id);
+
     // ENFORCE: "A Student cannot take more than one examination at ago within the same period."
     const conflict = getActiveInProgressExamForStudent(student.id, exam.id);
     if (conflict) {
@@ -390,56 +404,95 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-16">
-      {/* Official Approved Resit Clearance Celebration Notification Banner */}
-      {approvedResitAlert && (
-        <div className="p-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 text-white rounded-2xl shadow-xl border-2 border-emerald-300 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300 ring-4 ring-emerald-400/30">
+      {/* Official Approved Resit Clearance Animated Banner */}
+      {activeApprovedResit && !activeApprovedResit.commencedAt && (
+        <div
+          className={`p-4 md:p-5 rounded-2xl shadow-xl border-2 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300 ring-4 ${
+            activeApprovedResit.reRegistered
+              ? 'bg-gradient-to-r from-emerald-800 via-teal-800 to-indigo-900 text-white border-[#d1e231] ring-[#d1e231]/30 animate-pear-pulse'
+              : 'bg-gradient-to-r from-teal-900 via-emerald-950 to-indigo-950 text-white border-emerald-400 ring-emerald-500/20'
+          }`}
+        >
           <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 shadow-xs">
-              <CheckCircle2 className="w-6 h-6 text-white" />
+            <div
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner border ${
+                activeApprovedResit.reRegistered
+                  ? 'bg-[#d1e231]/20 border-[#d1e231]/50 text-[#d1e231]'
+                  : 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+              }`}
+            >
+              {activeApprovedResit.reRegistered ? (
+                <Sparkles className="w-6 h-6 animate-spin text-[#d1e231]" />
+              ) : (
+                <ShieldCheck className="w-6 h-6 animate-pulse text-emerald-300" />
+              )}
             </div>
-            <div>
-              <div className="font-extrabold text-sm flex items-center gap-2">
-                <span>🎉 Official Examination Resit Clearance Approved!</span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-900/80 text-[10px] font-mono uppercase font-bold tracking-wider">
-                  Registration Cleared
+
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-extrabold text-sm sm:text-base text-white">
+                  {activeApprovedResit.reRegistered
+                    ? 'Re-Registered for examination , click and commence'
+                    : 'Official Examination Resit Clearance Approved'}
+                </span>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                    activeApprovedResit.reRegistered
+                      ? 'bg-[#d1e231] text-slate-950 animate-pulse'
+                      : 'bg-amber-400 text-slate-950'
+                  }`}
+                >
+                  {activeApprovedResit.reRegistered
+                    ? '⚡ Re-Registered · Ready to Sit'
+                    : '⏳ Approved · Waiting for Re-Registration'}
                 </span>
               </div>
-              <p className="text-xs text-emerald-50 mt-0.5 leading-relaxed">
-                The Directorate of Examinations ({approvedResitAlert.reviewedBy || 'Super Admin'}) has approved your resit clearance for <strong>{approvedResitAlert.courseCode}</strong> &mdash; <strong>{approvedResitAlert.examTitle}</strong>.
-                {approvedResitAlert.adminNotes && (
-                  <span className="block mt-0.5 italic text-emerald-200">
-                    Decision Note: &ldquo;{approvedResitAlert.adminNotes}&rdquo;
-                  </span>
+
+              <p className="text-xs text-emerald-100 leading-relaxed">
+                {activeApprovedResit.reRegistered ? (
+                  <>
+                    You have been officially re-registered for examination:{' '}
+                    <strong>
+                      {activeApprovedResit.reRegisteredCourseCode || activeApprovedResit.courseCode}
+                    </strong>{' '}
+                    &mdash;{' '}
+                    <em>
+                      "{activeApprovedResit.reRegisteredExamTitle || activeApprovedResit.examTitle}"
+                    </em>{' '}
+                    by {activeApprovedResit.reRegisteredBy || 'Course Instructor'}. Examination
+                    access is unlocked. Click below to commence immediately.
+                  </>
+                ) : (
+                  <>
+                    The Directorate of Examinations (
+                    {activeApprovedResit.reviewedBy || 'Academic Senate'}) has approved your
+                    clearance for <strong>{activeApprovedResit.courseCode}</strong> &mdash;{' '}
+                    <em>"{activeApprovedResit.examTitle}"</em>. Status:{' '}
+                    <strong>
+                      Approved, waiting for course instructor to assign and re-register your
+                      examination session.
+                    </strong>
+                  </>
                 )}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
-            {approvedResitAlert.targetExam && (
+
+          <div className="shrink-0 w-full sm:w-auto">
+            {activeApprovedResit.reRegistered ? (
               <button
                 type="button"
-                onClick={() => {
-                  const target = approvedResitAlert.targetExam!;
-                  setApprovedResitAlert(null);
-                  handleInitiateExam(target);
-                }}
-                className="w-full sm:w-auto px-4 py-2 bg-white text-emerald-900 font-extrabold rounded-xl text-xs hover:bg-emerald-50 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer hover:scale-105 active:scale-95"
+                onClick={() => handleCommenceResitExam(activeApprovedResit)}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#d1e231] hover:bg-[#c0d725] text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer border border-[#a3b817]"
               >
-                <Play className="w-4 h-4 fill-current text-emerald-700" />
-                <span>Sit Examination Now →</span>
+                <Play className="w-4 h-4 fill-current text-slate-950" />
+                <span>Commence Examination Now &rarr;</span>
               </button>
+            ) : (
+              <span className="text-[11px] font-mono text-emerald-300 italic block text-center sm:text-right">
+                Awaiting Lecturer Action
+              </span>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                sessionStorage.setItem(`dismissed_resit_${approvedResitAlert.requestId}`, 'true');
-                setApprovedResitAlert(null);
-              }}
-              className="p-2 text-white/80 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
-              title="Acknowledge & Dismiss Notification"
-            >
-              <X className="w-4 h-4" />
-            </button>
           </div>
         </div>
       )}

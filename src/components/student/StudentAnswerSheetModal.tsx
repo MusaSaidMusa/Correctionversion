@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Printer, FileText, CheckCircle2, Lock, ShieldAlert } from 'lucide-react';
 import { Exam, ExamSubmission } from '../../types';
+import { cleanDisplayCaption } from '../../services/imageCompressionService';
 
 interface StudentAnswerSheetModalProps {
   isOpen: boolean;
@@ -223,6 +224,25 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
                   </div>
 
                   <p className="font-semibold text-slate-900 leading-snug pl-1">{q.prompt}</p>
+
+                  {/* Attached Diagram / Illustration fitted properly below question */}
+                  {q.imageUrl && (
+                    <div className="my-3 flex flex-col items-center justify-center w-full">
+                      <div className="max-w-full overflow-hidden rounded-md border border-slate-300 bg-white p-2 shadow-xs">
+                        <img
+                          src={q.imageUrl}
+                          alt={cleanDisplayCaption(q.imageCaption, q.imageUrl) || `Question ${idx + 1} Figure`}
+                          className="max-h-60 max-w-full w-auto object-contain mx-auto rounded block"
+                          loading="lazy"
+                        />
+                      </div>
+                      {cleanDisplayCaption(q.imageCaption, q.imageUrl) && (
+                        <p className="mt-1 text-xs text-slate-600 italic text-center font-medium">
+                          {cleanDisplayCaption(q.imageCaption, q.imageUrl)}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   <div className={`p-4 rounded-xl border space-y-3 font-sans transition-all ${
                     isFullPoints

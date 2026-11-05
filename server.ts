@@ -171,6 +171,24 @@ app.get('/api/teachers/:id', (req: Request, res: Response) => {
   });
 });
 
+// Teacher Portal verified information endpoint (fixes TeacherDashboard fetch fallback error)
+app.get('/api/teacher-portal/info/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  res.json({
+    success: true,
+    data: {
+      id,
+      faculty: 'Faculty of Computing & Information Technologies',
+      department: 'Computer Science & Software Engineering',
+      office: 'Turing Hall, Room 412B',
+      securityClearance: 'Level 4 · Chief Academic Invigilator',
+      assignedCourseCodes: ['CS-405', 'CS-301'],
+      status: 'active',
+      timestamp: new Date().toISOString(),
+    },
+  });
+});
+
 app.post('/api/teachers', (req: Request, res: Response) => {
   res.json({ success: true, data: req.body });
 });
@@ -188,6 +206,22 @@ app.get('/api/students/:id', (req: Request, res: Response) => {
       clearanceStatus: 'Clear',
       gpa: '3.88',
       attendanceRate: '98.5%',
+    },
+  });
+});
+
+// Student Portal stats endpoint
+app.get('/api/student-portal/stats/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  res.json({
+    success: true,
+    data: {
+      id,
+      gpa: '3.88',
+      attendanceRate: '98.5%',
+      academicStanding: 'Dean’s Honor List',
+      clearanceStatus: 'Clear',
+      timestamp: new Date().toISOString(),
     },
   });
 });
@@ -279,6 +313,26 @@ app.post('/api/resit-requests/:id/review', (req: Request, res: Response) => {
     success: true,
     message: `Resit request ${id} ${action}ed by ${reviewedBy || 'Admin'}.`,
     data: { id, action, note, reviewedBy, reviewedAt: new Date().toISOString() },
+  });
+});
+
+app.post('/api/resit-requests/:id/re-register', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { examId, teacherName, examTitle, courseCode, studentId, studentName } = req.body;
+  broadcastSSE('resit_reregistered', {
+    requestId: id,
+    examId,
+    studentId,
+    studentName,
+    examTitle,
+    courseCode,
+    teacherName: teacherName || 'Course Instructor',
+    timestamp: Date.now(),
+  });
+  res.json({
+    success: true,
+    message: `Candidate ${studentName || studentId} successfully re-registered for ${courseCode} by ${teacherName || 'Instructor'}.`,
+    data: { id, examId, timestamp: Date.now() },
   });
 });
 

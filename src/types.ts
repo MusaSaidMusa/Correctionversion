@@ -395,6 +395,13 @@ export interface ResitRequest {
   reviewedAt?: string;
   adminDecisionNote?: string;
   adminNotes?: string;
+  reRegistered?: boolean;
+  reRegisteredExamId?: string;
+  reRegisteredExamTitle?: string;
+  reRegisteredCourseCode?: string;
+  reRegisteredAt?: string;
+  reRegisteredBy?: string;
+  commencedAt?: string;
 }
 
 export interface ExamAttendanceSummary {

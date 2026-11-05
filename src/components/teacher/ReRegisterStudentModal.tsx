@@ -1,0 +1,399 @@
+import React, { useState } from 'react';
+import {
+  X,
+  UserCheck,
+  Award,
+  AlertTriangle,
+  CheckCircle2,
+  Calendar,
+  Clock,
+  BookOpen,
+  ArrowRight,
+  ShieldCheck,
+  Stethoscope,
+  Sparkles,
+  FileCheck2,
+} from 'lucide-react';
+import { Exam, ResitRequest, TeacherProfile } from '../../types';
+import { reRegisterStudentForResitExam } from '../../services/storageService';
+import { triggerFlash } from '../common/FlashMessage';
+
+interface ReRegisterStudentModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  resitRequest: ResitRequest;
+  exams: Exam[];
+  teacher: TeacherProfile;
+  onSuccess?: () => void;
+}
+
+export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
+  isOpen,
+  onClose,
+  resitRequest,
+  exams,
+  teacher,
+  onSuccess,
+}) => {
+  if (!isOpen || !resitRequest) return null;
+
+  // Find original exam record if present
+  const originalExam = exams.find(
+    (e) =>
+      e.id === resitRequest.examId ||
+      e.courseCode.toUpperCase() === resitRequest.courseCode.toUpperCase() ||
+      e.title.toLowerCase() === resitRequest.examTitle.toLowerCase()
+  );
+
+  const isOriginalSchemeReleased = Boolean(
+    originalExam?.isMarkingSchemeReleased || originalExam?.status === 'completed'
+  );
+
+  // Group examinations:
+  // Recommended similar unit exams: same department/prefix AND marking scheme not yet released
+  const missedPrefix = (resitRequest.courseCode || '').split(/[-_\s\d]/)[0]?.toUpperCase() || '';
+
+  const similarUnitExams = exams.filter((e) => {
+    // If exam has scheme released, it's not in the primary recommended set
+    if (e.isMarkingSchemeReleased) return false;
+    const prefix = e.courseCode.split(/[-_\s\d]/)[0]?.toUpperCase() || '';
+    const isSamePrefix = prefix && missedPrefix && prefix === missedPrefix;
+    const isSameDept = e.department && originalExam?.department && e.department === originalExam.department;
+    return isSamePrefix || isSameDept;
+  });
+
+  const otherExams = exams.filter((e) => !similarUnitExams.some((s) => s.id === e.id));
+
+  // Default selection: the first recommended similar exam without scheme released, or original exam if safe
+  const defaultExamId =
+    similarUnitExams.length > 0
+      ? similarUnitExams[0].id
+      : originalExam && !isOriginalSchemeReleased
+      ? originalExam.id
+      : exams[0]?.id || '';
+
+  const [selectedExamId, setSelectedExamId] = useState<string>(defaultExamId);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const selectedExam = exams.find((e) => e.id === selectedExamId);
+  const isSelectedSchemeReleased = Boolean(selectedExam?.isMarkingSchemeReleased);
+
+  const handleConfirmReRegistration = async () => {
+    if (!selectedExamId) {
+      triggerFlash({
+        type: 'error',
+        text: 'Selection Required',
+        subtext: 'Please select an examination session to re-register the candidate.',
+      });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const res = reRegisterStudentForResitExam(
+        resitRequest.id,
+        selectedExamId,
+        teacher.name || 'Course Instructor'
+      );
+
+      if (res.success) {
+        onSuccess?.();
+        onClose();
+      } else {
+        triggerFlash({
+          type: 'error',
+          text: 'Re-Registration Failed',
+          subtext: res.error || 'Could not complete candidate examination re-registration.',
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="relative w-full max-w-3xl max-h-[92vh] flex flex-col bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-emerald-400 dark:border-emerald-500 overflow-hidden text-slate-900 dark:text-slate-100">
+        {/* Header */}
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-800 via-teal-800 to-indigo-900 text-white flex items-start justify-between gap-4 border-b border-emerald-600">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+              <UserCheck className="w-5 h-5 text-emerald-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-base sm:text-lg">
+                  Re-Register Cleared Candidate for Examination
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-400 text-slate-950">
+                  Approved Resit
+                </span>
+              </div>
+              <p className="text-xs text-emerald-100 mt-0.5">
+                Assign {resitRequest.studentName} ({resitRequest.studentNumber}) to an authorized examination session
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content Body */}
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs">
+          {/* Candidate Particulars & Senate Clearance Docket */}
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-slate-900 dark:text-white">
+                  {resitRequest.studentName}
+                </span>
+                <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                  {resitRequest.studentNumber}
+                </span>
+              </div>
+              <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Senate Clearance Approved</span>
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1 border-t border-slate-200 dark:border-slate-700/60 font-mono">
+              <div>
+                <span className="text-slate-500 block">Original Missed Unit:</span>
+                <strong className="text-slate-800 dark:text-slate-200">
+                  {resitRequest.courseCode} &mdash; {resitRequest.examTitle}
+                </strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block">Approval Authority / Note:</span>
+                <span className="text-slate-700 dark:text-slate-300 italic">
+                  {resitRequest.adminNotes || resitRequest.adminDecisionNote || 'Approved for exam resit.'}
+                </span>
+              </div>
+            </div>
+
+            {resitRequest.reasonCategory === 'medical' && (
+              <div className="mt-1 flex items-center gap-1.5 text-[11px] text-rose-700 dark:text-rose-300">
+                <Stethoscope className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  Medical grounds verified: {resitRequest.medicalFacility || 'University Clinic'} (Ref: {resitRequest.medicalCertificateRef || 'Verified'})
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Marking Scheme Alert / Notice */}
+          {isOriginalSchemeReleased && (
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 text-amber-900 dark:text-amber-200 space-y-1">
+              <div className="font-bold flex items-center gap-1.5 text-xs text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Original Examination Scheme Has Been Released to Candidates</span>
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                The marking scheme for <strong>{resitRequest.courseCode}</strong> was already released to students. Under assessment governance regulations, <strong>you can register the student to any other similar unit exam</strong> or alternate sitting where the scheme remains confidential.
+              </p>
+            </div>
+          )}
+
+          {/* Examination Session Selector */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Select Target Examination for Re-Registration:</span>
+              </label>
+              <span className="text-[11px] text-slate-500">
+                {exams.length} examinations available in portal
+              </span>
+            </div>
+
+            {/* Recommended Similar Unit Section */}
+            {similarUnitExams.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 dark:text-emerald-300">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Recommended Similar Unit Examinations (Marking Scheme Confidential &amp; Safe):</span>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  {similarUnitExams.map((ex) => {
+                    const isSelected = selectedExamId === ex.id;
+                    return (
+                      <label
+                        key={ex.id}
+                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
+                          isSelected
+                            ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 ring-2 ring-emerald-400/40 shadow-xs'
+                            : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-emerald-300'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="radio"
+                            name="targetExam"
+                            value={ex.id}
+                            checked={isSelected}
+                            onChange={() => setSelectedExamId(ex.id)}
+                            className="mt-1 text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900 dark:text-white">
+                                {ex.courseCode} &mdash; {ex.title}
+                              </span>
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
+                                Similar Unit
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 mt-1 text-[11px] text-slate-500 font-mono">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {ex.scheduledDate || 'Active Session'}
+                              </span>
+                              <span>·</span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {ex.durationMinutes} Mins
+                              </span>
+                              <span>·</span>
+                              <span>{ex.questions?.length || 0} Questions</span>
+                              <span>·</span>
+                              <span className="text-emerald-600 font-semibold">
+                                ✓ Scheme Confidential
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
+                          isSelected
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                        }`}>
+                          {isSelected ? 'Selected' : 'Select'}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Other Examinations Section */}
+            {otherExams.length > 0 && (
+              <div className="space-y-2 pt-2">
+                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block">
+                  Other Available Examinations in Faculty / Department:
+                </span>
+                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                  {otherExams.map((ex) => {
+                    const isSelected = selectedExamId === ex.id;
+                    const hasSchemeReleased = Boolean(ex.isMarkingSchemeReleased);
+                    return (
+                      <label
+                        key={ex.id}
+                        className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
+                          isSelected
+                            ? 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-500 ring-2 ring-indigo-400/40 shadow-xs'
+                            : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:border-indigo-300'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2.5">
+                          <input
+                            type="radio"
+                            name="targetExam"
+                            value={ex.id}
+                            checked={isSelected}
+                            onChange={() => setSelectedExamId(ex.id)}
+                            className="mt-1 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                {ex.courseCode} &mdash; {ex.title}
+                              </span>
+                              {hasSchemeReleased && (
+                                <span className="px-1.5 py-0.2 rounded text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300">
+                                  Scheme Released
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[10px] text-slate-500 font-mono">
+                              <span>{ex.durationMinutes} Mins</span>
+                              <span>·</span>
+                              <span>{ex.questions?.length || 0} Questions</span>
+                              <span>·</span>
+                              <span>{ex.department || 'Department Exam'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                        }`}>
+                          {isSelected ? 'Selected' : 'Select'}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Selected Exam Integrity Summary */}
+          {selectedExam && (
+            <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
+              isSelectedSchemeReleased
+                ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 text-amber-900 dark:text-amber-200'
+                : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 text-emerald-900 dark:text-emerald-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                <FileCheck2 className="w-4 h-4 shrink-0" />
+                <span className="text-[11px] font-semibold">
+                  Selected Session: <strong>{selectedExam.courseCode}</strong> ({selectedExam.title})
+                </span>
+              </div>
+              <span className="font-mono text-[10px] uppercase font-bold">
+                {isSelectedSchemeReleased ? '⚠️ Scheme Released' : '✓ Scheme Confidential'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold cursor-pointer"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            disabled={!selectedExamId || isSubmitting}
+            onClick={handleConfirmReRegistration}
+            className="px-5 py-2.5 rounded-xl bg-[#d1e231] hover:bg-[#c0d725] text-slate-950 font-extrabold text-xs flex items-center gap-2 shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer border border-[#a3b817] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <UserCheck className="w-4 h-4" />
+            <span>
+              {isSubmitting
+                ? 'Re-Registering Candidate...'
+                : `Confirm Re-Registration (${selectedExam?.courseCode || 'Exam'})`}
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
