@@ -1,6 +1,7 @@
 import { Exam, Question, ExamSubmission, ProctorIncident, StudentProfile, TeacherProfile, HelpTicket, ThemeMode, Course, AuthUser, MissedExamRecord, ResitRequest, ExamAttendanceSummary, AcademicRecord } from '../types';
 import { INITIAL_EXAMS, INITIAL_QUESTION_BANK, INITIAL_SUBMISSIONS, INITIAL_STUDENTS, CURRENT_TEACHER, INITIAL_TEACHERS, INITIAL_HELP_TICKETS, INITIAL_COURSES, SUPER_ADMIN, INITIAL_MISSED_EXAMS, INITIAL_RESIT_REQUESTS } from '../data/mockData';
 import { triggerFlash } from '../components/common/FlashMessage';
+import { compressImageFile } from './imageCompressionService';
 
 const STORAGE_KEYS = {
   EXAMS: 'examguard_exams_v1',
@@ -3314,4 +3315,70 @@ export function resetToDefaults(): void {
   localStorage.setItem(STORAGE_KEYS.RESIT_REQUESTS, JSON.stringify(INITIAL_RESIT_REQUESTS));
   localStorage.setItem(STORAGE_KEYS.ACADEMIC_DATABASE, JSON.stringify(INITIAL_ACADEMIC_RECORDS));
 }
+
+/**
+ * Uploads a file (image, PDF, document, portrait photo) to the backend server
+ * with client-side compression and resilient fallback.
+ */
+export async function uploadFileToServer(
+  file: File
+): Promise<{ url: string; fileName: string; fileSize: number; fileType: string }> {
+  let dataUrl = '';
+  let fileSize = file.size;
+  let fileType = file.type || 'application/octet-stream';
+
+  try {
+    if (file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(file.name)) {
+      const compressed = await compressImageFile(file, 1600, 1600, 0.85);
+      dataUrl = compressed.dataUrl;
+      fileSize = compressed.fileSize;
+      fileType = compressed.fileType;
+    } else {
+      dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error || new Error('Failed to read file.'));
+        reader.readAsDataURL(file);
+      });
+    }
+  } catch (e) {
+    console.warn('[uploadFileToServer] Compression/Reader fallback:', e);
+  }
+
+  // Attempt upload to server endpoint
+  try {
+    const res = await fetch('/api/upload-file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dataUrl,
+        fileName: file.name,
+        fileType,
+        fileSize,
+      }),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.url) {
+        return {
+          url: json.url,
+          fileName: json.fileName || file.name,
+          fileSize: json.fileSize || fileSize,
+          fileType: json.fileType || fileType,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[uploadFileToServer] Server upload fallback to client DataURL:', err);
+  }
+
+  // Client-side fallback: return valid dataUrl
+  return {
+    url: dataUrl,
+    fileName: file.name,
+    fileSize,
+    fileType,
+  };
+}
+
 

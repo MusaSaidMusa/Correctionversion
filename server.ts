@@ -112,6 +112,51 @@ app.post('/api/upload-image', (req: Request, res: Response) => {
   });
 });
 
+// File & Document persistent server storage endpoint
+app.post('/api/upload-file', (req: Request, res: Response) => {
+  const { dataUrl, fileName, fileType, fileSize } = req.body;
+  if (!dataUrl) {
+    return res.status(400).json({ success: false, error: 'No file data payload provided' });
+  }
+
+  const uploadsDir = path.resolve(__dirname, 'public', 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    try {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    } catch {}
+  }
+
+  const sanitized = (fileName || 'document').replace(/[^a-zA-Z0-9._-]/g, '_');
+  const uniqueName = `${Date.now()}-${sanitized}`;
+  const filePath = path.join(uploadsDir, uniqueName);
+
+  try {
+    const matches = dataUrl.match(/^data:([A-Za-z0-9-+/]+);base64,(.+)$/);
+    if (matches && matches[2]) {
+      const buffer = Buffer.from(matches[2], 'base64');
+      fs.writeFileSync(filePath, buffer);
+      return res.json({
+        success: true,
+        url: `/uploads/${uniqueName}`,
+        fileName: sanitized,
+        fileType: fileType || matches[1],
+        fileSize: buffer.length,
+      });
+    }
+  } catch (err) {
+    console.warn('[Upload] Disk write fallback to dataUrl:', err);
+  }
+
+  // Fallback if not base64: return provided URL/dataUrl
+  res.json({
+    success: true,
+    url: dataUrl,
+    fileName: sanitized,
+    fileType: fileType || 'application/octet-stream',
+    fileSize: fileSize || 0,
+  });
+});
+
 // Teacher endpoints
 app.get('/api/teachers/:id', (req: Request, res: Response) => {
   const { id } = req.params;
