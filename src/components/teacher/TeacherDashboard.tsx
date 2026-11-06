@@ -65,6 +65,8 @@ import {
   registerStudentToWaitingRoom,
   admitAllStudentsToExam,
   getStoredResitRequests,
+  respondToAdminInquiryOnMarkChange,
+  acknowledgeMarkChangeDecision,
 } from '../../services/storageService';
 import { StudentAnswerSheetModal } from '../student/StudentAnswerSheetModal';
 import { ProfileDetailModal } from '../common/ProfileDetailModal';
@@ -73,6 +75,7 @@ import { OfficialMarkingSchemeModal } from '../common/OfficialMarkingSchemeModal
 import { UploadMarkingSchemeModal } from './UploadMarkingSchemeModal';
 import { PastPapersSection } from '../common/PastPapersSection';
 import { triggerFlash } from '../common/FlashMessage';
+import { playAlertBeep } from '../../services/soundService';
 
 interface TeacherDashboardProps {
   teacher: TeacherProfile;
@@ -260,6 +263,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   // Resit requests and cleared candidate re-registration state
   const [resitRequests, setResitRequests] = useState<ResitRequest[]>(() => getStoredResitRequests());
   const [reRegisterModalTarget, setReRegisterModalTarget] = useState<ResitRequest | null>(null);
+
+  // Administrative inquiry response modal state
+  const [respondingInquirySub, setRespondingInquirySub] = useState<ExamSubmission | null>(null);
+  const [teacherInquiryReplyText, setTeacherInquiryReplyText] = useState('');
 
   // Fetch verified teacher information from backend API for hue section
   useEffect(() => {
@@ -486,80 +493,262 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         </div>
       )}
 
-      {/* Animated Student Resit Clearance & Re-Registration Banner */}
-      {(() => {
-        const approvedResitsAwaitingReReg = resitRequests.filter(
-          (r) => r.status === 'approved' && !r.reRegistered
-        );
-        if (approvedResitsAwaitingReReg.length === 0) return null;
+      {/* Interactive Queue Banners for Admin-Teacher Approval & Inquiry Workflows */}
+      <div className="space-y-3">
+        {/* 1. Candidate Resit Re-Registration Queue Banner (1 of N) */}
+        {(() => {
+          const approvedResitsAwaitingReReg = resitRequests.filter(
+            (r) => r.status === 'approved' && !r.reRegistered
+          );
+          if (approvedResitsAwaitingReReg.length === 0) return null;
 
-        return (
-          <div className="space-y-3">
-            {approvedResitsAwaitingReReg.map((req) => {
-              const originalExam = exams.find(
-                (e) =>
-                  e.id === req.examId ||
-                  e.courseCode.toUpperCase() === req.courseCode.toUpperCase() ||
-                  e.title.toLowerCase() === req.examTitle.toLowerCase()
-              );
-              const isSchemeReleased = Boolean(
-                originalExam?.isMarkingSchemeReleased || originalExam?.status === 'completed'
-              );
+          const req = approvedResitsAwaitingReReg[0];
+          const queueTotal = approvedResitsAwaitingReReg.length;
+          const originalExam = exams.find(
+            (e) =>
+              e.id === req.examId ||
+              e.courseCode.toUpperCase() === req.courseCode.toUpperCase() ||
+              e.title.toLowerCase() === req.examTitle.toLowerCase()
+          );
+          const isSchemeReleased = Boolean(
+            originalExam?.isMarkingSchemeReleased || originalExam?.status === 'completed'
+          );
 
-              return (
-                <div
-                  key={req.id}
-                  className="relative p-4 md:p-5 rounded-2xl bg-gradient-to-r from-emerald-900 via-teal-900 to-indigo-950 text-white border-2 border-emerald-400 shadow-xl overflow-hidden animate-pear-pulse flex flex-col md:flex-row md:items-center justify-between gap-4 ring-4 ring-emerald-500/20"
-                >
-                  <div className="flex items-start gap-3.5">
-                    <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 shadow-inner">
-                      <GraduationCap className="w-6 h-6 text-emerald-300 animate-pulse" />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-extrabold text-sm sm:text-base text-white tracking-wide">
-                          Academic Senate Resit Clearance Approved &mdash; Re-Registration Required
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-400 text-slate-950">
-                          Action Required
-                        </span>
-                      </div>
-
-                      <p className="text-xs text-emerald-100 leading-relaxed">
-                        Candidate <strong>{req.studentName}</strong> (<span className="font-mono text-emerald-300 font-semibold">{req.studentNumber}</span>) was granted official Senate clearance for missed examination <strong>{req.courseCode}</strong> &mdash; <em>"{req.examTitle}"</em>.
-                      </p>
-
-                      {isSchemeReleased ? (
-                        <div className="mt-1 flex items-center gap-1.5 text-xs text-amber-300 font-semibold bg-amber-950/60 p-1.5 rounded-lg border border-amber-600/60">
-                          <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                          <span>
-                            Notice: Marking scheme for {req.courseCode} has already been released to candidates. You can re-register student to any other similar unit examination.
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="mt-0.5 text-[11px] text-emerald-200/90 font-mono">
-                          Clearance Note: {req.adminNotes || req.adminDecisionNote || 'Approved for exam resit sitting.'}
-                        </div>
-                      )}
-                    </div>
+          return (
+            <div
+              key={req.id}
+              className="relative p-4 md:p-5 rounded-2xl bg-gradient-to-r from-emerald-950 via-teal-950 to-indigo-950 text-white border-2 border-emerald-400 shadow-xl overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 ring-4 ring-emerald-500/20"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                  <GraduationCap className="w-6 h-6 text-emerald-300 animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-extrabold text-sm sm:text-base text-white tracking-wide">
+                      Senate Resit Clearance &mdash; Re-Registration Required
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-400 text-slate-950">
+                      Queue: 1 of {queueTotal} {queueTotal > 1 ? '· Next follows on completion' : ''}
+                    </span>
                   </div>
 
-                  <div className="shrink-0 flex items-center gap-2 self-start md:self-center w-full md:w-auto">
-                    <button
-                      type="button"
-                      onClick={() => setReRegisterModalTarget(req)}
-                      className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-[#d1e231] hover:bg-[#c0d725] text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer border border-[#a3b817]"
-                    >
-                      <UserPlus className="w-4 h-4" />
-                      <span>Re-Register Student for Examination</span>
-                    </button>
+                  <p className="text-xs text-emerald-100 leading-relaxed">
+                    Candidate <strong>{req.studentName}</strong> (<span className="font-mono text-emerald-300 font-semibold">{req.studentNumber}</span>) was granted official Senate clearance for missed examination <strong>{req.courseCode}</strong> &mdash; <em>"{req.examTitle}"</em>.
+                  </p>
+
+                  {isSchemeReleased ? (
+                    <div className="mt-1 flex items-center gap-1.5 text-xs text-amber-300 font-semibold bg-amber-950/60 p-1.5 rounded-lg border border-amber-600/60">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>
+                        Notice: Marking scheme for {req.courseCode} was already released. You can re-register student to an alternative session or similar unit.
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="mt-0.5 text-[11px] text-emerald-200/90 font-mono">
+                      Clearance Note: {req.adminNotes || req.adminDecisionNote || 'Approved for examination resit sitting.'}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="shrink-0 flex items-center gap-2 self-start md:self-center w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setReRegisterModalTarget(req)}
+                  className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-[#d1e231] hover:bg-[#c0d725] text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer border border-[#a3b817]"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Re-Register Student Now ({queueTotal} in Queue)</span>
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* 2. Admin Inquiry on Mark Modification Queue Banner */}
+        {(() => {
+          const submissionsWithInquiry = submissions.filter(
+            (s) => s.committedMarkChangeRequest?.status === 'inquiry_sent'
+          );
+          if (submissionsWithInquiry.length === 0) return null;
+
+          const sub = submissionsWithInquiry[0];
+          const queueTotal = submissionsWithInquiry.length;
+          const req = sub.committedMarkChangeRequest!;
+
+          return (
+            <div
+              key={sub.id}
+              className="relative p-4 md:p-5 rounded-2xl bg-gradient-to-r from-amber-950 via-orange-950 to-slate-950 text-white border-2 border-amber-400 shadow-xl overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 ring-4 ring-amber-500/20"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                  <AlertCircle className="w-6 h-6 text-amber-300 animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-extrabold text-sm sm:text-base text-white tracking-wide">
+                      Administrative Inquiry on Mark Modification Request
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-amber-400 text-slate-950">
+                      Inquiry Queue: 1 of {queueTotal}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-amber-100 leading-relaxed">
+                    Admin requested clarification on mark change for <strong>{sub.studentName}</strong> (<span className="font-mono text-amber-300 font-semibold">{sub.studentNumber}</span>).
+                    Score change: <strong className="line-through text-slate-400">{req.originalScore}</strong> &rarr; <strong className="text-emerald-300">{req.requestedScore} pts</strong>.
+                  </p>
+
+                  <div className="mt-1 p-2 rounded-lg bg-amber-900/50 border border-amber-500/40 text-xs text-amber-200">
+                    <span className="font-bold text-amber-300">Admin Inquiry: </span>
+                    {req.adminInquiry || 'Please clarify justification and supporting marking audit notes.'}
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        );
-      })()}
+              </div>
+
+              <div className="shrink-0 flex items-center gap-2 self-start md:self-center w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRespondingInquirySub(sub);
+                    setTeacherInquiryReplyText('');
+                  }}
+                  className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>Reply to Inquiry</span>
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* 3. Declined Mark Modification Banner Queue */}
+        {(() => {
+          const declinedSubmissions = submissions.filter(
+            (s) => s.committedMarkChangeRequest?.status === 'rejected' && !s.committedMarkChangeRequest?.teacherAcknowledged
+          );
+          if (declinedSubmissions.length === 0) return null;
+
+          const sub = declinedSubmissions[0];
+          const queueTotal = declinedSubmissions.length;
+          const req = sub.committedMarkChangeRequest!;
+
+          return (
+            <div
+              key={sub.id}
+              className="relative p-4 md:p-5 rounded-2xl bg-gradient-to-r from-rose-950 via-red-950 to-slate-950 text-white border-2 border-rose-400 shadow-xl overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 ring-4 ring-rose-500/20"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-rose-500/20 border border-rose-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                  <ShieldAlert className="w-6 h-6 text-rose-300" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-extrabold text-sm sm:text-base text-white tracking-wide">
+                      Mark Modification Request Declined
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-rose-400 text-slate-950">
+                      Notice: 1 of {queueTotal}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-rose-100 leading-relaxed">
+                    The Super Administrator declined requested score adjustment for <strong>{sub.studentName}</strong> (<span className="font-mono text-rose-300">{sub.studentNumber}</span>). Original score remains <strong className="text-rose-200">{sub.score} / {sub.totalPoints}</strong>.
+                  </p>
+
+                  <div className="mt-1 p-2 rounded-lg bg-rose-900/50 border border-rose-500/40 text-xs text-rose-200">
+                    <span className="font-bold text-rose-300">Admin Decision Note: </span>
+                    {req.adminDecisionNote || 'Modification request does not meet academic audit threshold.'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="shrink-0 flex items-center gap-2 self-start md:self-center w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    acknowledgeMarkChangeDecision(sub.id);
+                    playAlertBeep('info');
+                    triggerFlash('Mark modification decision notice acknowledged.', 'info');
+                    onDataChanged?.();
+                    window.dispatchEvent(new CustomEvent('examguard_submissions_updated'));
+                  }}
+                  className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Acknowledge &amp; Dismiss</span>
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* 4. Approved Mark Modification Banner Queue */}
+        {(() => {
+          const approvedSubmissions = submissions.filter(
+            (s) => s.committedMarkChangeRequest?.status === 'approved' && !s.committedMarkChangeRequest?.teacherAcknowledged
+          );
+          if (approvedSubmissions.length === 0) return null;
+
+          const sub = approvedSubmissions[0];
+          const queueTotal = approvedSubmissions.length;
+          const req = sub.committedMarkChangeRequest!;
+
+          return (
+            <div
+              key={sub.id}
+              className="relative p-4 md:p-5 rounded-2xl bg-gradient-to-r from-emerald-950 via-teal-950 to-slate-950 text-white border-2 border-emerald-400 shadow-xl overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 ring-4 ring-emerald-500/20"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-300" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-extrabold text-sm sm:text-base text-white tracking-wide">
+                      Mark Modification Approved by Academic Administration
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-400 text-slate-950">
+                      Notice: 1 of {queueTotal}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-emerald-100 leading-relaxed">
+                    Score modification for <strong>{sub.studentName}</strong> (<span className="font-mono text-emerald-300">{sub.studentNumber}</span>) was ratified. New official score is <strong className="text-emerald-300 font-bold">{sub.score} / {sub.totalPoints} pts</strong>.
+                  </p>
+
+                  {req.adminDecisionNote && (
+                    <div className="mt-1 p-2 rounded-lg bg-emerald-900/50 border border-emerald-500/40 text-xs text-emerald-200">
+                      <span className="font-bold text-emerald-300">Admin Approval Note: </span>
+                      {req.adminDecisionNote}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="shrink-0 flex items-center gap-2 self-start md:self-center w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    acknowledgeMarkChangeDecision(sub.id);
+                    playAlertBeep('success');
+                    triggerFlash('Official mark ratification acknowledged.', 'success');
+                    onDataChanged?.();
+                    window.dispatchEvent(new CustomEvent('examguard_submissions_updated'));
+                  }}
+                  className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-emerald-900" />
+                  <span>Acknowledge &amp; Dismiss</span>
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
 
       {/* Teacher Profile & Departmental Scoping Banner (Hue Section) */}
       <div
@@ -1954,9 +2143,107 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             setReRegisterModalTarget(null);
             setResitRequests(getStoredResitRequests());
             onDataChanged?.();
-            showToast('Student successfully re-registered for examination session!');
+            playAlertBeep('success');
+            triggerFlash('Student successfully re-registered for examination session!', 'success');
           }}
         />
+      )}
+
+      {/* Administrative Inquiry Response Modal */}
+      {respondingInquirySub && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
+            <div className="p-5 bg-gradient-to-r from-amber-600 to-orange-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base leading-tight">Admin Inquiry Reply</h3>
+                  <p className="text-xs text-amber-100">Marks Moderation &amp; Governance Audit</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRespondingInquirySub(null)}
+                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 text-xs text-slate-700">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-900">Candidate:</span>
+                  <span className="font-bold text-slate-900">{respondingInquirySub.studentName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600">Admission No:</span>
+                  <span className="font-mono font-bold text-slate-800">{respondingInquirySub.studentNumber}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600">Moderation Delta:</span>
+                  <span className="font-semibold text-amber-700">
+                    {respondingInquirySub.committedMarkChangeRequest?.originalScore} &rarr; {respondingInquirySub.committedMarkChangeRequest?.requestedScore} pts
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                <div className="font-bold text-amber-950 mb-1 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-amber-700" />
+                  <span>Institutional Administrator's Inquiry:</span>
+                </div>
+                <p className="italic">"{respondingInquirySub.committedMarkChangeRequest?.adminInquiry || 'Please clarify justification and supporting marking audit notes.'}"</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
+                  Your Clarification &amp; Response:
+                </label>
+                <textarea
+                  value={teacherInquiryReplyText}
+                  onChange={(e) => setTeacherInquiryReplyText(e.target.value)}
+                  placeholder="Provide detailed breakdown, marking scheme alignment, or script re-check justification..."
+                  rows={4}
+                  className="w-full p-3 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRespondingInquirySub(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!teacherInquiryReplyText.trim()}
+                  onClick={() => {
+                    const res = respondToAdminInquiryOnMarkChange(respondingInquirySub.id, teacherInquiryReplyText);
+                    if (res.success) {
+                      playAlertBeep('success');
+                      triggerFlash('Response sent to institutional administration for final moderation review.', 'success');
+                      setRespondingInquirySub(null);
+                      setTeacherInquiryReplyText('');
+                      onDataChanged?.();
+                      window.dispatchEvent(new CustomEvent('examguard_submissions_updated'));
+                    } else {
+                      playAlertBeep('error');
+                      triggerFlash(res.error || 'Failed to submit response', 'error');
+                    }
+                  }}
+                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md disabled:opacity-50 cursor-pointer"
+                >
+                  Submit Clarification to Admin
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

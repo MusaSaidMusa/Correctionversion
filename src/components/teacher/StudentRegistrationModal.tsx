@@ -9,12 +9,17 @@ import {
   Search,
   AlertTriangle,
   ShieldAlert,
-  Camera,
-  Loader2,
-  Image as ImageIcon,
+  ShieldCheck,
+  Building,
+  GraduationCap,
+  Info,
 } from 'lucide-react';
 import { Exam, StudentProfile } from '../../types';
-import { checkMissedExamRegistrationBlock, uploadFileToServer } from '../../services/storageService';
+import {
+  checkMissedExamRegistrationBlock,
+  isStudentAdmissionRegistered,
+  isValidAdmissionNumberFormat,
+} from '../../services/storageService';
 import { triggerFlash } from '../common/FlashMessage';
 
 interface StudentRegistrationModalProps {
@@ -25,7 +30,7 @@ interface StudentRegistrationModalProps {
   students: StudentProfile[];
   onEnrollExistingStudent: (studentId: string, examId: string) => { success: boolean; error?: string } | boolean;
   onUnenrollStudent: (studentId: string, examId: string) => boolean;
-  onRegisterStudent: (newStudent: StudentProfile, enrolledCodes: string[]) => void;
+  onRegisterStudent?: (newStudent: StudentProfile, enrolledCodes: string[]) => void;
 }
 
 export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> = ({
@@ -36,95 +41,90 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
   students,
   onEnrollExistingStudent,
   onUnenrollStudent,
-  onRegisterStudent,
 }) => {
-  const [tab, setTab] = useState<'enroll' | 'new'>('enroll');
+  const [tab, setTab] = useState<'enroll' | 'by_adm'>('enroll');
   const [selectedExamId, setSelectedExamId] = useState<string>(
     targetExam?.id || exams[0]?.id || ''
   );
   const [searchFilter, setSearchFilter] = useState('');
   const [enrollmentError, setEnrollmentError] = useState<string | null>(null);
 
-  // Form state for new candidate registration
-  const [newName, setNewName] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-  const [newRegNo, setNewRegNo] = useState('');
-  const [newDept, setNewDept] = useState('Computer Science & Software Engineering');
-  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
-  const [newAvatar, setNewAvatar] = useState<string>('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200');
-  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+  // Quick enroll by Admission Number state
+  const [inputAdmissionNumber, setInputAdmissionNumber] = useState('');
+  const [admissionLookupResult, setAdmissionLookupResult] = useState<StudentProfile | null>(null);
 
   if (!isOpen) return null;
 
-  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsUploadingPhoto(true);
-    try {
-      const res = await uploadFileToServer(file);
-      if (res.url) {
-        setNewAvatar(res.url);
-        triggerFlash({
-          type: 'success',
-          text: 'Candidate Photo Uploaded',
-          subtext: `Uploaded and attached candidate portrait.`,
-        });
-      }
-    } catch {
-      // safe fallback
-    } finally {
-      setIsUploadingPhoto(false);
+  const currentExam = exams.find((e) => e.id === selectedExamId) || targetExam || exams[0];
+
+  const handleLookupAdmission = (val: string) => {
+    setInputAdmissionNumber(val);
+    setEnrollmentError(null);
+    if (!val.trim()) {
+      setAdmissionLookupResult(null);
+      return;
+    }
+    const check = isStudentAdmissionRegistered(val.trim());
+    if (check.isRegistered && check.student) {
+      setAdmissionLookupResult(check.student);
+    } else {
+      setAdmissionLookupResult(null);
     }
   };
 
-  const currentExam = exams.find((e) => e.id === selectedExamId) || targetExam || exams[0];
-
-  const handleRegisterNew = (e: React.FormEvent) => {
+  const handleEnrollByAdmissionNumber = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName.trim() || !newEmail.trim() || !newRegNo.trim()) return;
+    setEnrollmentError(null);
+    if (!inputAdmissionNumber.trim() || !currentExam) return;
 
-    const formattedRegNo = newRegNo.trim().toUpperCase();
-    if (currentExam) {
-      const blockCheck = checkMissedExamRegistrationBlock(formattedRegNo, currentExam.courseCode, currentExam.title);
-      if (blockCheck.isBlocked) {
-        setEnrollmentError(
-          `Re-registration Rejected: Candidate with Admission (${formattedRegNo}) was registered for examination [Code: ${currentExam.courseCode} | Title: "${currentExam.title}"] but missed the session. Candidate details rejected until cleared by Administrator.`
-        );
-        triggerFlash({
-          type: 'error',
-          text: 'Registration Rejected (Missed Exam)',
-          subtext: `Candidate (${formattedRegNo}) has uncleared missed exam for ${currentExam.courseCode}. Resit approval required.`,
-        });
-        return;
-      }
+    const formattedAdm = inputAdmissionNumber.trim().toUpperCase();
+
+    // 1. Verify against Institutional Master Database
+    const check = isStudentAdmissionRegistered(formattedAdm);
+    if (!check.isRegistered || !check.student) {
+      const err = `Unregistered Admission Number: Candidate with ADM Number "${formattedAdm}" is not found in the institutional master database. System registration of candidates must be performed by the Administrator. Only existing registered students can be enrolled into examinations.`;
+      setEnrollmentError(err);
+      triggerFlash({
+        type: 'error',
+        text: 'Unregistered Admission Number',
+        subtext: `No candidate with ADM Number "${formattedAdm}" in system database. Admin registration required.`,
+      });
+      return;
     }
 
-    const newStudent: StudentProfile = {
-      id: `student-${Date.now().toString().slice(-4)}`,
-      name: newName.trim(),
-      email: newEmail.trim(),
-      studentNumber: formattedRegNo,
-      avatar: newAvatar,
-      department: newDept,
-      faculty: currentExam?.faculty || 'Faculty of Computing & Information Technologies',
-      enrolledCourseCodes: selectedCourses.length > 0 ? selectedCourses : [currentExam?.courseCode || 'CS401'],
-      accessStatus: 'active',
-      academicStanding: 'Good Standing',
-      gpa: '3.60',
-      attendanceRate: '95%',
-      clearanceStatus: 'Financial & Academic Cleared',
-    };
+    const studentToEnroll = check.student;
 
-    onRegisterStudent(newStudent, selectedCourses);
-    triggerFlash({
-      type: 'success',
-      text: 'Candidate Registered Successfully',
-      subtext: `${newName.trim()} (${formattedRegNo}) registered for examination session.`,
-    });
-    setNewName('');
-    setNewEmail('');
-    setNewRegNo('');
-    onClose();
+    // 2. Check if candidate previously missed this exam session
+    const blockCheck = checkMissedExamRegistrationBlock(
+      studentToEnroll.studentNumber,
+      currentExam.courseCode,
+      currentExam.title
+    );
+    if (blockCheck.isBlocked) {
+      const err = `Re-registration Blocked: Candidate ${studentToEnroll.name} (${studentToEnroll.studentNumber}) was registered for [${currentExam.courseCode} - "${currentExam.title}"] but missed the session. Re-registration rejected until cleared by the Administrator.`;
+      setEnrollmentError(err);
+      triggerFlash({
+        type: 'error',
+        text: 'Registration Rejected (Missed Exam)',
+        subtext: `Candidate (${studentToEnroll.studentNumber}) missed ${currentExam.courseCode}. Administrator clearance is required before re-registration.`,
+      });
+      return;
+    }
+
+    // 3. Enroll the student
+    const res = onEnrollExistingStudent(studentToEnroll.id, currentExam.id);
+    if (typeof res === 'object' && !res.success && res.error) {
+      setEnrollmentError(res.error);
+    } else {
+      triggerFlash({
+        type: 'success',
+        text: 'Candidate Successfully Enrolled',
+        subtext: `${studentToEnroll.name} (${studentToEnroll.studentNumber}) enrolled into ${currentExam.courseCode}.`,
+      });
+      setInputAdmissionNumber('');
+      setAdmissionLookupResult(null);
+      setTab('enroll');
+    }
   };
 
   const filteredStudents = students.filter(
@@ -137,6 +137,7 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
       <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+        {/* Header */}
         <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
@@ -145,13 +146,13 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
             <div>
               <h3 className="font-bold text-base">Candidate Examination Enrollment</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Manage registered candidate roll for institutional examination sitting
+                Enroll existing registered candidates into scheduled examination sessions
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -160,25 +161,39 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
         {/* Tab switcher */}
         <div className="flex border-b border-slate-200 dark:border-slate-800 px-6 pt-3 bg-slate-50/50 dark:bg-slate-950/50 gap-4 text-xs font-bold">
           <button
-            onClick={() => setTab('enroll')}
+            onClick={() => {
+              setTab('enroll');
+              setEnrollmentError(null);
+            }}
             className={`pb-3 border-b-2 transition-all cursor-pointer ${
               tab === 'enroll'
                 ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
                 : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
             }`}
           >
-            Enroll Existing Candidates
+            Browse Registered Candidates ({students.length})
           </button>
           <button
-            onClick={() => setTab('new')}
+            onClick={() => {
+              setTab('by_adm');
+              setEnrollmentError(null);
+            }}
             className={`pb-3 border-b-2 transition-all cursor-pointer ${
-              tab === 'new'
+              tab === 'by_adm'
                 ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
                 : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
             }`}
           >
-            Register New Candidate
+            Enroll by Admission Number (e.g. MSA-2026/8-2041)
           </button>
+        </div>
+
+        {/* Institutional Policy Notice Banner */}
+        <div className="bg-amber-50/80 dark:bg-amber-950/30 border-b border-amber-200/80 dark:border-amber-900/60 px-6 py-2.5 flex items-center gap-2.5 text-[11px] text-amber-900 dark:text-amber-200">
+          <Info className="w-4 h-4 text-amber-600 shrink-0" />
+          <span>
+            <strong>Institutional Academic Protocol:</strong> Student registration into the system database is performed exclusively by the <strong>Administrator</strong>. Teachers can only enroll verified existing students into examination sessions.
+          </span>
         </div>
 
         <div className="p-6 overflow-y-auto flex-1 text-xs">
@@ -192,7 +207,7 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
                   <select
                     value={selectedExamId}
                     onChange={(e) => setSelectedExamId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                   >
                     {exams.map((ex) => (
                       <option key={ex.id} value={ex.id}>
@@ -204,14 +219,14 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
 
                 <div className="flex-1">
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                    Search Candidate
+                    Search Candidate Database
                   </label>
                   <input
                     type="text"
-                    placeholder="Name or Reg No..."
+                    placeholder="Name, ADM No (MSA-2026/8-2041)..."
                     value={searchFilter}
                     onChange={(e) => setSearchFilter(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                   />
                 </div>
               </div>
@@ -220,20 +235,20 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
                 <div className="p-3.5 bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 rounded-xl flex items-start gap-2.5 text-rose-800 dark:text-rose-200 text-xs">
                   <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                   <div className="flex-1 space-y-0.5">
-                    <div className="font-bold">Administrative Clearance Required</div>
+                    <div className="font-bold">Enrollment Rejected</div>
                     <div>{enrollmentError}</div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setEnrollmentError(null)}
-                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
               )}
 
-              <div className="mt-4 border rounded-xl divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
+              <div className="mt-4 border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
                 {filteredStudents.map((st) => {
                   const isEnrolled = currentExam?.registeredStudentIds?.includes(st.id);
                   const blockCheck = currentExam
@@ -262,7 +277,7 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
                             )}
                           </div>
                           <div className="text-[10px] text-slate-500">
-                            Admission / Reg: <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{st.studentNumber}</span> &bull; {st.department || 'Computing'}
+                            Admission No: <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{st.studentNumber}</span> &bull; {st.department || 'Computing'}
                           </div>
                         </div>
                       </div>
@@ -315,103 +330,89 @@ export const StudentRegistrationModal: React.FC<StudentRegistrationModalProps> =
             </div>
           )}
 
-          {tab === 'new' && (
-            <form onSubmit={handleRegisterNew} className="space-y-4">
-              {/* Candidate Photo / Avatar Upload */}
-              <div className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                <div className="relative">
-                  <img
-                    src={newAvatar}
-                    alt="Candidate portrait"
-                    className="w-14 h-14 rounded-full object-cover border-2 border-indigo-400 shadow-sm"
-                  />
-                  {isUploadingPhoto && (
-                    <div className="absolute inset-0 bg-slate-900/60 rounded-full flex items-center justify-center">
-                      <Loader2 className="w-5 h-5 text-white animate-spin" />
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                    Candidate Portrait Photo
-                  </label>
-                  <p className="text-[11px] text-slate-500">
-                    Upload official examination identification photo (.jpg, .png)
-                  </p>
-                  <label className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-2xs">
-                    <Camera className="w-3.5 h-3.5" />
-                    <span>{isUploadingPhoto ? 'Uploading...' : 'Choose / Take Photo'}</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarFile}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
+          {tab === 'by_adm' && (
+            <form onSubmit={handleEnrollByAdmissionNumber} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                  Select Target Examination
+                </label>
+                <select
+                  value={selectedExamId}
+                  onChange={(e) => setSelectedExamId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                >
+                  {exams.map((ex) => (
+                    <option key={ex.id} value={ex.id}>
+                      {ex.courseCode} — {ex.title}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                  Full Candidate Name
+                  Candidate Admission Number (e.g. MSA-2026/8-2041)
                 </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Jordan Mercer"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                    Student Registration No.
-                  </label>
+                <div className="relative">
                   <input
                     type="text"
                     required
-                    placeholder="STU-2026-XXXX"
-                    value={newRegNo}
-                    onChange={(e) => setNewRegNo(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    placeholder="MSA-2026/8-2041"
+                    value={inputAdmissionNumber}
+                    onChange={(e) => handleLookupAdmission(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono text-sm uppercase"
                   />
+                  {admissionLookupResult && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-emerald-600 text-xs font-bold font-sans">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Verified in Master DB</span>
+                    </div>
+                  )}
                 </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                    University Email
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="j.mercer@student.edu"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
-                  />
-                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Admission number must be pre-registered by the Administrator in the college academic database.
+                </p>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                  Department
-                </label>
-                <input
-                  type="text"
-                  value={newDept}
-                  onChange={(e) => setNewDept(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
-                />
-              </div>
+              {admissionLookupResult && (
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-300 dark:border-emerald-800 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={admissionLookupResult.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'}
+                      alt={admissionLookupResult.name}
+                      className="w-10 h-10 rounded-full object-cover border border-emerald-400"
+                    />
+                    <div>
+                      <div className="font-bold text-slate-900 dark:text-white text-sm">
+                        {admissionLookupResult.name}
+                      </div>
+                      <div className="text-[11px] text-slate-600 dark:text-slate-300 font-mono">
+                        {admissionLookupResult.studentNumber} &bull; {admissionLookupResult.department}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 text-xs font-bold rounded-lg border border-emerald-400">
+                    Ready to Enroll
+                  </span>
+                </div>
+              )}
+
+              {enrollmentError && (
+                <div className="p-3.5 bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 rounded-xl flex items-start gap-2.5 text-rose-800 dark:text-rose-200 text-xs">
+                  <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-0.5">
+                    <div className="font-bold">Validation Error</div>
+                    <div>{enrollmentError}</div>
+                  </div>
+                </div>
+              )}
 
               <button
                 type="submit"
-                className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-colors cursor-pointer"
+                className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-colors cursor-pointer flex items-center justify-center gap-2"
               >
-                Register & Enroll Candidate
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Validate &amp; Enroll Candidate into Examination</span>
               </button>
             </form>
           )}

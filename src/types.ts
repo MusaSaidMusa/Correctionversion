@@ -279,12 +279,19 @@ export interface CommittedMarkChangeRequest {
   requestedAt: string;
   previousScore: number;
   proposedScore: number;
+  originalScore?: number;
+  requestedScore?: number;
   explanation: string;
-  status: 'pending_admin_approval' | 'approved' | 'rejected';
+  reason?: string;
+  status: 'pending_admin_approval' | 'approved' | 'rejected' | 'inquiry_sent';
   previousQuestionGrades?: Record<string, { awardedPoints: number; feedback?: string }>;
   proposedQuestionGrades?: Record<string, { awardedPoints: number; feedback?: string }>;
   reviewedQuestionGrades?: Record<string, { awardedPoints: number; feedback?: string }>;
   adminReviewNote?: string;
+  adminDecisionNote?: string;
+  adminInquiry?: string;
+  teacherResponse?: string;
+  teacherAcknowledged?: boolean;
   reviewedAt?: string;
   reviewedBy?: string;
 }

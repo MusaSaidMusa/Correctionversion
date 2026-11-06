@@ -12,10 +12,13 @@ import {
   Sun,
   Moon,
   Monitor,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { AuthUser, StudentProfile, TeacherProfile, ThemeMode } from '../../types';
 import { InstitutionLogo } from './InstitutionLogo';
 import { ProfileDetailModal } from './ProfileDetailModal';
+import { soundService, playAlertBeep } from '../../services/soundService';
 
 interface HeaderProps {
   currentUser: AuthUser | null;
@@ -43,6 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSuperAdminProfile,
 }) => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isMuted, setIsMuted] = useState(() => soundService.isSoundMuted());
 
   if (!currentUser) return null;
 
@@ -178,6 +182,29 @@ export const Header: React.FC<HeaderProps> = ({
                 <Sun className="w-4 h-4 text-amber-500" />
               ) : (
                 <Moon className="w-4 h-4 text-slate-300" />
+              )}
+            </button>
+
+            {/* Studio Acoustic Sound Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                const newMuted = !isMuted;
+                setIsMuted(newMuted);
+                soundService.setSoundMuted(newMuted);
+                if (!newMuted) {
+                  playAlertBeep('success');
+                }
+              }}
+              className={`p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer shrink-0 ${
+                isMuted ? 'text-slate-400 opacity-60' : 'text-emerald-400 hover:text-emerald-300'
+              }`}
+              title={isMuted ? 'Institutional audio is muted. Click to enable studio chimes.' : 'Institutional studio audio active. Click to mute.'}
+            >
+              {isMuted ? (
+                <VolumeX className="w-4 h-4 text-slate-400" />
+              ) : (
+                <Volume2 className="w-4 h-4 text-emerald-400" />
               )}
             </button>
 

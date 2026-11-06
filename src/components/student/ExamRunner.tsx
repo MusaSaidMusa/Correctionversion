@@ -1223,10 +1223,10 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
 
       {/* Main Examination Viewport: Split Layout with Persistent Left Sidebar */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Persistent Sidebar (Question Palette allowing starting with ANY question) */}
-        <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col shrink-0">
-          {/* Live Proctor Mini-Cam Widget */}
-          <div className="p-3 border-b border-slate-800">
+        {/* Left Persistent Sidebar — Camera Proctor is strictly FIXED at the top */}
+        <aside className="w-64 sm:w-72 bg-slate-950 border-r border-slate-800 flex flex-col shrink-0 h-full">
+          {/* Live Proctor Mini-Cam Widget — STRICTLY FIXED IN POSITION */}
+          <div className="p-3 border-b border-slate-800 shrink-0 sticky top-0 z-20 bg-slate-950 shadow-md">
             <div className="relative aspect-4/3 bg-slate-900 rounded overflow-hidden border border-slate-700">
               <video
                 ref={videoRef}
@@ -1300,7 +1300,7 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
                 </span>
               </div>
               <div className="text-[10px] text-slate-400 pt-1 border-t border-slate-800/80 italic">
-                Device controls cannot be turned off. Continuous monitoring active.
+                Device controls locked. Continuous camera proctoring active.
               </div>
             </div>
 
@@ -1422,11 +1422,52 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
           </div>
         </aside>
 
-        {/* Center Main Question Canvas */}
-        <main className="flex-1 flex flex-col bg-slate-900 overflow-y-auto">
+        {/* Center Main Question Canvas — Only this examination section is scrollable */}
+        <main className="flex-1 overflow-y-auto bg-slate-950/90 p-3 sm:p-6 lg:p-8 flex flex-col items-center">
           {currentQ ? (
-            <div className="max-w-3xl mx-auto w-full p-6 md:p-8 flex-1 flex flex-col justify-between">
+            /* Authentic A4 Paper Dimension (210mm on desktop, automatically fits any screen) */
+            <div className="w-full max-w-[210mm] min-h-[297mm] mx-auto bg-slate-900 text-slate-100 rounded-2xl shadow-2xl border-2 border-slate-700/80 p-5 sm:p-8 md:p-12 flex-1 flex flex-col justify-between transition-all my-auto">
               <div>
+                {/* Official Institutional A4 Examination Header */}
+                <div className="border-b-2 border-indigo-500/40 pb-4 mb-6 space-y-2">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <InstitutionLogo size="sm" />
+                      <div>
+                        <h2 className="font-extrabold text-sm sm:text-base tracking-tight text-white uppercase">
+                          Rifkins Education College
+                        </h2>
+                        <p className="text-[11px] text-indigo-300 font-semibold">
+                          {exam.faculty || 'Faculty of Computing & Information Technologies'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right font-mono text-[10px] sm:text-[11px] text-slate-400">
+                      <div>PAPER BODY: <strong className="text-emerald-400 font-bold">A4 FORMAT</strong></div>
+                      <div>PROCTORING: <strong className="text-cyan-400 font-bold">ACTIVE LOCKDOWN</strong></div>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 bg-slate-950/90 rounded-xl border border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono">
+                    <div>
+                      <span className="text-slate-500 block text-[10px]">COURSE CODE:</span>
+                      <strong className="text-slate-200">{exam.courseCode}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[10px]">CANDIDATE ADMISSION:</span>
+                      <strong className="text-indigo-400">{existingSubmission?.studentNumber || 'MSA-2026/8-2041'}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[10px]">TOTAL MARKS:</span>
+                      <strong className="text-emerald-400">{exam.questions.reduce((s, q) => s + (q.points || 0), 0)} Marks</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[10px]">ALLOCATED TIME:</span>
+                      <strong className="text-cyan-400">{exam.durationMinutes} Mins</strong>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Question Metadata Header */}
                 <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-6">
                   <div className="flex items-center gap-2 text-xs text-slate-400">

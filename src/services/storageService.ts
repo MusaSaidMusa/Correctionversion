@@ -147,6 +147,93 @@ export function updateUserPassword(
   return { success: true };
 }
 
+const RESET_CODES_KEY = 'examguard_password_reset_tokens';
+
+export interface PasswordResetToken {
+  email: string;
+  code: string;
+  resetLink: string;
+  expiresAt: number;
+}
+
+export function generatePasswordResetCode(email: string): { code: string; resetLink: string; expiresAt: number } {
+  const normalized = email.trim().toLowerCase();
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = Date.now() + 15 * 60 * 1000;
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://examguard.edu';
+  const resetLink = `${origin}/#reset-password?email=${encodeURIComponent(normalized)}&code=${code}`;
+
+  const currentMap: Record<string, PasswordResetToken> = typeof localStorage !== 'undefined'
+    ? JSON.parse(localStorage.getItem(RESET_CODES_KEY) || '{}')
+    : {};
+  currentMap[normalized] = {
+    email: normalized,
+    code,
+    resetLink,
+    expiresAt,
+  };
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(RESET_CODES_KEY, JSON.stringify(currentMap));
+  }
+
+  return { code, resetLink, expiresAt };
+}
+
+export function verifyPasswordResetCode(email: string, code: string): boolean {
+  if (!email || !code || typeof localStorage === 'undefined') return false;
+  const normalized = email.trim().toLowerCase();
+  const currentMap: Record<string, PasswordResetToken> = JSON.parse(
+    localStorage.getItem(RESET_CODES_KEY) || '{}'
+  );
+  const token = currentMap[normalized];
+  if (!token) return false;
+  if (Date.now() > token.expiresAt) return false;
+  return token.code === code.trim();
+}
+
+export function resetPasswordWithCode(
+  role: 'student' | 'teacher' | 'admin',
+  email: string,
+  code: string,
+  newPassword: string
+): { success: boolean; error?: string } {
+  if (!verifyPasswordResetCode(email, code)) {
+    return { success: false, error: 'Invalid or expired password reset verification code.' };
+  }
+  const res = updateUserPassword(role, email, newPassword);
+  if (res.success && typeof localStorage !== 'undefined') {
+    const normalized = email.trim().toLowerCase();
+    const currentMap: Record<string, PasswordResetToken> = JSON.parse(
+      localStorage.getItem(RESET_CODES_KEY) || '{}'
+    );
+    delete currentMap[normalized];
+    localStorage.setItem(RESET_CODES_KEY, JSON.stringify(currentMap));
+  }
+  return res;
+}
+
+/**
+ * Validates institutional student admission number format.
+ * Supports "MSA-2026/8-2041", "STU-2024-8842", etc.
+ */
+export function isValidAdmissionNumberFormat(admission: string): boolean {
+  if (!admission || typeof admission !== 'string') return false;
+  const clean = admission.trim();
+  return /^[A-Z0-9]{2,6}[-/][0-9]{4}[-/]?[0-9A-Z]*[-/][0-9A-Z]+$/i.test(clean) || /^[A-Z0-9/-]{5,25}$/i.test(clean);
+}
+
+/**
+ * Checks if a candidate admission number exists in the institutional student master database.
+ * Teacher enrollment requires the candidate to already be registered by Admin in the system.
+ */
+export function isStudentAdmissionRegistered(admission: string): { isRegistered: boolean; student?: StudentProfile } {
+  if (!admission) return { isRegistered: false };
+  const students = getStoredStudents();
+  const norm = normalizeAdmission(admission);
+  const found = students.find((s) => normalizeAdmission(s.studentNumber) === norm || s.id === admission);
+  return { isRegistered: Boolean(found), student: found };
+}
+
 function normalizeNonChoiceQuestion(question: Question): Question {
   return question;
 }
@@ -1256,6 +1343,21 @@ export function reRegisterStudentForResitExam(
   req.reRegisteredCourseCode = targetExam.courseCode;
   req.reRegisteredBy = teacherName;
   req.reRegisteredAt = new Date().toISOString();
+
+  // Clear or mark the corresponding missed exam record as cleared in the academic audit database
+  const missed = getStoredMissedExams();
+  const mMatch = missed.find(
+    (m) =>
+      (m.studentId === req.studentId || normalizeAdmission(m.studentNumber) === normalizeAdmission(req.studentNumber)) &&
+      normalizeCourseCode(m.courseCode) === normalizeCourseCode(req.courseCode)
+  );
+  if (mMatch) {
+    mMatch.status = 'cleared';
+    mMatch.isCleared = true;
+    mMatch.clearedAt = new Date().toISOString();
+    mMatch.clearedBy = teacherName;
+    saveStoredMissedExams(missed);
+  }
 
   saveStoredResitRequests(requests);
   saveStoredExams(exams);
@@ -2603,6 +2705,80 @@ export async function reviewCommittedMarkChange(
   syncAcademicDatabaseWithSubmissions();
 
   return { success: true, updatedSubmission: sub };
+}
+
+export function sendAdminInquiryOnMarkChange(
+  submissionId: string,
+  inquiryOrAdmin: string,
+  optionalInquiryOrAdmin?: string
+): { success: boolean; error?: string } {
+  let adminName = 'Dr. Marcus Sterling (Super Admin)';
+  let inquiryText = inquiryOrAdmin;
+  if (optionalInquiryOrAdmin !== undefined) {
+    if (inquiryOrAdmin.toLowerCase().includes('admin') || inquiryOrAdmin.toLowerCase().includes('marcus')) {
+      adminName = inquiryOrAdmin;
+      inquiryText = optionalInquiryOrAdmin;
+    } else {
+      inquiryText = inquiryOrAdmin;
+      adminName = optionalInquiryOrAdmin;
+    }
+  }
+  const subs = getStoredSubmissions();
+  const sub = subs.find((submission) => submission.id === submissionId);
+  if (!sub || !sub.committedMarkChangeRequest) {
+    return { success: false, error: 'Committed mark change request not found.' };
+  }
+  sub.committedMarkChangeRequest.status = 'inquiry_sent';
+  sub.committedMarkChangeRequest.adminInquiry = inquiryText.trim();
+  sub.committedMarkChangeRequest.reviewedBy = adminName;
+  sub.committedMarkChangeRequest.reviewedAt = new Date().toISOString();
+  saveStoredSubmissions(subs);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('examguard_submissions_updated', { detail: { submission: sub } }));
+    window.dispatchEvent(new CustomEvent('examguard_state_sync'));
+  }
+  return { success: true };
+}
+
+export function respondToAdminInquiryOnMarkChange(
+  submissionId: string,
+  teacherOrResponse: string,
+  optionalResponse?: string
+): { success: boolean; error?: string } {
+  const teacherName = optionalResponse !== undefined ? teacherOrResponse : 'Course Lecturer';
+  const responseText = optionalResponse !== undefined ? optionalResponse : teacherOrResponse;
+  const subs = getStoredSubmissions();
+  const sub = subs.find((submission) => submission.id === submissionId);
+  if (!sub || !sub.committedMarkChangeRequest) {
+    return { success: false, error: 'Committed mark change request not found.' };
+  }
+  sub.committedMarkChangeRequest.status = 'pending_admin_approval';
+  sub.committedMarkChangeRequest.teacherResponse = responseText.trim();
+  sub.committedMarkChangeRequest.requestedBy = teacherName;
+  sub.committedMarkChangeRequest.requestedAt = new Date().toISOString();
+  saveStoredSubmissions(subs);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('examguard_submissions_updated', { detail: { submission: sub } }));
+    window.dispatchEvent(new CustomEvent('examguard_state_sync'));
+  }
+  return { success: true };
+}
+
+export function acknowledgeMarkChangeDecision(
+  submissionId: string
+): { success: boolean; error?: string } {
+  const subs = getStoredSubmissions();
+  const sub = subs.find((submission) => submission.id === submissionId);
+  if (!sub || !sub.committedMarkChangeRequest) {
+    return { success: false, error: 'Committed mark change request not found.' };
+  }
+  sub.committedMarkChangeRequest.teacherAcknowledged = true;
+  saveStoredSubmissions(subs);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('examguard_submissions_updated', { detail: { submission: sub } }));
+    window.dispatchEvent(new CustomEvent('examguard_state_sync'));
+  }
+  return { success: true };
 }
 
 // -------------------------------------------------------------

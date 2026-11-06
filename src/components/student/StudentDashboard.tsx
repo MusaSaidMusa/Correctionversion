@@ -41,6 +41,7 @@ import {
   markResitCommenced,
 } from '../../services/storageService';
 import { triggerFlash } from '../common/FlashMessage';
+import { playAlertBeep } from '../../services/soundService';
 
 interface StudentDashboardProps {
   student: StudentProfile;
@@ -368,8 +369,21 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     }
   };
 
-  // Flow: Check conflict -> Hardware diagnostics / Waiting Room
+  // Flow: Check conflict -> Schedule timeframe check -> Hardware diagnostics / Waiting Room
   const handleInitiateExam = (exam: Exam) => {
+    // ENFORCE: "Student can not select and do examiantion whose schedule timeframe has passed unless if the teacher remodified the schedules."
+    const now = Date.now();
+    const end = new Date(exam.scheduledEndTime).getTime();
+    if (now > end) {
+      triggerFlash({
+        type: 'error',
+        text: 'Examination Schedule Timeframe Expired',
+        subtext: `Sitting window for [${exam.courseCode} - "${exam.title}"] has passed. Candidates cannot sit this examination unless the teacher remodifies the schedule.`,
+      });
+      playAlertBeep('error');
+      return;
+    }
+
     // If student commences an exam that matches their approved resit, mark commenced immediately
     markResitCommenced(exam.id, student.id);
 
@@ -390,13 +404,20 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     }
 
     // ENFORCE: Missed Exam Clearance Rule:
-    // "check and ensure that the student that was previously registered for an examination but missed must seek clearance from admin before their details are accepted on the same Examination they missed. use Course code and Title to validate this."
     const missedCheck = hasUnapprovedMissedExam(student.id, exam.courseCode, exam.title);
     if (missedCheck.isBlocked) {
       setResitTargetExam(exam);
       setIsResitModalOpen(true);
       return;
     }
+
+    // Flashcard and sound alert on commencement
+    triggerFlash({
+      type: 'success',
+      text: 'Commencing Examination Sitting',
+      subtext: `Initiating proctored session for ${exam.courseCode} (${exam.title}). Security protocols active.`,
+    });
+    playAlertBeep('commence');
 
     // Open Pre-Exam Check first, which then transitions to Waiting Room
     setSelectedDiagnosticExam(exam);
@@ -908,14 +929,35 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             const endDate = new Date(exam.scheduledEndTime);
             const isSelected = selectedExamId === exam.id;
 
+            const isExpired = statusType === 'expired';
+
+            const handleToggleSelect = (e?: React.MouseEvent) => {
+              if (e) e.stopPropagation();
+              if (isExpired) {
+                triggerFlash({
+                  type: 'warning',
+                  text: 'Examination Schedule Timeframe Expired',
+                  subtext: `Candidate sitting locked: The schedule timeframe for [${exam.courseCode} - "${exam.title}"] has passed. Sittings are disabled unless the teacher remodifies the schedule.`,
+                });
+                playAlertBeep('warning');
+                return;
+              }
+              setSelectedExamId(isSelected ? null : exam.id);
+              if (!isSelected) {
+                playAlertBeep('info');
+              }
+            };
+
             return (
               <div
                 key={exam.id}
-                onClick={() => setSelectedExamId(isSelected ? null : exam.id)}
-                className={`exam-card rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all cursor-pointer ${
-                  isSelected
-                    ? 'border-2 border-[#d1e231] ring-4 ring-[#d1e231]/40 bg-[#f8fce8] dark:bg-white shadow-lg selected animate-pear-pulse'
-                    : 'border border-slate-200 dark:border-slate-800 bg-white hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 hover:shadow-md'
+                onClick={() => handleToggleSelect()}
+                className={`exam-card rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all ${
+                  isExpired
+                    ? 'opacity-70 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 cursor-not-allowed'
+                    : isSelected
+                    ? 'border-2 border-[#d1e231] ring-4 ring-[#d1e231]/40 bg-[#f8fce8] dark:bg-white shadow-lg selected animate-pear-pulse cursor-pointer'
+                    : 'border border-slate-200 dark:border-slate-800 bg-white hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 hover:shadow-md cursor-pointer'
                 }`}
                 data-exam-card="true"
                 data-selected={isSelected ? 'true' : 'false'}
@@ -925,21 +967,27 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                     {/* Exam Selection Toggle Button */}
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedExamId(isSelected ? null : exam.id);
-                      }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
-                        isSelected
-                          ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] shadow-xs active-pear animate-pear-pulse font-bold'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/50 dark:hover:text-amber-200'
+                      disabled={isExpired}
+                      onClick={handleToggleSelect}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all border ${
+                        isExpired
+                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-60'
+                          : isSelected
+                          ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] shadow-xs active-pear animate-pear-pulse font-bold cursor-pointer'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/50 dark:hover:text-amber-200 cursor-pointer'
                       }`}
-                      title="Click to select this examination"
+                      title={isExpired ? 'Schedule timeframe has passed. Sittings disabled.' : 'Click to select this examination'}
                     >
                       <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${isSelected ? 'border-[#1a2200] bg-[#d1e231]' : 'border-slate-400'}`}>
                         {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-[#1a2200]" />}
                       </span>
-                      <span>{isSelected ? 'Selected Examination' : 'Select Examination'}</span>
+                      <span>
+                        {isExpired
+                          ? 'Schedule Expired (Sitting Disabled)'
+                          : isSelected
+                          ? 'Selected Examination'
+                          : 'Select Examination'}
+                      </span>
                     </button>
 
                     <span className="font-bold text-indigo-600 dark:text-indigo-400">
@@ -1068,9 +1116,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                   )}
 
                   {statusType === 'expired' && (
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-                      <AlertCircle className="w-4 h-4" />
-                      <span>Exam Window Closed</span>
+                    <div className="space-y-1 text-left sm:text-right">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-400">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>Schedule Timeframe Passed</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 max-w-xs leading-tight">
+                        Sitting window closed. Sittings locked unless the instructor remodifies the examination schedule.
+                      </p>
                     </div>
                   )}
 

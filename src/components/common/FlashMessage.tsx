@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { CheckCircle2, AlertTriangle, AlertCircle, Info, X } from 'lucide-react';
+import { playAlertBeep } from '../../services/soundService';
 
 export interface FlashMessageData {
   type?: 'success' | 'warning' | 'error' | 'info';
@@ -15,15 +16,25 @@ interface FlashMessageProps {
 /**
  * Global helper to trigger popup flashcard from anywhere in the application
  */
-export function triggerFlash(data: FlashMessageData): void {
+export function triggerFlash(
+  dataOrText: FlashMessageData | string,
+  type?: 'success' | 'warning' | 'error' | 'info',
+  subtext?: string
+): void {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('examguard_flash', { detail: data }));
+    const payload: FlashMessageData =
+      typeof dataOrText === 'string'
+        ? { text: dataOrText, type: type || 'info', subtext }
+        : dataOrText;
+    window.dispatchEvent(new CustomEvent('examguard_flash', { detail: payload }));
   }
 }
 
 export const FlashMessage: React.FC<FlashMessageProps> = ({ message, onClose }) => {
   useEffect(() => {
     if (!message) return;
+    // Play beep once at the beginning of flashcard animation
+    playAlertBeep(message.type || 'info');
     const timer = setTimeout(() => {
       onClose();
     }, 4500);

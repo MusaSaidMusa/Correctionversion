@@ -51,6 +51,7 @@ import { AdminAcademicDatabaseView } from './AdminAcademicDatabaseView';
 import { PrintMissedExamsModal } from './PrintMissedExamsModal';
 import { PrintApprovedStudentsModal } from './PrintApprovedStudentsModal';
 import { triggerFlash } from '../common/FlashMessage';
+import { playAlertBeep } from '../../services/soundService';
 import {
   TeacherProfile,
   TeacherRights,
@@ -79,6 +80,8 @@ import {
   resolveHelpTicket,
   reviewMarkOverride,
   reviewCommittedMarkChange,
+  sendAdminInquiryOnMarkChange,
+  isValidAdmissionNumberFormat,
   addStudent,
   updateStudent,
   deleteStudent,
@@ -326,12 +329,16 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [newStudentName, setNewStudentName] = useState('');
   const [newStudentEmail, setNewStudentEmail] = useState('');
-  const [newStudentNumber, setNewStudentNumber] = useState(`STU-2026-${Math.floor(1000 + Math.random() * 9000)}`);
+  const [newStudentNumber, setNewStudentNumber] = useState(`MSA-2026/8-${Math.floor(1000 + Math.random() * 9000)}`);
   const [newStudentDept, setNewStudentDept] = useState('Computer Science');
   const [newStudentCourses, setNewStudentCourses] = useState('CS-405, CS-301');
   const [studentAvatar, setStudentAvatar] = useState('');
   const [selectedExamEnrollments, setSelectedExamEnrollments] = useState<string[]>([]);
   const [studentModalError, setStudentModalError] = useState<string | null>(null);
+
+  // Administrative Inquiry on Marks Moderation Modal State
+  const [inquiryTargetSub, setInquiryTargetSub] = useState<ExamSubmission | null>(null);
+  const [adminInquiryMessage, setAdminInquiryMessage] = useState('');
 
   // Inspect Exam Questions Modal State
   const [inspectingExam, setInspectingExam] = useState<Exam | null>(null);
@@ -1185,7 +1192,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     setEditingStudentId(null);
     setNewStudentName('');
     setNewStudentEmail('');
-    setNewStudentNumber(`STU-2026-${Math.floor(1000 + Math.random() * 9000)}`);
+    setNewStudentNumber(`MSA-2026/8-${Math.floor(1000 + Math.random() * 9000)}`);
     setNewStudentDept(allDepartments[0] || 'Computer Science & Software Engineering');
     setNewStudentCourses('CS-405, CS-301');
     setStudentAvatar('');
@@ -1214,6 +1221,16 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     e.preventDefault();
     if (!newStudentName.trim() || !newStudentEmail.trim()) {
       setStudentModalError('Candidate name and university email are required.');
+      return;
+    }
+
+    if (!isValidAdmissionNumberFormat(newStudentNumber.trim())) {
+      setStudentModalError('Invalid Admission Number format. Example of valid format: "MSA-2026/8-2041"');
+      return;
+    }
+
+    if (!editingStudentId && students.some((s) => s.studentNumber.toUpperCase() === newStudentNumber.trim().toUpperCase())) {
+      setStudentModalError(`Admission number ${newStudentNumber.trim()} already exists in institutional records.`);
       return;
     }
 
@@ -1605,6 +1622,206 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
             </span>
           </div>
         </button>
+      </div>
+
+      {/* Super Admin Interactive Queue Banners: Resit Approvals & Mark Moderations */}
+      <div className="space-y-3">
+        {/* Banner 1: Candidate Resit Clearance Request Queue */}
+        {(() => {
+          const pendingResits = resitRequests.filter((r) => r.status === 'pending');
+          if (pendingResits.length === 0) return null;
+
+          const req = pendingResits[0];
+          const queueTotal = pendingResits.length;
+
+          return (
+            <div
+              key={req.id}
+              className="relative p-4 md:p-5 rounded-2xl bg-gradient-to-r from-amber-950 via-slate-900 to-indigo-950 text-white border-2 border-amber-400 shadow-xl overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 ring-4 ring-amber-500/20"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                  <GraduationCap className="w-6 h-6 text-amber-300 animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-extrabold text-sm sm:text-base text-white tracking-wide">
+                      Student Examination Resit Clearance Request
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-amber-400 text-slate-950">
+                      Resit Queue: 1 of {queueTotal} {queueTotal > 1 ? '· Next candidate follows on decision' : ''}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-amber-100 leading-relaxed">
+                    Candidate <strong>{req.studentName}</strong> (<span className="font-mono text-amber-300 font-semibold">{req.studentNumber}</span>) requested formal Senate clearance for missed exam <strong>{req.courseCode}</strong> &mdash; <em>"{req.examTitle}"</em>.
+                  </p>
+
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                    <span className="px-2 py-0.5 rounded bg-amber-900/60 border border-amber-500/40 text-amber-200">
+                      Grounds: <strong className="capitalize">{(req.grounds || req.reasonCategory || 'medical').replace('_', ' ')}</strong>
+                    </span>
+                    {req.medicalFacility && (
+                      <span className="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700 text-slate-300 font-mono text-[11px]">
+                        Hospital: {req.medicalFacility}
+                      </span>
+                    )}
+                    {req.doctorName && (
+                      <span className="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700 text-slate-300 font-mono text-[11px]">
+                        Dr: {req.doctorName}
+                      </span>
+                    )}
+                    {req.explanation && (
+                      <span className="italic text-slate-300 text-xs truncate max-w-md block">
+                        "{req.explanation}"
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="shrink-0 flex items-center gap-2 self-start md:self-center w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleDeclineResitRequest(req.id);
+                  }}
+                  className="px-3.5 py-2.5 rounded-xl bg-rose-900/60 hover:bg-rose-700 text-rose-200 font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm border border-rose-500/50 cursor-pointer"
+                >
+                  <XCircle className="w-4 h-4 text-rose-400" />
+                  <span>Decline</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleApproveResitRequest(req.id);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer border border-emerald-300"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-slate-950" />
+                  <span>Grant Clearance ({queueTotal} in Queue)</span>
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Banner 2: Marks Modification Review Queue */}
+        {(() => {
+          const pendingMarkChanges = submissions.filter(
+            (s) => s.committedMarkChangeRequest?.status === 'pending_admin_approval'
+          );
+          if (pendingMarkChanges.length === 0) return null;
+
+          const sub = pendingMarkChanges[0];
+          const queueTotal = pendingMarkChanges.length;
+          const req = sub.committedMarkChangeRequest!;
+
+          return (
+            <div
+              key={sub.id}
+              className="relative p-4 md:p-5 rounded-2xl bg-gradient-to-r from-indigo-950 via-purple-950 to-slate-950 text-white border-2 border-indigo-400 shadow-xl overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 ring-4 ring-indigo-500/20"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                  <Award className="w-6 h-6 text-indigo-300 animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-extrabold text-sm sm:text-base text-white tracking-wide">
+                      Committed Marks Modification Request &mdash; Senate Moderation Audit
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-400 text-slate-950">
+                      Moderation Queue: 1 of {queueTotal}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-indigo-100 leading-relaxed">
+                    Lecturer <strong>{req.requestedBy}</strong> submitted a marks alteration for candidate <strong>{sub.studentName}</strong> (<span className="font-mono text-indigo-300 font-semibold">{sub.studentNumber}</span>).
+                    Score change: <span className="line-through text-slate-400">{req.originalScore}</span> &rarr; <strong className="text-emerald-300">{req.requestedScore} / {sub.totalPoints} pts</strong>.
+                  </p>
+
+                  <div className="mt-1 p-2 rounded-lg bg-indigo-900/50 border border-indigo-500/40 text-xs text-indigo-200">
+                    <span className="font-bold text-indigo-300">Lecturer Justification: </span>
+                    {req.reason}
+                  </div>
+
+                  {req.teacherResponse && (
+                    <div className="mt-1 p-2 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-xs text-emerald-200">
+                      <span className="font-bold text-emerald-300">Lecturer Clarification to Inquiry: </span>
+                      "{req.teacherResponse}"
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="shrink-0 flex flex-wrap items-center gap-2 self-start md:self-center w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInquiryTargetSub(sub);
+                    setAdminInquiryMessage('');
+                  }}
+                  className="px-3.5 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold text-xs flex items-center justify-center gap-1.5 border border-amber-400/50 cursor-pointer"
+                  title="Send Inquiry to Lecturer for further clarification"
+                >
+                  <HelpCircle className="w-4 h-4 text-amber-400" />
+                  <span>Send Inquiry</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const res = await reviewCommittedMarkChange(
+                      sub.id,
+                      'reject',
+                      'Declined by Super Admin after moderation review.',
+                      'Dr. Marcus Sterling (Super Admin)'
+                    );
+                    if (res.success) {
+                      playAlertBeep('warning');
+                      triggerFlash('Mark modification request declined. Notice dispatched to lecturer.', 'info');
+                      refreshData();
+                    } else {
+                      playAlertBeep('error');
+                      triggerFlash(res.error || 'Failed to decline request', 'error');
+                    }
+                  }}
+                  className="px-3.5 py-2.5 rounded-xl bg-rose-900/60 hover:bg-rose-700 text-rose-200 font-bold text-xs flex items-center justify-center gap-1.5 border border-rose-500/50 cursor-pointer"
+                >
+                  <XCircle className="w-4 h-4 text-rose-400" />
+                  <span>Decline</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const res = await reviewCommittedMarkChange(
+                      sub.id,
+                      'approve',
+                      'Ratified and approved by Super Admin.',
+                      'Dr. Marcus Sterling (Super Admin)',
+                      committedReviewGrades
+                    );
+                    if (res.success) {
+                      playAlertBeep('success');
+                      triggerFlash(`Mark modification approved! Official score updated to ${req.requestedScore} pts.`, 'success');
+                      refreshData();
+                    } else {
+                      playAlertBeep('error');
+                      triggerFlash(res.error || 'Failed to approve request', 'error');
+                    }
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer border border-emerald-300"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-slate-950" />
+                  <span>Approve Moderation</span>
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Navigation Tabs Bar */}
@@ -5331,6 +5548,98 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
               >
                 {flashConfirmModal.confirmLabel || 'Confirm Action'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Inquiry Modal to Lecturer on Marks Moderation */}
+      {inquiryTargetSub && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
+            <div className="p-5 bg-gradient-to-r from-amber-600 to-amber-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+                  <HelpCircle className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base leading-tight">Send Inquiry to Lecturer</h3>
+                  <p className="text-xs text-amber-100">Marks Moderation &amp; Academic Senate Governance</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInquiryTargetSub(null)}
+                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs">
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5 text-slate-700 dark:text-slate-300">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-900 dark:text-white">Lecturer:</span>
+                  <span className="font-bold">{inquiryTargetSub.committedMarkChangeRequest?.requestedBy}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-900 dark:text-white">Candidate:</span>
+                  <span>{inquiryTargetSub.studentName} ({inquiryTargetSub.studentNumber})</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-900 dark:text-white">Proposed Modification:</span>
+                  <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                    {inquiryTargetSub.committedMarkChangeRequest?.originalScore} &rarr; {inquiryTargetSub.committedMarkChangeRequest?.requestedScore} pts
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-1.5">
+                  Inquiry Directive for Lecturer:
+                </label>
+                <textarea
+                  value={adminInquiryMessage}
+                  onChange={(e) => setAdminInquiryMessage(e.target.value)}
+                  placeholder="Specify what additional justification, marking breakdown, or evidence is required before ratification..."
+                  rows={4}
+                  className="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setInquiryTargetSub(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!adminInquiryMessage.trim()}
+                  onClick={() => {
+                    const res = sendAdminInquiryOnMarkChange(
+                      inquiryTargetSub.id,
+                      adminInquiryMessage,
+                      'Dr. Marcus Sterling (Super Admin)'
+                    );
+                    if (res.success) {
+                      playAlertBeep('info');
+                      triggerFlash('Inquiry sent to lecturer. Notification banner dispatched.', 'info');
+                      setInquiryTargetSub(null);
+                      setAdminInquiryMessage('');
+                      refreshData();
+                    } else {
+                      playAlertBeep('error');
+                      triggerFlash(res.error || 'Failed to dispatch inquiry', 'error');
+                    }
+                  }}
+                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-md disabled:opacity-50 cursor-pointer"
+                >
+                  Dispatch Inquiry to Lecturer
+                </button>
+              </div>
             </div>
           </div>
         </div>

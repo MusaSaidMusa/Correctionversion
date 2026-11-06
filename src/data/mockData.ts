@@ -87,7 +87,7 @@ export const INITIAL_STUDENTS: StudentProfile[] = [
     name: 'Alex Rivera',
     email: 'alex.rivera@student.edu',
     avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200',
-    studentNumber: 'STU-2024-8842',
+    studentNumber: 'MSA-2026/8-2041',
     department: 'Computer Science & Software Engineering',
     faculty: 'Faculty of Computing & Information Technologies',
     program: 'B.Sc. Computer Science (Honours)',
@@ -107,7 +107,7 @@ export const INITIAL_STUDENTS: StudentProfile[] = [
     name: 'Maya Lin',
     email: 'maya.lin@student.edu',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
-    studentNumber: 'STU-2024-7721',
+    studentNumber: 'MSA-2026/7-1982',
     department: 'Computer Science & Software Engineering',
     faculty: 'Faculty of Computing & Information Technologies',
     program: 'B.Sc. Software Engineering',
@@ -127,7 +127,7 @@ export const INITIAL_STUDENTS: StudentProfile[] = [
     name: 'Samuel K. Ochieng',
     email: 'sam.ochieng@student.edu',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
-    studentNumber: 'STU-2024-9031',
+    studentNumber: 'MSA-2026/6-3045',
     department: 'Computer Science & Software Engineering',
     faculty: 'Faculty of Computing & Information Technologies',
     program: 'B.Sc. Cybersecurity & Digital Forensics',
@@ -411,21 +411,21 @@ export const INITIAL_MISSED_EXAMS: MissedExamRecord[] = [
     id: 'missed-sam-cs401',
     studentId: 'student-sam',
     studentName: 'Samuel K. Ochieng',
-    studentNumber: 'STU-2024-9031',
+    studentNumber: 'MSA-2026/6-3045',
     studentEmail: 'sam.ochieng@student.edu',
     courseCode: 'CS401',
     examTitle: 'Midterm Examination: Distributed Systems Architecture',
     examId: 'exam-cs401-midterm',
     scheduledDate: new Date().toISOString().split('T')[0],
-    missedReason: 'Candidate failed to establish secure proctored connection during live examination session window.',
-    status: 'uncleared',
+    missedReason: 'Candidate experienced sudden power grid outage & ISP fiber disruption during live examination window.',
+    status: 'resit_pending',
     recordedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
   },
   {
     id: 'missed-maya-cs401',
     studentId: 'student-maya',
     studentName: 'Maya Lin',
-    studentNumber: 'STU-2024-7721',
+    studentNumber: 'MSA-2026/7-1982',
     studentEmail: 'maya.lin@student.edu',
     courseCode: 'CS401',
     examTitle: 'Archive 2025: Principles of Distributed Computing',
@@ -459,7 +459,7 @@ export const SAMPLE_MEDICAL_CERT_DATA_URL = `data:image/svg+xml;utf8,${encodeURI
 
   <rect x="80" y="325" width="640" height="110" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
   <text x="100" y="352" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#0f172a">PATIENT IDENTITY &amp; ACADEMIC RECORD:</text>
-  <text x="100" y="380" font-family="Arial, sans-serif" font-size="12" fill="#334155">Patient Name: Maya Lin (STU-2024-7721)</text>
+  <text x="100" y="380" font-family="Arial, sans-serif" font-size="12" fill="#334155">Patient Name: Maya Lin (MSA-2026/7-1982)</text>
   <text x="420" y="380" font-family="Arial, sans-serif" font-size="12" fill="#334155">Course: CS401 (Principles of Distributed Computing)</text>
   <text x="100" y="410" font-family="Arial, sans-serif" font-size="12" fill="#334155">Department: Computer Science</text>
   <text x="420" y="410" font-family="Arial, sans-serif" font-size="12" fill="#334155">Clearance Reason: Acute Medical Ground</text>
@@ -487,10 +487,27 @@ export const SAMPLE_MEDICAL_CERT_DATA_URL = `data:image/svg+xml;utf8,${encodeURI
 
 export const INITIAL_RESIT_REQUESTS: ResitRequest[] = [
   {
+    id: 'resit-sam-002',
+    studentId: 'student-sam',
+    studentName: 'Samuel K. Ochieng',
+    studentNumber: 'MSA-2026/6-3045',
+    studentEmail: 'sam.ochieng@student.edu',
+    courseCode: 'CS401',
+    examTitle: 'Midterm Examination: Distributed Systems Architecture',
+    examId: 'exam-cs401-midterm',
+    missedDate: new Date().toISOString().split('T')[0],
+    reasonCategory: 'technical',
+    reasonDetails: 'Severe municipal grid outage and ISP trunk cut during live session. ISP incident ticket #ISP-99412 attached.',
+    evidenceNotes: 'Telecommunications ISP incident ticket #ISP-99412 verified with campus network operations.',
+    status: 'pending',
+    submittedAt: new Date(Date.now() - 3600000 * 3).toISOString(),
+    reRegistered: false,
+  },
+  {
     id: 'resit-maya-001',
     studentId: 'student-maya',
     studentName: 'Maya Lin',
-    studentNumber: 'STU-2024-7721',
+    studentNumber: 'MSA-2026/7-1982',
     studentEmail: 'maya.lin@student.edu',
     courseCode: 'CS401',
     examTitle: 'Archive 2025: Principles of Distributed Computing',
