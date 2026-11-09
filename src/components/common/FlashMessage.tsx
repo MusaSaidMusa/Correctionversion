@@ -33,17 +33,21 @@ export function triggerFlash(
 export const FlashMessage: React.FC<FlashMessageProps> = ({ message, onClose }) => {
   const hasPlayedSoundRef = React.useRef(false);
 
+  const playBeepOnce = () => {
+    if (!hasPlayedSoundRef.current && message) {
+      hasPlayedSoundRef.current = true;
+      playAlertBeep(message.type || 'info');
+    }
+  };
+
   useEffect(() => {
     if (!message) return;
     hasPlayedSoundRef.current = false;
 
-    // Trigger acoustic chime at the completion of animated flashcard bounce-in (~350ms)
+    // Trigger acoustic beep immediately upon completion of animated entrance (~350ms)
     const soundTimer = setTimeout(() => {
-      if (!hasPlayedSoundRef.current) {
-        hasPlayedSoundRef.current = true;
-        playAlertBeep(message.type || 'info');
-      }
-    }, 360);
+      playBeepOnce();
+    }, 350);
 
     const autoCloseTimer = setTimeout(() => {
       onClose();
@@ -56,17 +60,14 @@ export const FlashMessage: React.FC<FlashMessageProps> = ({ message, onClose }) 
   }, [message, onClose]);
 
   const handleAnimationEnd = (e: React.AnimationEvent<HTMLDivElement>) => {
-    // When the flashcard bounce-in entrance animation concludes, chime the audio alert
+    // Trigger beep immediately when entrance animation finishes loading
     if (
       e.animationName.includes('bounce') ||
       e.animationName.includes('entry') ||
       e.animationName.includes('flashcard') ||
       e.target === e.currentTarget
     ) {
-      if (!hasPlayedSoundRef.current && message) {
-        hasPlayedSoundRef.current = true;
-        playAlertBeep(message.type || 'info');
-      }
+      playBeepOnce();
     }
   };
 

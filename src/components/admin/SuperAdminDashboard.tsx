@@ -1372,6 +1372,206 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         </div>
       )}
 
+      {/* Super Admin Interactive Queue Flashcards: Resit Approvals & Mark Moderations (Positioned strictly BEFORE the Hero Banner) */}
+      <div className="space-y-4">
+        {/* Flashcard 1: Candidate Resit Clearance Request Queue */}
+        {(() => {
+          const pendingResits = resitRequests.filter((r) => r.status === 'pending');
+          if (pendingResits.length === 0) return null;
+
+          const req = pendingResits[0];
+          const queueTotal = pendingResits.length;
+
+          return (
+            <div
+              key={req.id}
+              onAnimationEnd={(e) => {
+                if (e.target === e.currentTarget || e.animationName.includes('bounce') || e.animationName.includes('flashcard')) {
+                  playAlertBeep('warning');
+                }
+              }}
+              className="relative p-4 md:p-5 rounded-2xl bg-gradient-to-r from-amber-950 via-slate-900 to-indigo-950 text-white border-2 border-amber-400 shadow-xl overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 ring-4 ring-amber-500/20 animate-flashcard-entry transition-all"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                  <GraduationCap className="w-6 h-6 text-amber-300 animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-extrabold text-sm sm:text-base text-white tracking-wide">
+                      Student Examination Resit Clearance Request
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-amber-400 text-slate-950">
+                      Resit Queue: 1 of {queueTotal} {queueTotal > 1 ? '· Next candidate follows on decision' : ''}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-amber-100 leading-relaxed">
+                    Candidate <strong>{req.studentName}</strong> (<span className="font-mono text-amber-300 font-semibold">{req.studentNumber}</span>) requested formal Senate clearance for missed exam <strong>{req.courseCode}</strong> &mdash; <em>"{req.examTitle}"</em>.
+                  </p>
+
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                    <span className="px-2 py-0.5 rounded bg-amber-900/60 border border-amber-500/40 text-amber-200">
+                      Grounds: <strong className="capitalize">{(req.grounds || req.reasonCategory || 'medical').replace('_', ' ')}</strong>
+                    </span>
+                    {req.medicalFacility && (
+                      <span className="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700 text-slate-300 font-mono text-[11px]">
+                        Hospital: {req.medicalFacility}
+                      </span>
+                    )}
+                    {req.doctorName && (
+                      <span className="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700 text-slate-300 font-mono text-[11px]">
+                        Dr: {req.doctorName}
+                      </span>
+                    )}
+                    {req.explanation && (
+                      <span className="italic text-slate-300 text-xs truncate max-w-md block">
+                        "{req.explanation}"
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Two buttons allowing admin to view reasons & inspect medical documents before approving or declining */}
+              <div className="shrink-0 flex flex-wrap items-center gap-2 self-start md:self-center w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewingEvidenceModal(req);
+                    playAlertBeep('info');
+                  }}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer border border-indigo-400"
+                  title="Inspect medical certificate, doctor note, and full absence reasons before deciding"
+                >
+                  <Eye className="w-4 h-4 text-cyan-300" />
+                  <span>Inspect Reason &amp; Medical Documents</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('attendance_missed');
+                    showToast(`Navigated to Attendance & Missed Exam Clearance section for ${req.studentName}.`);
+                    playAlertBeep('info');
+                    setTimeout(() => {
+                      const el = document.getElementById(`resit-request-${req.id}`) || document.getElementById('missed-exams-section');
+                      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 150);
+                  }}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer border border-amber-300"
+                  title="Go to Missed Exams Clearance registry section to view case and documents before approving or declining"
+                >
+                  <FileText className="w-4 h-4 text-slate-950" />
+                  <span>View in Missed Exams Section</span>
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Flashcard 2: Marks Modification Review Queue */}
+        {(() => {
+          const pendingMarkChanges = submissions.filter(
+            (s) => s.committedMarkChangeRequest?.status === 'pending_admin_approval'
+          );
+          if (pendingMarkChanges.length === 0) return null;
+
+          const sub = pendingMarkChanges[0];
+          const queueTotal = pendingMarkChanges.length;
+          const req = sub.committedMarkChangeRequest!;
+
+          return (
+            <div
+              key={sub.id}
+              onAnimationEnd={(e) => {
+                if (e.target === e.currentTarget || e.animationName.includes('bounce') || e.animationName.includes('flashcard')) {
+                  playAlertBeep('warning');
+                }
+              }}
+              className="relative p-4 md:p-5 rounded-2xl bg-gradient-to-r from-indigo-950 via-purple-950 to-slate-950 text-white border-2 border-indigo-400 shadow-xl overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 ring-4 ring-indigo-500/20 animate-flashcard-entry transition-all"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                  <Award className="w-6 h-6 text-indigo-300 animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-extrabold text-sm sm:text-base text-white tracking-wide">
+                      Committed Marks Modification Request &mdash; Senate Moderation Audit
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-400 text-slate-950">
+                      Moderation Queue: 1 of {queueTotal}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-indigo-100 leading-relaxed">
+                    Lecturer <strong>{req.requestedBy}</strong> submitted a marks alteration for candidate <strong>{sub.studentName}</strong> (<span className="font-mono text-indigo-300 font-semibold">{sub.studentNumber}</span>).
+                    Score change: <span className="line-through text-slate-400">{req.originalScore}</span> &rarr; <strong className="text-emerald-300">{req.requestedScore} / {sub.totalPoints} pts</strong>.
+                  </p>
+
+                  <div className="mt-1 p-2 rounded-lg bg-indigo-900/50 border border-indigo-500/40 text-xs text-indigo-200">
+                    <span className="font-bold text-indigo-300">Lecturer Justification: </span>
+                    {req.reason}
+                  </div>
+
+                  {req.teacherResponse && (
+                    <div className="mt-1 p-2 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-xs text-emerald-200">
+                      <span className="font-bold text-emerald-300">Lecturer Clarification to Inquiry: </span>
+                      "{req.teacherResponse}"
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Two buttons allowing admin to view reasons & inspect marks breakdown before approving or declining */}
+              <div className="shrink-0 flex flex-wrap items-center gap-2 self-start md:self-center w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const initialGrades: Record<string, { awardedPoints: number; feedback?: string }> = {};
+                    const exam = exams.find((e) => e.id === sub.examId);
+                    exam?.questions.forEach((q) => {
+                      const existing = sub.answers ? (sub.answers as Record<string, any>)[q.id] : undefined;
+                      initialGrades[q.id] = {
+                        awardedPoints: existing?.awardedPoints ?? 0,
+                        feedback: existing?.feedback ?? '',
+                      };
+                    });
+                    setCommittedReviewGrades(initialGrades);
+                    setActiveCommittedChangeTarget(sub);
+                    playAlertBeep('info');
+                  }}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer border border-indigo-400"
+                  title="Inspect lecturer justification and per-question score breakdown before deciding"
+                >
+                  <Eye className="w-4 h-4 text-cyan-300" />
+                  <span>Inspect Justification &amp; Marks Breakdown</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('mark_overrides');
+                    showToast(`Navigated to Marks Override Ledger for ${sub.studentName}.`);
+                    playAlertBeep('info');
+                    setTimeout(() => {
+                      const el = document.getElementById(`submission-${sub.id}`) || document.getElementById('mark-overrides-section');
+                      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 150);
+                  }}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer border border-purple-400"
+                  title="Go to Modified Marks section to review audit history before approving or declining"
+                >
+                  <Award className="w-4 h-4 text-white" />
+                  <span>View in Mark Overrides Registry</span>
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
       {/* Super Admin Welcome Banner (Hue Section) */}
       <div
         className="relative rounded-2xl p-6 md:p-8 text-white border border-slate-800 shadow-lg flex flex-col md:flex-row md:items-end justify-between gap-6 overflow-hidden bg-slate-900 min-h-[220px] md:min-h-[250px]"
@@ -1622,206 +1822,6 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
             </span>
           </div>
         </button>
-      </div>
-
-      {/* Super Admin Interactive Queue Banners: Resit Approvals & Mark Moderations */}
-      <div className="space-y-3">
-        {/* Banner 1: Candidate Resit Clearance Request Queue */}
-        {(() => {
-          const pendingResits = resitRequests.filter((r) => r.status === 'pending');
-          if (pendingResits.length === 0) return null;
-
-          const req = pendingResits[0];
-          const queueTotal = pendingResits.length;
-
-          return (
-            <div
-              key={req.id}
-              className="relative p-4 md:p-5 rounded-2xl bg-gradient-to-r from-amber-950 via-slate-900 to-indigo-950 text-white border-2 border-amber-400 shadow-xl overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 ring-4 ring-amber-500/20"
-            >
-              <div className="flex items-start gap-3.5">
-                <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shrink-0 shadow-inner">
-                  <GraduationCap className="w-6 h-6 text-amber-300 animate-pulse" />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-extrabold text-sm sm:text-base text-white tracking-wide">
-                      Student Examination Resit Clearance Request
-                    </span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-amber-400 text-slate-950">
-                      Resit Queue: 1 of {queueTotal} {queueTotal > 1 ? '· Next candidate follows on decision' : ''}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-amber-100 leading-relaxed">
-                    Candidate <strong>{req.studentName}</strong> (<span className="font-mono text-amber-300 font-semibold">{req.studentNumber}</span>) requested formal Senate clearance for missed exam <strong>{req.courseCode}</strong> &mdash; <em>"{req.examTitle}"</em>.
-                  </p>
-
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                    <span className="px-2 py-0.5 rounded bg-amber-900/60 border border-amber-500/40 text-amber-200">
-                      Grounds: <strong className="capitalize">{(req.grounds || req.reasonCategory || 'medical').replace('_', ' ')}</strong>
-                    </span>
-                    {req.medicalFacility && (
-                      <span className="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700 text-slate-300 font-mono text-[11px]">
-                        Hospital: {req.medicalFacility}
-                      </span>
-                    )}
-                    {req.doctorName && (
-                      <span className="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700 text-slate-300 font-mono text-[11px]">
-                        Dr: {req.doctorName}
-                      </span>
-                    )}
-                    {req.explanation && (
-                      <span className="italic text-slate-300 text-xs truncate max-w-md block">
-                        "{req.explanation}"
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="shrink-0 flex items-center gap-2 self-start md:self-center w-full md:w-auto">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleDeclineResitRequest(req.id);
-                  }}
-                  className="px-3.5 py-2.5 rounded-xl bg-rose-900/60 hover:bg-rose-700 text-rose-200 font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm border border-rose-500/50 cursor-pointer"
-                >
-                  <XCircle className="w-4 h-4 text-rose-400" />
-                  <span>Decline</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleApproveResitRequest(req.id);
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer border border-emerald-300"
-                >
-                  <CheckCircle2 className="w-4 h-4 text-slate-950" />
-                  <span>Grant Clearance ({queueTotal} in Queue)</span>
-                </button>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Banner 2: Marks Modification Review Queue */}
-        {(() => {
-          const pendingMarkChanges = submissions.filter(
-            (s) => s.committedMarkChangeRequest?.status === 'pending_admin_approval'
-          );
-          if (pendingMarkChanges.length === 0) return null;
-
-          const sub = pendingMarkChanges[0];
-          const queueTotal = pendingMarkChanges.length;
-          const req = sub.committedMarkChangeRequest!;
-
-          return (
-            <div
-              key={sub.id}
-              className="relative p-4 md:p-5 rounded-2xl bg-gradient-to-r from-indigo-950 via-purple-950 to-slate-950 text-white border-2 border-indigo-400 shadow-xl overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 ring-4 ring-indigo-500/20"
-            >
-              <div className="flex items-start gap-3.5">
-                <div className="w-11 h-11 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center shrink-0 shadow-inner">
-                  <Award className="w-6 h-6 text-indigo-300 animate-pulse" />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-extrabold text-sm sm:text-base text-white tracking-wide">
-                      Committed Marks Modification Request &mdash; Senate Moderation Audit
-                    </span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-400 text-slate-950">
-                      Moderation Queue: 1 of {queueTotal}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-indigo-100 leading-relaxed">
-                    Lecturer <strong>{req.requestedBy}</strong> submitted a marks alteration for candidate <strong>{sub.studentName}</strong> (<span className="font-mono text-indigo-300 font-semibold">{sub.studentNumber}</span>).
-                    Score change: <span className="line-through text-slate-400">{req.originalScore}</span> &rarr; <strong className="text-emerald-300">{req.requestedScore} / {sub.totalPoints} pts</strong>.
-                  </p>
-
-                  <div className="mt-1 p-2 rounded-lg bg-indigo-900/50 border border-indigo-500/40 text-xs text-indigo-200">
-                    <span className="font-bold text-indigo-300">Lecturer Justification: </span>
-                    {req.reason}
-                  </div>
-
-                  {req.teacherResponse && (
-                    <div className="mt-1 p-2 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-xs text-emerald-200">
-                      <span className="font-bold text-emerald-300">Lecturer Clarification to Inquiry: </span>
-                      "{req.teacherResponse}"
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="shrink-0 flex flex-wrap items-center gap-2 self-start md:self-center w-full md:w-auto">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInquiryTargetSub(sub);
-                    setAdminInquiryMessage('');
-                  }}
-                  className="px-3.5 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold text-xs flex items-center justify-center gap-1.5 border border-amber-400/50 cursor-pointer"
-                  title="Send Inquiry to Lecturer for further clarification"
-                >
-                  <HelpCircle className="w-4 h-4 text-amber-400" />
-                  <span>Send Inquiry</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const res = await reviewCommittedMarkChange(
-                      sub.id,
-                      'reject',
-                      'Declined by Super Admin after moderation review.',
-                      'Dr. Marcus Sterling (Super Admin)'
-                    );
-                    if (res.success) {
-                      playAlertBeep('warning');
-                      triggerFlash('Mark modification request declined. Notice dispatched to lecturer.', 'info');
-                      refreshData();
-                    } else {
-                      playAlertBeep('error');
-                      triggerFlash(res.error || 'Failed to decline request', 'error');
-                    }
-                  }}
-                  className="px-3.5 py-2.5 rounded-xl bg-rose-900/60 hover:bg-rose-700 text-rose-200 font-bold text-xs flex items-center justify-center gap-1.5 border border-rose-500/50 cursor-pointer"
-                >
-                  <XCircle className="w-4 h-4 text-rose-400" />
-                  <span>Decline</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const res = await reviewCommittedMarkChange(
-                      sub.id,
-                      'approve',
-                      'Ratified and approved by Super Admin.',
-                      'Dr. Marcus Sterling (Super Admin)',
-                      committedReviewGrades
-                    );
-                    if (res.success) {
-                      playAlertBeep('success');
-                      triggerFlash(`Mark modification approved! Official score updated to ${req.requestedScore} pts.`, 'success');
-                      refreshData();
-                    } else {
-                      playAlertBeep('error');
-                      triggerFlash(res.error || 'Failed to approve request', 'error');
-                    }
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer border border-emerald-300"
-                >
-                  <CheckCircle2 className="w-4 h-4 text-slate-950" />
-                  <span>Approve Moderation</span>
-                </button>
-              </div>
-            </div>
-          );
-        })()}
       </div>
 
       {/* Navigation Tabs Bar */}
@@ -2384,8 +2384,9 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                   const isCommittedApproved = request.status === 'approved';
                   return (
                     <div
+                      id={`submission-${submission.id}`}
                       key={request.id}
-                      className={`p-4 rounded-xl border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
+                      className={`p-4 rounded-xl border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all scroll-mt-20 ${
                         isCommittedApproved
                           ? 'border-emerald-400 dark:border-emerald-800 bg-emerald-50/30 dark:bg-emerald-950/20'
                           : request.status === 'rejected'
@@ -3312,7 +3313,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                   </div>
                 ) : (
                   resitRequests.map((req) => (
-                    <div key={req.id} className="p-5 space-y-3">
+                    <div id={`resit-request-${req.id}`} key={req.id} className="p-5 space-y-3 scroll-mt-20">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
                           <span className="font-bold text-slate-900 dark:text-white text-sm font-sans">{req.studentName}</span>

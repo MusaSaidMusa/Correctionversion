@@ -29,9 +29,6 @@ class ProfessionalSoundService {
         this.ctx = new AudioCtx();
       }
     }
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
-    }
     return this.ctx;
   }
 
@@ -141,50 +138,51 @@ class ProfessionalSoundService {
       const ctx = this.getContext();
       if (!ctx) return;
 
-      const now = ctx.currentTime;
+      const triggerTone = () => {
+        const now = ctx.currentTime;
+        switch (type) {
+          case 'success': {
+            // Executive Double Glass Chime: E5 (659.25Hz) -> A5 (880Hz)
+            this.playHarmonicNote(ctx, now, 659.25, 0.22, 0.12, 2800);
+            this.playHarmonicNote(ctx, now + 0.09, 880.0, 0.42, 0.14, 3200);
+            break;
+          }
 
-      switch (type) {
-        case 'success': {
-          // Executive Double Glass Chime: E5 (659.25Hz) -> A5 (880Hz)
-          // Crisp, warm, reassuring, feels like an Apple/macOS ratification sound
-          this.playHarmonicNote(ctx, now, 659.25, 0.22, 0.11, 2800);
-          this.playHarmonicNote(ctx, now + 0.09, 880.0, 0.42, 0.13, 3200);
-          break;
-        }
+          case 'error': {
+            // Dignified Low Damped Tone: Two soft sub-bass frequencies (185Hz -> 146Hz)
+            this.playDampedThud(ctx, now, 185, 0.16, 0.15);
+            this.playDampedThud(ctx, now + 0.08, 146.83, 0.24, 0.13);
+            break;
+          }
 
-        case 'error': {
-          // Dignified Low Damped Tone: Two soft sub-bass frequencies (185Hz -> 146Hz)
-          // Authoritative and clear without being annoying or harsh
-          this.playDampedThud(ctx, now, 185, 0.16, 0.14);
-          this.playDampedThud(ctx, now + 0.08, 146.83, 0.24, 0.12);
-          break;
-        }
+          case 'warning': {
+            // Warm Marimba Double-Tap: F#4 (369.99Hz) -> A#4 (466.16Hz)
+            this.playHarmonicNote(ctx, now, 369.99, 0.18, 0.12, 1800);
+            this.playHarmonicNote(ctx, now + 0.07, 466.16, 0.28, 0.13, 2000);
+            break;
+          }
 
-        case 'warning': {
-          // Warm Marimba Double-Tap: F#4 (369.99Hz) -> A#4 (466.16Hz)
-          // Alerting, distinct, elegant
-          this.playHarmonicNote(ctx, now, 369.99, 0.18, 0.11, 1800);
-          this.playHarmonicNote(ctx, now + 0.07, 466.16, 0.28, 0.12, 2000);
-          break;
-        }
+          case 'commence': {
+            // Formal Academic Inauguration Arpeggio: C5 -> G5 -> C6
+            this.playHarmonicNote(ctx, now, 523.25, 0.35, 0.10, 2600);
+            this.playHarmonicNote(ctx, now + 0.09, 783.99, 0.45, 0.12, 3000);
+            this.playHarmonicNote(ctx, now + 0.18, 1046.5, 0.75, 0.15, 3600);
+            break;
+          }
 
-        case 'commence': {
-          // Formal Academic Inauguration Arpeggio:
-          // Three rising harmonic bells: C5 (523.25Hz) -> G5 (783.99Hz) -> C6 (1046.5Hz)
-          // Resonant and prestigious for examination launch
-          this.playHarmonicNote(ctx, now, 523.25, 0.35, 0.09, 2600);
-          this.playHarmonicNote(ctx, now + 0.09, 783.99, 0.45, 0.11, 3000);
-          this.playHarmonicNote(ctx, now + 0.18, 1046.5, 0.75, 0.14, 3600);
-          break;
+          case 'info':
+          default: {
+            // Velvet Micro-Chime: G5 (783.99Hz) with smooth overtone
+            this.playHarmonicNote(ctx, now, 783.99, 0.25, 0.10, 2400);
+            break;
+          }
         }
+      };
 
-        case 'info':
-        default: {
-          // Velvet Micro-Chime: G5 (783.99Hz) with smooth overtone
-          // Subtle, modern, unobtrusive
-          this.playHarmonicNote(ctx, now, 783.99, 0.25, 0.09, 2400);
-          break;
-        }
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(triggerTone).catch(triggerTone);
+      } else {
+        triggerTone();
       }
     } catch {
       // Audio autoplay policy may prevent playback before first interaction

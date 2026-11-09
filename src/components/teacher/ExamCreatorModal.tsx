@@ -110,6 +110,11 @@ interface ExamCreatorModalProps {
   questionBank: Question[];
   existingExam?: Exam | null;
   currentTeacher?: TeacherProfile;
+  initialCourseCode?: string;
+  initialCourseTitle?: string;
+  initialTitle?: string;
+  initialRegisteredStudentIds?: string[];
+  resitCandidateName?: string;
 }
 
 export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
@@ -119,12 +124,21 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
   questionBank,
   existingExam,
   currentTeacher,
+  initialCourseCode,
+  initialCourseTitle,
+  initialTitle,
+  initialRegisteredStudentIds,
+  resitCandidateName,
 }) => {
   const isLocked = existingExam?.isLockedForEdits ?? false;
 
-  const [title, setTitle] = useState(existingExam?.title || '');
-  const [courseCode, setCourseCode] = useState(existingExam?.courseCode || 'CS-405');
-  const [courseTitle, setCourseTitle] = useState(existingExam?.courseTitle || 'Network Security & Protocol Forensics');
+  const [title, setTitle] = useState(
+    existingExam?.title || initialTitle || (initialCourseCode ? `${initialCourseCode} Resit Examination Session` : '')
+  );
+  const [courseCode, setCourseCode] = useState(existingExam?.courseCode || initialCourseCode || 'CS-405');
+  const [courseTitle, setCourseTitle] = useState(
+    existingExam?.courseTitle || initialCourseTitle || 'Network Security & Protocol Forensics'
+  );
   const [faculty, setFaculty] = useState<string>(
     currentTeacher?.faculty || existingExam?.faculty || 'Faculty of Computing & Information Technologies'
   );
@@ -733,7 +747,9 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
       },
       answerSheetConfig,
       isMarkingSchemeReleased: existingExam?.isMarkingSchemeReleased ?? false,
-      registeredStudentIds: existingExam?.registeredStudentIds || [],
+      registeredStudentIds: Array.from(
+        new Set([...(existingExam?.registeredStudentIds || []), ...(initialRegisteredStudentIds || [])])
+      ),
       admittedStudentIds: existingExam?.admittedStudentIds || [],
       isLockedForEdits: isLocked,
       createdAt: existingExam?.createdAt || new Date().toISOString(),

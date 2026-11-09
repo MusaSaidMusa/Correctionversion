@@ -23,6 +23,7 @@ import {
   CheckCheck,
   FolderArchive,
   X,
+  Stethoscope,
 } from 'lucide-react';
 import { Exam, ExamSubmission, StudentProfile, ResitRequest } from '../../types';
 import { PreExamDiagnosticModal } from './PreExamDiagnosticModal';
@@ -88,6 +89,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   // Selected Examination state to sit for
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
+
+  const getStudentAttemptCount = (examId: string, studentId: string) =>
+    submissions.filter((s) => s.examId === examId && s.studentId === studentId).length;
 
   // Student Resit & Clearance modal state
   const [isResitModalOpen, setIsResitModalOpen] = useState(false);
@@ -425,10 +429,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-16">
-      {/* Official Approved Resit Clearance Animated Banner */}
+      {/* Official Approved Resit Clearance Animated Banner (Flashcard Before Hero) */}
       {activeApprovedResit && !activeApprovedResit.commencedAt && (
         <div
-          className={`p-4 md:p-5 rounded-2xl shadow-xl border-2 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300 ring-4 ${
+          onAnimationEnd={(e) => {
+            if (e.target === e.currentTarget || e.animationName.includes('bounce') || e.animationName.includes('flashcard')) {
+              playAlertBeep(activeApprovedResit.reRegistered ? 'success' : 'info');
+            }
+          }}
+          className={`p-4 md:p-5 rounded-2xl shadow-xl border-2 flex flex-col sm:flex-row items-center justify-between gap-4 animate-flashcard-entry ring-4 ${
             activeApprovedResit.reRegistered
               ? 'bg-gradient-to-r from-emerald-800 via-teal-800 to-indigo-900 text-white border-[#d1e231] ring-[#d1e231]/30 animate-pear-pulse'
               : 'bg-gradient-to-r from-teal-900 via-emerald-950 to-indigo-950 text-white border-emerald-400 ring-emerald-500/20'
@@ -952,58 +961,118 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               <div
                 key={exam.id}
                 onClick={() => handleToggleSelect()}
-                className={`exam-card rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all ${
+                className={`exam-card rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col gap-4 transition-all duration-200 border-2 overflow-hidden ${
                   isExpired
-                    ? 'opacity-70 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 cursor-not-allowed'
+                    ? 'opacity-80 border-slate-300 dark:border-slate-700 border-l-[6px] border-l-rose-400 bg-slate-50/70 dark:bg-slate-900/60 cursor-pointer hover:border-amber-400 hover:bg-amber-50/40'
                     : isSelected
-                    ? 'border-2 border-[#d1e231] ring-4 ring-[#d1e231]/40 bg-[#f8fce8] dark:bg-white shadow-lg selected animate-pear-pulse cursor-pointer'
-                    : 'border border-slate-200 dark:border-slate-800 bg-white hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 hover:shadow-md cursor-pointer'
+                    ? 'border-[#d1e231] ring-4 ring-[#d1e231]/40 bg-[#f8fce8] dark:bg-white shadow-xl selected animate-pear-pulse cursor-pointer border-l-[6px] border-l-[#d1e231]'
+                    : statusType === 'active_now'
+                    ? 'border-slate-200 dark:border-slate-800 border-l-[6px] border-l-emerald-500 bg-white hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 hover:shadow-md cursor-pointer'
+                    : statusType === 'in_progress'
+                    ? 'border-slate-200 dark:border-slate-800 border-l-[6px] border-l-amber-500 bg-white hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 hover:shadow-md cursor-pointer'
+                    : statusType === 'completed'
+                    ? 'border-slate-200 dark:border-slate-800 border-l-[6px] border-l-indigo-500 bg-white hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 hover:shadow-md cursor-pointer'
+                    : 'border-slate-200 dark:border-slate-800 border-l-[6px] border-l-sky-500 bg-white hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 hover:shadow-md cursor-pointer'
                 }`}
                 data-exam-card="true"
                 data-selected={isSelected ? 'true' : 'false'}
               >
-                <div className="space-y-2 flex-1">
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-                    {/* Exam Selection Toggle Button */}
-                    <button
-                      type="button"
-                      disabled={isExpired}
-                      onClick={handleToggleSelect}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all border ${
-                        isExpired
-                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-60'
-                          : isSelected
-                          ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] shadow-xs active-pear animate-pear-pulse font-bold cursor-pointer'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/50 dark:hover:text-amber-200 cursor-pointer'
-                      }`}
-                      title={isExpired ? 'Schedule timeframe has passed. Sittings disabled.' : 'Click to select this examination'}
-                    >
-                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${isSelected ? 'border-[#1a2200] bg-[#d1e231]' : 'border-slate-400'}`}>
-                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-[#1a2200]" />}
-                      </span>
-                      <span>
-                        {isExpired
-                          ? 'Schedule Expired (Sitting Disabled)'
-                          : isSelected
-                          ? 'Selected Examination'
-                          : 'Select Examination'}
-                      </span>
-                    </button>
-
-                    <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                {/* Top Header Row: Course Code, Course Title, Status Badge */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2 border-b border-slate-100 dark:border-slate-800/80">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-slate-900 text-white dark:bg-slate-800 font-mono text-xs font-black tracking-wider shadow-xs">
                       {exam.courseCode}
                     </span>
-                    <span className="text-slate-300 dark:text-slate-700">·</span>
-                    <span className="text-slate-600 dark:text-slate-400">{exam.courseTitle}</span>
-                    <span className="text-slate-300 dark:text-slate-700">·</span>
-                    <span className="text-slate-500 font-semibold">{exam.durationMinutes} Mins</span>
-                    <span className="text-slate-300 dark:text-slate-700">·</span>
-                    <span className="bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded text-[11px] font-bold font-mono">
-                      Set Out Of: {exam.questions.reduce((s, q) => s + (q.points || 0), 0)} Marks ({exam.questions.length} Questions)
+                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
+                      {exam.courseTitle}
                     </span>
-                    <span className="text-slate-300 dark:text-slate-700">·</span>
-                    <div className="flex items-center gap-1 text-slate-500 font-medium">
-                      <span>Invigilator:</span>
+                    {exam.department && (
+                      <span className="hidden sm:inline-block text-[11px] text-slate-500 dark:text-slate-400 font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">
+                        {exam.department}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Real-time Status Badge */}
+                  <div className="flex items-center gap-2">
+                    {statusType === 'active_now' && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 shadow-xs">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                        <span>Active Session · Ready to Sit</span>
+                      </span>
+                    )}
+
+                    {statusType === 'in_progress' && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-700 animate-pulse shadow-xs">
+                        <RotateCcw className="w-3.5 h-3.5 animate-spin text-amber-700 dark:text-amber-400" />
+                        <span>In Progress · Saved</span>
+                      </span>
+                    )}
+
+                    {statusType === 'completed' && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 shadow-xs">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>
+                          {sub?.isResultCommitted
+                            ? `Certified Graded: ${sub?.score ?? 0} / ${sub?.totalPoints ?? 100} Marks`
+                            : sub?.status === 'graded'
+                            ? `Graded: ${sub?.score ?? 0} / ${sub?.totalPoints ?? 100} Marks`
+                            : `Submitted (${sub?.score ?? 0}/${sub?.totalPoints ?? 100} Marks)`}
+                        </span>
+                      </span>
+                    )}
+
+                    {statusType === 'upcoming' && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-sky-50 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-300 dark:border-sky-700 shadow-xs">
+                        <Clock className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Upcoming Examination</span>
+                      </span>
+                    )}
+
+                    {statusType === 'expired' && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-700 shadow-xs">
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Schedule Timeframe Passed</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card Main Body: Title, Description, Metadata Badges */}
+                <div className="space-y-2.5">
+                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white tracking-tight leading-snug">
+                    {exam.title}
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                    {exam.description || 'Institutional examination paper administered under strict assessment governance.'}
+                  </p>
+
+                  {/* Informative Structured Metadata Pills */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-300 font-semibold font-mono">
+                      <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <span>{exam.durationMinutes} Mins</span>
+                    </span>
+
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300 font-bold font-mono">
+                      <Award className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <span>
+                        Set Out Of: {exam.questions.reduce((s, q) => s + (q.points || 0), 0)} Marks ({exam.questions.length} Questions)
+                      </span>
+                    </span>
+
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-mono">
+                      <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Pass: {exam.passingScorePercentage}%</span>
+                    </span>
+
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-300 font-mono">
+                      <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Attempts: {getStudentAttemptCount(exam.id, student.id)} / {exam.maxAttempts || 1}</span>
+                    </span>
+
+                    <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+                      <span className="font-semibold text-slate-500">Invigilator:</span>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1013,223 +1082,185 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                             id: exam.instructorEmail || exam.instructorName,
                           });
                         }}
-                        className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-semibold underline underline-offset-2 decoration-slate-300 cursor-pointer transition-colors"
-                        title="Click to fetch instructor profile & appointment from backend"
+                        className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-bold underline underline-offset-2 decoration-slate-300 cursor-pointer transition-colors"
+                        title="Click to view instructor appointment and faculty details"
                       >
                         {exam.instructorName}
                       </button>
                     </div>
+
                     {exam.securityProtocols?.requireSEB && (
-                      <>
-                        <span className="text-slate-300 dark:text-slate-700">·</span>
-                        <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-                          <ShieldCheck className="w-3.5 h-3.5" /> SEB Browser Required
-                        </span>
-                      </>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300 font-bold border border-amber-300 dark:border-amber-700 font-mono text-[11px]">
+                        <Lock className="w-3 h-3 text-amber-600" />
+                        <span>SEB Lockdown Required</span>
+                      </span>
                     )}
+
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-900 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[11px] font-semibold">
+                      <ShieldCheck className="w-3 h-3 text-blue-600" />
+                      <span>Strict Proctoring (Camera · Mic)</span>
+                    </span>
                   </div>
 
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    {exam.title}
-                  </h3>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
-                    {exam.description}
-                  </p>
-
-                  <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400 pt-1">
-                    <div className="flex items-center gap-1.5">
+                  {/* Window Schedule & Admission Cleared Banner */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-1.5 font-medium">
                       <Calendar className="w-3.5 h-3.5 text-slate-400" />
                       <span>
-                        Window: {startDate.toLocaleDateString()}{' '}
-                        {startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -{' '}
+                        Examination Window: {startDate.toLocaleDateString()}{' '}
+                        {startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} &mdash;{' '}
                         {endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5 font-mono">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      <span>
-                        Pass: {exam.passingScorePercentage}% · Max Attempts: {exam.maxAttempts || 1}
+
+                    {exam.admittedStudentIds?.includes(student.id) && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-[10px] uppercase font-mono flex items-center gap-1 border border-emerald-300 dark:border-emerald-700 animate-pulse">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span>Invigilator Room Admission: Granted ✓</span>
                       </span>
-                    </div>
-                    <span className="text-[11px] font-mono text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded font-semibold border border-blue-200 dark:border-blue-800 flex items-center gap-1">
-                      <ShieldCheck className="w-3 h-3 text-blue-600" />
-                      <span>Mandatory Strict Proctoring: Camera · Microphone · SEB</span>
-                    </span>
+                    )}
                   </div>
                 </div>
 
-                {/* Right Status Badge & Primary Action Button */}
+                {/* Bottom Action Row: Selection Toggle & Primary Examination Buttons */}
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  className="flex flex-col sm:flex-row md:flex-col items-start md:items-end justify-between gap-3 shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100 dark:border-slate-800"
+                  className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3"
                 >
-                  {/* Status indicator & Portal Commitment Badge */}
-                  {statusType === 'completed' && (
-                    <div className="space-y-1 text-right">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>
-                          {sub?.status === 'graded'
-                            ? `Graded: ${sub?.score ?? 0} / ${sub?.totalPoints ?? 100} Marks`
-                            : `Submitted (${sub?.score ?? 0}/${sub?.totalPoints ?? 100} Marks)`}
-                        </span>
-                      </div>
-                      <div className="text-[11px] font-mono">
-                        {sub?.isResultCommitted ? (
-                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 justify-end">
-                            <CheckCheck className="w-3.5 h-3.5" />
-                            <span>Certified by Faculty</span>
-                          </span>
-                        ) : sub?.status === 'graded' ? (
-                          <span className="text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1 justify-end">
-                            <Award className="w-3.5 h-3.5" />
-                            <span>Graded by Instructor</span>
-                          </span>
-                        ) : (
-                          <span className="text-amber-600 dark:text-amber-400 font-medium">
-                            Pending Faculty Marking
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  {/* Left: Exam Selection Toggle */}
+                  <button
+                    type="button"
+                    disabled={isExpired}
+                    onClick={handleToggleSelect}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-center sm:justify-start gap-2 transition-all border shrink-0 ${
+                      isExpired
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-60'
+                        : isSelected
+                        ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] shadow-xs active-pear animate-pear-pulse font-bold cursor-pointer'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/50 dark:hover:text-amber-200 cursor-pointer'
+                    }`}
+                    title={isExpired ? 'Schedule timeframe has passed. Sittings disabled.' : 'Click to select this examination'}
+                  >
+                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-[#1a2200] bg-[#d1e231]' : 'border-slate-400'}`}>
+                      {isSelected && <span className="w-2 h-2 rounded-full bg-[#1a2200]" />}
+                    </span>
+                    <span>
+                      {isExpired
+                        ? 'Schedule Expired (Sitting Disabled)'
+                        : isSelected
+                        ? 'Selected Examination'
+                        : 'Select Examination'}
+                    </span>
+                  </button>
 
-                  {statusType === 'in_progress' && (
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 animate-pulse">
-                      <RotateCcw className="w-4 h-4 animate-spin" />
-                      <span>In Progress · Saved</span>
-                    </div>
-                  )}
-
-                  {statusType === 'active_now' && (
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                      <span>Active · Ready to Sit</span>
-                    </div>
-                  )}
-
-                  {statusType === 'upcoming' && (
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                      <Clock className="w-4 h-4" />
-                      <span>Scheduled for {startDate.toLocaleDateString()}</span>
-                    </div>
-                  )}
-
-                  {statusType === 'expired' && (
-                    <div className="space-y-1 text-left sm:text-right">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-400">
-                        <AlertCircle className="w-4 h-4 shrink-0" />
-                        <span>Schedule Timeframe Passed</span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 max-w-xs leading-tight">
-                        Sitting window closed. Sittings locked unless the instructor remodifies the examination schedule.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Functional Action Buttons */}
-                  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  {/* Right: Functional Action Buttons */}
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {/* Completed Submissions Actions */}
                     {statusType === 'completed' && sub && (
                       <>
                         <button
                           type="button"
                           onClick={() => setSelectedResultExam({ exam, submission: sub })}
-                          className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-xs"
                         >
-                          <FileText className="w-3.5 h-3.5" />
+                          <FileText className="w-3.5 h-3.5 text-cyan-300" />
                           <span>View Scorecard</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => setViewingAnswerSheetTarget({ exam, submission: sub })}
-                          className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                          className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                           title="Open official Times New Roman 12pt answer sheet (Protected Candidate View)"
                         >
                           <FileText className="w-3.5 h-3.5" />
                           <span>Answer Sheet</span>
                         </button>
+
+                        {/* Question Paper in Times New Roman 12pt format - STRICTLY INVISIBLE until student submits work */}
+                        <button
+                          type="button"
+                          onClick={() => setViewingQuestionPaperExam(exam)}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-700 transition-colors cursor-pointer"
+                          title="View & download official examination paper in Times New Roman 12pt format (.doc/print)"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                          <span>Question Paper (.doc)</span>
+                        </button>
+
+                        {/* Marking Scheme button (only visible if released by teacher) */}
+                        {exam.isMarkingSchemeReleased && (
+                          <button
+                            type="button"
+                            onClick={() => setViewingMarkingSchemeExam(exam)}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 dark:text-emerald-300 rounded-xl text-xs font-semibold border border-emerald-300 dark:border-emerald-700 transition-colors cursor-pointer"
+                            title="View & download official marking scheme in Times New Roman 12pt format (.doc/print)"
+                          >
+                            <Award className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Marking Scheme</span>
+                          </button>
+                        )}
                       </>
                     )}
 
-                    {/* Question Paper in Times New Roman 12pt format - STRICTLY INVISIBLE until student submits work */}
-                    {sub && (sub.status === 'submitted' || sub.status === 'graded') && (
-                      <button
-                        type="button"
-                        onClick={() => setViewingQuestionPaperExam(exam)}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700 transition-colors cursor-pointer"
-                        title="View & download official examination paper in Times New Roman 12pt format (.doc/print)"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>Question Paper (.doc)</span>
-                      </button>
-                    )}
-
-                    {/* Marking Scheme button (only visible if released by teacher AND student has submitted work) */}
-                    {exam.isMarkingSchemeReleased && sub && (sub.status === 'submitted' || sub.status === 'graded') && (
-                      <button
-                        type="button"
-                        onClick={() => setViewingMarkingSchemeExam(exam)}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 dark:text-emerald-300 rounded-lg text-xs font-semibold border border-emerald-300 dark:border-emerald-700 transition-colors cursor-pointer"
-                        title="View & download official marking scheme in Times New Roman 12pt format (.doc/print)"
-                      >
-                        <Award className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Marking Scheme</span>
-                      </button>
-                    )}
-
+                    {/* In Progress Session Action */}
                     {statusType === 'in_progress' && sub && (
-                      <div className="flex flex-col gap-1 items-start sm:items-end">
-                        <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
-                          <Lock className="w-3 h-3" /> SEB Non-Pausable Session
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedExamId(exam.id);
-                            onResumeExam(exam, sub);
-                          }}
-                          className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-amber-500 hover:text-amber-950 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                        >
-                          <Play className="w-3.5 h-3.5" />
-                          <span>Return to Live Examination</span>
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedExamId(exam.id);
+                          onResumeExam(exam, sub);
+                        }}
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-600 to-indigo-600 hover:from-amber-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                      >
+                        <Play className="w-4 h-4 fill-current" />
+                        <span>Return to Live Examination &rarr;</span>
+                      </button>
                     )}
 
+                    {/* Active Now & Upcoming Actions */}
                     {(statusType === 'active_now' || statusType === 'upcoming') && (
-                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-                        {exam.admittedStudentIds?.includes(student.id) && (
-                          <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-[10px] uppercase font-mono flex items-center justify-center gap-1 border border-emerald-300 dark:border-emerald-700 animate-pulse">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                            <span>Admitted by Invigilator ✓</span>
-                          </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedExamId(exam.id);
+                          handleInitiateExam(exam);
+                        }}
+                        className={`w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-white rounded-xl text-xs font-bold shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer ${
+                          exam.admittedStudentIds?.includes(student.id)
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 ring-2 ring-emerald-400/50'
+                            : 'bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500'
+                        }`}
+                      >
+                        {exam.admittedStudentIds?.includes(student.id) ? (
+                          <>
+                            <Play className="w-4 h-4 fill-current text-slate-950" />
+                            <span className="text-white">Commence Examination (Admitted) &rarr;</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="w-4 h-4 text-cyan-300" />
+                            <span>Test Compatibility &amp; Sit Examination</span>
+                          </>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedExamId(exam.id);
-                            handleInitiateExam(exam);
-                          }}
-                          className={`w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer ${
-                            exam.admittedStudentIds?.includes(student.id)
-                              ? 'bg-emerald-600 hover:bg-emerald-700 font-bold ring-2 ring-emerald-400/50'
-                              : 'bg-indigo-600 hover:bg-indigo-500'
-                          }`}
-                        >
-                          {exam.admittedStudentIds?.includes(student.id) ? (
-                            <>
-                              <Play className="w-3.5 h-3.5 fill-current" />
-                              <span>Commence Examination (Admitted)</span>
-                            </>
-                          ) : (
-                            <>
-                              <ShieldCheck className="w-3.5 h-3.5 text-cyan-300" />
-                              <span>Test your systems compabililty and sit this Examination</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
+                      </button>
+                    )}
+
+                    {/* Expired Action: Request Resit Clearance */}
+                    {statusType === 'expired' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setResitTargetExam(exam);
+                          setIsResitModalOpen(true);
+                          playAlertBeep('info');
+                        }}
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                        title="Submit formal Senate Resit Clearance Request for this missed examination"
+                      >
+                        <Stethoscope className="w-3.5 h-3.5 text-rose-200" />
+                        <span>Request Resit Clearance &rarr;</span>
+                      </button>
                     )}
                   </div>
                 </div>

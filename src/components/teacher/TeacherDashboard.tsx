@@ -65,6 +65,7 @@ import {
   registerStudentToWaitingRoom,
   admitAllStudentsToExam,
   getStoredResitRequests,
+  reRegisterStudentForResitExam,
   respondToAdminInquiryOnMarkChange,
   acknowledgeMarkChangeDecision,
 } from '../../services/storageService';
@@ -263,6 +264,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   // Resit requests and cleared candidate re-registration state
   const [resitRequests, setResitRequests] = useState<ResitRequest[]>(() => getStoredResitRequests());
   const [reRegisterModalTarget, setReRegisterModalTarget] = useState<ResitRequest | null>(null);
+  const [resitExamCreatorConfig, setResitExamCreatorConfig] = useState<{ resitRequest: ResitRequest } | null>(null);
+
+  const handleCreateResitExam = (req: ResitRequest) => {
+    setEditingExam(null);
+    setResitExamCreatorConfig({ resitRequest: req });
+    setIsCreatorOpen(true);
+  };
 
   // Administrative inquiry response modal state
   const [respondingInquirySub, setRespondingInquirySub] = useState<ExamSubmission | null>(null);
@@ -401,7 +409,21 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       if (exam.questions && exam.questions.length > 0) {
         onBulkImportQuestions(exam.questions);
       }
-      showToast(`New examination "${exam.title}" published with official question sheet.`);
+
+      if (resitExamCreatorConfig) {
+        const req = resitExamCreatorConfig.resitRequest;
+        reRegisterStudentForResitExam(req.id, exam.id, teacher.name || 'Course Instructor');
+        setResitRequests(getStoredResitRequests());
+        setResitExamCreatorConfig(null);
+        playAlertBeep('success');
+        triggerFlash({
+          type: 'success',
+          text: 'Resit Examination Published & Candidate Enrolled',
+          subtext: `Candidate ${req.studentName} has been enrolled in ${exam.courseCode} ("${exam.title}").`,
+        });
+      } else {
+        showToast(`New examination "${exam.title}" published with official question sheet.`);
+      }
     }
 
     fetch(`/api/exams/${encodeURIComponent(exam.id)}`, {
@@ -507,17 +529,36 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           const originalExam = exams.find(
             (e) =>
               e.id === req.examId ||
-              e.courseCode.toUpperCase() === req.courseCode.toUpperCase() ||
-              e.title.toLowerCase() === req.examTitle.toLowerCase()
+              e.courseCode.toUpperCase() === req.courseCode.toUpperCase()
           );
-          const isSchemeReleased = Boolean(
-            originalExam?.isMarkingSchemeReleased || originalExam?.status === 'completed'
+          // Check if previously done examination(s) had their marking scheme released
+          const previousCourseExams = exams.filter(
+            (e) =>
+              e.courseCode.toUpperCase() === (req.courseCode || '').toUpperCase() ||
+              (originalExam && e.id === originalExam.id)
           );
+          const allPreviousCourseExamsHaveSchemeReleased =
+            previousCourseExams.length > 0 &&
+            previousCourseExams.every((e) => Boolean(e.isMarkingSchemeReleased || e.status === 'completed'));
+
+          const allCompletedExams = exams.filter((e) => e.status === 'completed');
+          const allCompletedExamsHaveSchemeReleased =
+            allCompletedExams.length > 0 && allCompletedExams.every((e) => Boolean(e.isMarkingSchemeReleased));
+
+          const isSchemeReleased =
+            allPreviousCourseExamsHaveSchemeReleased ||
+            allCompletedExamsHaveSchemeReleased ||
+            Boolean(originalExam?.isMarkingSchemeReleased || originalExam?.status === 'completed');
 
           return (
             <div
               key={req.id}
-              className="relative p-4 md:p-5 rounded-2xl bg-gradient-to-r from-emerald-950 via-teal-950 to-indigo-950 text-white border-2 border-emerald-400 shadow-xl overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 ring-4 ring-emerald-500/20"
+              onAnimationEnd={(e) => {
+                if (e.target === e.currentTarget || e.animationName.includes('bounce') || e.animationName.includes('flashcard')) {
+                  playAlertBeep('warning');
+                }
+              }}
+              className="relative p-4 md:p-5 rounded-2xl bg-gradient-to-r from-emerald-950 via-teal-950 to-indigo-950 text-white border-2 border-emerald-400 shadow-xl overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 ring-4 ring-emerald-500/20 animate-flashcard-entry transition-all"
             >
               <div className="flex items-start gap-3.5">
                 <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 shadow-inner">
@@ -541,7 +582,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     <div className="mt-1 flex items-center gap-1.5 text-xs text-amber-300 font-semibold bg-amber-950/60 p-1.5 rounded-lg border border-amber-600/60">
                       <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                       <span>
-                        Notice: Marking scheme for {req.courseCode} was already released. You can re-register student to an alternative session or similar unit.
+                        Notice: Marking scheme for {req.courseCode} was already released. You have the option to create a fresh examination session and add this candidate to it.
                       </span>
                     </div>
                   ) : (
@@ -552,15 +593,50 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 </div>
               </div>
 
-              <div className="shrink-0 flex items-center gap-2 self-start md:self-center w-full md:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setReRegisterModalTarget(req)}
-                  className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-[#d1e231] hover:bg-[#c0d725] text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer border border-[#a3b817]"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>Re-Register Student Now ({queueTotal} in Queue)</span>
-                </button>
+              <div className="shrink-0 flex flex-wrap items-center gap-2 self-start md:self-center w-full md:w-auto">
+                {isSchemeReleased ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleCreateResitExam(req)}
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#d1e231] hover:bg-[#c0d725] text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer border border-[#a3b817] active-pear animate-pear-pulse"
+                      title="Create a new secure examination paper with confidential questions and enroll candidate"
+                    >
+                      <Plus className="w-4 h-4 text-slate-950" />
+                      <span>Create New Examination &amp; Add Student</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setReRegisterModalTarget(req)}
+                      className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-white/20"
+                      title="Or re-register candidate to an existing session in the catalog"
+                    >
+                      <UserPlus className="w-4 h-4 text-emerald-300" />
+                      <span>Re-Register to Existing Session</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setReRegisterModalTarget(req)}
+                      className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-[#d1e231] hover:bg-[#c0d725] text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer border border-[#a3b817]"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>Re-Register Student Now ({queueTotal} in Queue)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCreateResitExam(req)}
+                      className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-white/20"
+                    >
+                      <Plus className="w-4 h-4 text-emerald-300" />
+                      <span>Create New Session</span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           );
@@ -1942,11 +2018,19 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       {isCreatorOpen && (
         <ExamCreatorModal
           isOpen={isCreatorOpen}
-          onClose={() => setIsCreatorOpen(false)}
+          onClose={() => {
+            setIsCreatorOpen(false);
+            setResitExamCreatorConfig(null);
+          }}
           onSaveExam={handleSaveExam}
           questionBank={questionBank}
           existingExam={editingExam}
           currentTeacher={teacher}
+          initialCourseCode={resitExamCreatorConfig?.resitRequest.courseCode}
+          initialCourseTitle={resitExamCreatorConfig ? `${resitExamCreatorConfig.resitRequest.courseCode} Assessment` : undefined}
+          initialTitle={resitExamCreatorConfig ? `${resitExamCreatorConfig.resitRequest.courseCode} Resit Examination - ${resitExamCreatorConfig.resitRequest.studentName}` : undefined}
+          initialRegisteredStudentIds={resitExamCreatorConfig ? [resitExamCreatorConfig.resitRequest.studentId] : undefined}
+          resitCandidateName={resitExamCreatorConfig?.resitRequest.studentName}
         />
       )}
 
@@ -2139,6 +2223,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           resitRequest={reRegisterModalTarget}
           exams={exams}
           teacher={teacher}
+          onCreateNewExam={(req) => handleCreateResitExam(req)}
           onSuccess={() => {
             setReRegisterModalTarget(null);
             setResitRequests(getStoredResitRequests());

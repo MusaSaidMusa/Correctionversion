@@ -13,6 +13,7 @@ import {
   Stethoscope,
   Sparkles,
   FileCheck2,
+  Plus,
 } from 'lucide-react';
 import { Exam, ResitRequest, TeacherProfile } from '../../types';
 import { reRegisterStudentForResitExam } from '../../services/storageService';
@@ -25,6 +26,7 @@ interface ReRegisterStudentModalProps {
   exams: Exam[];
   teacher: TeacherProfile;
   onSuccess?: () => void;
+  onCreateNewExam?: (resitRequest: ResitRequest) => void;
 }
 
 export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
@@ -34,6 +36,7 @@ export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
   exams,
   teacher,
   onSuccess,
+  onCreateNewExam,
 }) => {
   if (!isOpen || !resitRequest) return null;
 
@@ -196,8 +199,23 @@ export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
                 <span>Original Examination Scheme Has Been Released to Candidates</span>
               </div>
               <p className="text-[11px] leading-relaxed">
-                The marking scheme for <strong>{resitRequest.courseCode}</strong> was already released to students. Under assessment governance regulations, <strong>you can register the student to any other similar unit exam</strong> or alternate sitting where the scheme remains confidential.
+                The marking scheme for <strong>{resitRequest.courseCode}</strong> was already released to students. Under assessment governance regulations, <strong>you can register the student to any other similar unit exam</strong> or create a fresh examination sitting where the scheme remains confidential.
               </p>
+              {onCreateNewExam && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onCreateNewExam(resitRequest);
+                    }}
+                    className="w-full py-2 px-3.5 bg-[#d1e231] hover:bg-[#c0d725] text-slate-950 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs border border-[#a3b817] cursor-pointer active-pear animate-pear-pulse"
+                  >
+                    <Plus className="w-4 h-4 text-slate-950" />
+                    <span>Create New Resit Examination &amp; Enroll Candidate Now</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
