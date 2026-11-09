@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Faculty of Computing & Information Technologies",
+    "department": "Computer Science & Software Engineering",
+    "code": "CIT"
+  },
+  {
+    "name": "Faculty of Natural & Applied Sciences",
+    "department": "Department of Mathematics & Statistics",
+    "code": "NAS"
+  },
+  {
+    "name": "Faculty of Engineering & Architecture",
+    "department": "School of Electronic & Computer Engineering",
+    "code": "ENG"
+  },
+  {
+    "name": "Faculty of Business & Administrative Sciences",
+    "department": "Department of Information Systems & Management",
+    "code": "BAS"
+  }
+]

@@ -31,15 +31,44 @@ export function triggerFlash(
 }
 
 export const FlashMessage: React.FC<FlashMessageProps> = ({ message, onClose }) => {
+  const hasPlayedSoundRef = React.useRef(false);
+
   useEffect(() => {
     if (!message) return;
-    // Play beep once at the beginning of flashcard animation
-    playAlertBeep(message.type || 'info');
-    const timer = setTimeout(() => {
+    hasPlayedSoundRef.current = false;
+
+    // Trigger acoustic chime at the completion of animated flashcard bounce-in (~350ms)
+    const soundTimer = setTimeout(() => {
+      if (!hasPlayedSoundRef.current) {
+        hasPlayedSoundRef.current = true;
+        playAlertBeep(message.type || 'info');
+      }
+    }, 360);
+
+    const autoCloseTimer = setTimeout(() => {
       onClose();
     }, 4500);
-    return () => clearTimeout(timer);
+
+    return () => {
+      clearTimeout(soundTimer);
+      clearTimeout(autoCloseTimer);
+    };
   }, [message, onClose]);
+
+  const handleAnimationEnd = (e: React.AnimationEvent<HTMLDivElement>) => {
+    // When the flashcard bounce-in entrance animation concludes, chime the audio alert
+    if (
+      e.animationName.includes('bounce') ||
+      e.animationName.includes('entry') ||
+      e.animationName.includes('flashcard') ||
+      e.target === e.currentTarget
+    ) {
+      if (!hasPlayedSoundRef.current && message) {
+        hasPlayedSoundRef.current = true;
+        playAlertBeep(message.type || 'info');
+      }
+    }
+  };
 
   if (!message) return null;
 
@@ -93,6 +122,7 @@ export const FlashMessage: React.FC<FlashMessageProps> = ({ message, onClose }) 
 
       {/* Centered Popup Flashcard with Light Green (success) or Light Red (unsuccessful) background */}
       <div
+        onAnimationEnd={handleAnimationEnd}
         className={`relative z-10 pointer-events-auto max-w-sm sm:max-w-md w-full px-4 py-3.5 rounded-2xl flex items-center gap-3.5 animate-flashcard-entry transition-all overflow-hidden ${colorStyles}`}
         role="alert"
         aria-live="assertive"

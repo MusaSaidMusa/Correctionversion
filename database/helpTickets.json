@@ -1,0 +1,17 @@
+[
+  {
+    "id": "TICK-1042",
+    "userId": "student-alex",
+    "userName": "Alex Rivera",
+    "userEmail": "alex.rivera@student.edu",
+    "userRole": "student",
+    "subject": "SEB Browser Lockdown Verification Help",
+    "message": "Could you confirm whether Safe Exam Browser version 3.4 is required for tomorrow’s CS401 examination?",
+    "category": "system_compatibility",
+    "severity": "medium",
+    "status": "resolved",
+    "createdAt": "2026-11-07T08:00:00.000Z",
+    "resolvedAt": "2026-11-08T08:00:00.000Z",
+    "adminReply": "Standard browser proctoring is enabled with webcam and mic verification. SEB is optional for this session."
+  }
+]

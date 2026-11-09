@@ -1,0 +1,35 @@
+[
+  {
+    "id": "course-cs401",
+    "code": "CS401",
+    "title": "Advanced Distributed Systems & Consensus",
+    "department": "Computer Science & Software Engineering",
+    "faculty": "Faculty of Computing & Information Technologies",
+    "credits": 4,
+    "level": "Senior (400-Level)",
+    "description": "Raft, Paxos, vector clocks, Byzantine fault tolerance, and eventual consistency paradigms.",
+    "createdAt": "2024-01-10T08:00:00.000Z"
+  },
+  {
+    "id": "course-cs302",
+    "code": "CS302",
+    "title": "Database Systems Architecture & Query Optimization",
+    "department": "Computer Science & Software Engineering",
+    "faculty": "Faculty of Computing & Information Technologies",
+    "credits": 3,
+    "level": "Junior (300-Level)",
+    "description": "Relational algebra, B+ trees, ACID transaction semantics, WAL, and MVCC concurrency controls.",
+    "createdAt": "2024-01-10T08:00:00.000Z"
+  },
+  {
+    "id": "course-cyber201",
+    "code": "CYBER201",
+    "title": "Network Security, PKI & Applied Cryptography",
+    "department": "Computer Science & Software Engineering",
+    "faculty": "Faculty of Computing & Information Technologies",
+    "credits": 3,
+    "level": "Sophomore (200-Level)",
+    "description": "TLS 1.3 protocol handshake, AES-GCM, RSA, ECC, and zero-trust perimeter network security.",
+    "createdAt": "2024-01-10T08:00:00.000Z"
+  }
+]

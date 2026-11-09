@@ -1,0 +1,33 @@
+{
+  "version": "1.0.0",
+  "exportedAt": "2026-11-09T08:00:00.000Z",
+  "institution": "Rifkins Education College & Examination Directorate",
+  "collections": [
+    "superAdmin",
+    "teachers",
+    "students",
+    "courses",
+    "questions",
+    "exams",
+    "submissions",
+    "missedExams",
+    "resitRequests",
+    "academicDatabase",
+    "helpTickets",
+    "faculties"
+  ],
+  "dataFilePaths": {
+    "superAdmin": "/database/superAdmin.json",
+    "teachers": "/database/teachers.json",
+    "students": "/database/students.json",
+    "courses": "/database/courses.json",
+    "questions": "/database/questions.json",
+    "exams": "/database/exams.json",
+    "submissions": "/database/submissions.json",
+    "missedExams": "/database/missedExams.json",
+    "resitRequests": "/database/resitRequests.json",
+    "academicDatabase": "/database/academicDatabase.json",
+    "helpTickets": "/database/helpTickets.json",
+    "faculties": "/database/faculties.json"
+  }
+}

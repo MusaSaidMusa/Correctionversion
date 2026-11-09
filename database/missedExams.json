@@ -1,0 +1,30 @@
+[
+  {
+    "id": "missed-sam-cs401",
+    "studentId": "student-sam",
+    "studentName": "Samuel K. Ochieng",
+    "studentNumber": "MSA-2026/6-3045",
+    "studentEmail": "sam.ochieng@student.edu",
+    "courseCode": "CS401",
+    "examTitle": "Midterm Examination: Distributed Systems Architecture",
+    "examId": "exam-cs401-midterm",
+    "scheduledDate": "2026-11-09",
+    "missedReason": "Candidate experienced sudden power grid outage & ISP fiber disruption during live examination window.",
+    "status": "resit_pending",
+    "recordedAt": "2026-11-09T06:00:00.000Z"
+  },
+  {
+    "id": "missed-maya-cs401",
+    "studentId": "student-maya",
+    "studentName": "Maya Lin",
+    "studentNumber": "MSA-2026/7-1982",
+    "studentEmail": "maya.lin@student.edu",
+    "courseCode": "CS401",
+    "examTitle": "Archive 2025: Principles of Distributed Computing",
+    "examId": "exam-past-2025",
+    "scheduledDate": "2025-11-15",
+    "missedReason": "Documented sudden medical acute illness preventing attendance at scheduled examination.",
+    "status": "resit_pending",
+    "recordedAt": "2025-11-15T12:00:00.000Z"
+  }
+]

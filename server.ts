@@ -230,6 +230,44 @@ app.post('/api/students', (req: Request, res: Response) => {
   res.json({ success: true, data: req.body });
 });
 
+// Centralized Database Endpoints
+app.get('/api/database', (_req: Request, res: Response) => {
+  try {
+    const dbDir = path.resolve(__dirname, 'database');
+    if (!fs.existsSync(dbDir)) {
+      return res.status(404).json({ success: false, error: 'Database folder not found' });
+    }
+    const files = fs.readdirSync(dbDir).filter((f) => f.endsWith('.json'));
+    const collections: Record<string, any> = {};
+    for (const file of files) {
+      const key = file.replace('.json', '');
+      const raw = fs.readFileSync(path.join(dbDir, file), 'utf-8');
+      try {
+        collections[key] = JSON.parse(raw);
+      } catch {
+        collections[key] = null;
+      }
+    }
+    res.json({ success: true, database: collections });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/database/:collection', (req: Request, res: Response) => {
+  try {
+    const { collection } = req.params;
+    const filePath = path.resolve(__dirname, 'database', `${collection}.json`);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, error: `Collection '${collection}' not found in database.` });
+    }
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    res.json({ success: true, collection, data: JSON.parse(raw) });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Password change endpoint
 app.post('/api/users/change-password', (req: Request, res: Response) => {
   const { role, email } = req.body;

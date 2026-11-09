@@ -21,6 +21,10 @@ import { AuthUser, StudentProfile, TeacherProfile, UserRole } from '../../types'
 import {
   verifyUserPassword,
   getStoredSuperAdmin,
+  getStoredStudents,
+  getStoredTeachers,
+  findStudentByIdentifier,
+  findTeacherByIdentifier,
   generatePasswordResetCode,
   resetPasswordWithCode,
 } from '../../services/storageService';
@@ -37,12 +41,39 @@ interface AuthViewProps {
 export const AuthView: React.FC<AuthViewProps> = ({
   onLogin,
   teacher,
-  students,
+  students: propStudents,
   onOpenHelp,
 }) => {
+  // Always load live fresh accounts from storage with prop fallback
+  const allStudents = React.useMemo(() => {
+    try {
+      const stored = getStoredStudents();
+      return stored && stored.length > 0 ? stored : propStudents;
+    } catch {
+      return propStudents;
+    }
+  }, [propStudents]);
+
+  const allTeachers = React.useMemo(() => {
+    try {
+      const stored = getStoredTeachers();
+      return stored && stored.length > 0 ? stored : [teacher];
+    } catch {
+      return [teacher];
+    }
+  }, [teacher]);
+
   const [activeRole, setActiveRole] = useState<UserRole>('student');
-  const [selectedStudentId, setSelectedStudentId] = useState(students[0]?.id || 'student-alex');
-  const [email, setEmail] = useState(students[0]?.email || 'alex.rivera@student.edu');
+  const [selectedStudentId, setSelectedStudentId] = useState<string>(
+    () => allStudents[0]?.id || 'student-alex'
+  );
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string>(
+    () => allTeachers[0]?.id || teacher?.id || 'teacher-evelyn'
+  );
+
+  const [email, setEmail] = useState<string>(
+    () => allStudents[0]?.studentNumber || allStudents[0]?.email || 'MSA-2026/8-2041'
+  );
   const [password, setPassword] = useState('password123');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -65,24 +96,35 @@ export const AuthView: React.FC<AuthViewProps> = ({
     setActiveRole(role);
     setErrorMessage(null);
     if (role === 'teacher') {
-      setEmail(teacher.email);
+      const t = allTeachers.find((tch) => tch.id === selectedTeacherId) || allTeachers[0] || teacher;
+      setEmail(t.email);
       setPassword('password123');
     } else if (role === 'admin') {
       const admin = getStoredSuperAdmin();
-      setEmail(admin.email);
+      setEmail(admin.email || 'admin@university.edu');
       setPassword('admin123');
     } else {
-      const s = students.find((st) => st.id === selectedStudentId) || students[0];
-      setEmail(s ? s.email : 'alex.rivera@student.edu');
+      const s = allStudents.find((st) => st.id === selectedStudentId) || allStudents[0];
+      setEmail(s ? s.studentNumber || s.email : 'MSA-2026/8-2041');
       setPassword('password123');
     }
   };
 
   const handleStudentSelect = (sId: string) => {
     setSelectedStudentId(sId);
-    const s = students.find((st) => st.id === sId);
+    const s = allStudents.find((st) => st.id === sId);
     if (s) {
-      setEmail(s.email);
+      setEmail(s.studentNumber || s.email);
+      setPassword('password123');
+    }
+  };
+
+  const handleTeacherSelect = (tId: string) => {
+    setSelectedTeacherId(tId);
+    const t = allTeachers.find((tch) => tch.id === tId);
+    if (t) {
+      setEmail(t.email);
+      setPassword('password123');
     }
   };
 
@@ -90,42 +132,80 @@ export const AuthView: React.FC<AuthViewProps> = ({
     e.preventDefault();
     setErrorMessage(null);
 
-    const isValid = verifyUserPassword(activeRole, email, password);
-    if (!isValid) {
+    const inputClean = email.trim();
+    const inputLower = inputClean.toLowerCase();
+
+    // Determine target role (flexible multi-role auto-detection if credentials match)
+    let effectiveRole = activeRole;
+    let isAuthed = verifyUserPassword(effectiveRole, inputClean, password);
+
+    // If verification failed on selected tab, check if user entered Admin or Teacher credentials
+    if (!isAuthed) {
+      if (inputLower === 'admin' || inputLower === 'admin@university.edu' || inputLower === 'rifkinsmusa@gmail.com') {
+        if (verifyUserPassword('admin', inputClean, password)) {
+          effectiveRole = 'admin';
+          isAuthed = true;
+        }
+      } else {
+        const potentialTeacher = findTeacherByIdentifier(inputClean);
+        if (potentialTeacher && verifyUserPassword('teacher', inputClean, password)) {
+          effectiveRole = 'teacher';
+          isAuthed = true;
+        } else {
+          const potentialStudent = findStudentByIdentifier(inputClean);
+          if (potentialStudent && verifyUserPassword('student', inputClean, password)) {
+            effectiveRole = 'student';
+            isAuthed = true;
+          }
+        }
+      }
+    }
+
+    if (!isAuthed) {
       playAlertBeep('error');
-      setErrorMessage('Invalid institutional credentials. Please verify your email and password.');
+      setErrorMessage('Invalid institutional credentials. Please verify your email, admission number, and password.');
       return;
     }
 
     playAlertBeep('success');
 
-    if (activeRole === 'teacher') {
+    if (effectiveRole === 'teacher') {
+      const matchedTeacher =
+        findTeacherByIdentifier(inputClean) ||
+        allTeachers.find((t) => t.id === selectedTeacherId) ||
+        allTeachers[0] ||
+        teacher;
+
       const authUser: AuthUser = {
-        id: teacher.id,
-        name: teacher.name,
-        email: teacher.email,
+        id: matchedTeacher.id,
+        name: matchedTeacher.name,
+        email: matchedTeacher.email,
         role: 'teacher',
-        avatar: teacher.avatar,
-        title: teacher.title,
-        department: teacher.department,
-        faculty: teacher.faculty,
-        assignedCourseCodes: teacher.assignedCourseCodes,
-        accessStatus: teacher.accessStatus,
+        avatar: matchedTeacher.avatar,
+        title: matchedTeacher.title,
+        department: matchedTeacher.department,
+        faculty: matchedTeacher.faculty,
+        assignedCourseCodes: matchedTeacher.assignedCourseCodes,
+        accessStatus: matchedTeacher.accessStatus,
       };
       onLogin(authUser);
-    } else if (activeRole === 'student') {
-      const student = students.find((s) => s.email.toLowerCase() === email.toLowerCase()) || students[0];
+    } else if (effectiveRole === 'student') {
+      const matchedStudent =
+        findStudentByIdentifier(inputClean) ||
+        allStudents.find((s) => s.id === selectedStudentId) ||
+        allStudents[0];
+
       const authUser: AuthUser = {
-        id: student.id,
-        name: student.name,
-        email: student.email,
+        id: matchedStudent.id,
+        name: matchedStudent.name,
+        email: matchedStudent.email,
         role: 'student',
-        avatar: student.avatar,
-        studentNumber: student.studentNumber,
-        department: student.department,
-        faculty: student.faculty,
-        assignedCourseCodes: student.enrolledCourseCodes,
-        accessStatus: student.accessStatus,
+        avatar: matchedStudent.avatar,
+        studentNumber: matchedStudent.studentNumber,
+        department: matchedStudent.department,
+        faculty: matchedStudent.faculty,
+        assignedCourseCodes: matchedStudent.enrolledCourseCodes,
+        accessStatus: matchedStudent.accessStatus,
       };
       onLogin(authUser);
     } else {
@@ -295,12 +375,45 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 onChange={(e) => handleStudentSelect(e.target.value)}
                 className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer"
               >
-                {students.map((s) => (
+                {allStudents.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name} ({s.studentNumber})
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {/* If Teacher role, quick teacher selector */}
+          {activeRole === 'teacher' && (
+            <div className="mb-4">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                Select Teaching Faculty / Invigilator
+              </label>
+              <select
+                value={selectedTeacherId}
+                onChange={(e) => handleTeacherSelect(e.target.value)}
+                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer"
+              >
+                {allTeachers.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.staffId || t.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* If Admin role, quick info display */}
+          {activeRole === 'admin' && (
+            <div className="mb-4 p-3 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900 rounded-xl text-xs text-indigo-950 dark:text-indigo-200">
+              <div className="font-bold flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span>Dr. Marcus Sterling</span>
+              </div>
+              <div className="text-[11px] text-indigo-700 dark:text-indigo-300 mt-0.5">
+                Institutional Registrar &amp; Super Administrator (Username: <code className="bg-white/80 dark:bg-black/40 px-1 py-0.5 rounded font-mono font-bold">admin</code> or <code className="bg-white/80 dark:bg-black/40 px-1 py-0.5 rounded font-mono font-bold">admin@university.edu</code>)
+              </div>
             </div>
           )}
 
@@ -314,16 +427,27 @@ export const AuthView: React.FC<AuthViewProps> = ({
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
-                Institutional Email
+                {activeRole === 'student'
+                  ? 'Institutional Admission No. or Email'
+                  : activeRole === 'teacher'
+                  ? 'Faculty Email or Staff ID'
+                  : 'Institutional Administrator Username or Email'}
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
-                  type="email"
+                  type="text"
                   required
                   value={email}
+                  placeholder={
+                    activeRole === 'student'
+                      ? 'e.g. MSA-2026/8-2041 or alex.rivera@student.edu'
+                      : activeRole === 'teacher'
+                      ? 'e.g. e.vance@university.edu or FAC-ENG-8492'
+                      : 'e.g. admin or admin@university.edu'
+                  }
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                  className="w-full pl-10 pr-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 font-medium"
                 />
               </div>
             </div>

@@ -446,6 +446,7 @@ export default function App() {
 
         <AuthView
           onLogin={(user) => {
+            reloadState();
             setCurrentUser(user);
             showFlash({
               text: 'You have successfully logged in',

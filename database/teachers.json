@@ -1,0 +1,54 @@
+[
+  {
+    "id": "teacher-evelyn",
+    "name": "Prof. Evelyn Vance",
+    "title": "Professor & Chair of Computer Science",
+    "staffId": "FAC-ENG-8492",
+    "email": "e.vance@university.edu",
+    "avatar": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200",
+    "department": "Computer Science & Software Engineering",
+    "faculty": "Faculty of Computing & Information Technologies",
+    "office": "Turing Hall, Room 314",
+    "appointmentYear": "2016",
+    "assignedCourseCodes": ["CS401", "CS302", "CYBER201"],
+    "accessStatus": "active",
+    "securityClearance": "Level IV - Chief Examination Invigilator",
+    "rights": {
+      "canCreateExams": true,
+      "canGradeMarks": true,
+      "canAdmitStudents": true,
+      "canDeleteExams": false,
+      "canExportSubmissions": true
+    },
+    "phone": "+1 (555) 392-8814",
+    "bio": "Specialist in distributed consensus algorithms, fault-tolerant network topologies, and algorithmic verification.",
+    "registeredAt": "2024-01-15T08:00:00.000Z",
+    "defaultPassword": "password123"
+  },
+  {
+    "id": "teacher-david",
+    "name": "Dr. David Chen",
+    "title": "Associate Professor of Cryptography",
+    "staffId": "FAC-CIT-9104",
+    "email": "d.chen@university.edu",
+    "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200",
+    "department": "Computer Science & Software Engineering",
+    "faculty": "Faculty of Computing & Information Technologies",
+    "office": "Shannon Tower, Room 208",
+    "appointmentYear": "2019",
+    "assignedCourseCodes": ["CYBER201", "CS302"],
+    "accessStatus": "active",
+    "securityClearance": "Level III - Senior Invigilator",
+    "rights": {
+      "canCreateExams": true,
+      "canGradeMarks": true,
+      "canAdmitStudents": true,
+      "canDeleteExams": false,
+      "canExportSubmissions": true
+    },
+    "phone": "+1 (555) 749-2041",
+    "bio": "Researches zero-knowledge proofs, post-quantum asymmetric cryptography, and authentication protocols.",
+    "registeredAt": "2024-02-01T08:00:00.000Z",
+    "defaultPassword": "password123"
+  }
+]

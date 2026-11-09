@@ -1,0 +1,15 @@
+{
+  "id": "admin-marcus",
+  "name": "Dr. Marcus Sterling",
+  "email": "admin@university.edu",
+  "role": "admin",
+  "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
+  "title": "Institutional Examination Registrar & Super Administrator",
+  "department": "Office of Academic Affairs & Examinations",
+  "faculty": "Directorate of Academic Standards & Quality Assurance",
+  "accessStatus": "active",
+  "phone": "+1 (555) 019-4820",
+  "bio": "Oversees college-wide examination governance at Rifkins Education College, proctoring security protocols, academic integrity standards, and official marks audit.",
+  "officeLocation": "Administration Complex, Senate Wing 4B",
+  "defaultPassword": "admin123"
+}

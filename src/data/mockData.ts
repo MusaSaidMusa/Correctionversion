@@ -11,6 +11,22 @@ import {
   ResitRequest,
 } from '../types';
 
+export {
+  DATABASE,
+  DB_SUPER_ADMIN,
+  DB_TEACHERS,
+  DB_STUDENTS,
+  DB_COURSES,
+  DB_QUESTIONS,
+  DB_EXAMS,
+  DB_SUBMISSIONS,
+  DB_MISSED_EXAMS,
+  DB_RESIT_REQUESTS,
+  DB_ACADEMIC_RECORDS,
+  DB_HELP_TICKETS,
+  DB_FACULTIES,
+} from '../database';
+
 export const SUPER_ADMIN: AuthUser = {
   id: 'admin-marcus',
   name: 'Dr. Marcus Sterling',

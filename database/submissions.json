@@ -1,0 +1,40 @@
+[
+  {
+    "id": "sub-alex-past",
+    "examId": "exam-past-2025",
+    "studentId": "student-alex",
+    "studentName": "Alex Rivera",
+    "studentEmail": "alex.rivera@student.edu",
+    "studentAvatar": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200",
+    "studentNumber": "MSA-2026/8-2041",
+    "attemptNumber": 1,
+    "status": "graded",
+    "startedAt": "2025-11-15T09:02:11.000Z",
+    "submittedAt": "2025-11-15T10:14:30.000Z",
+    "score": 22,
+    "totalPoints": 25,
+    "percentage": 88,
+    "integrityScore": 98,
+    "incidents": [],
+    "isResultCommitted": true,
+    "committedAt": "2025-11-16T14:00:00.000Z",
+    "committedBy": "Prof. Evelyn Vance",
+    "answers": {
+      "q-cs401-1": {
+        "questionId": "q-cs401-1",
+        "selectedOptionIds": ["opt-a"],
+        "awardedPoints": 10,
+        "isGraded": true,
+        "timeSpentSeconds": 42
+      },
+      "q-cs401-2": {
+        "questionId": "q-cs401-2",
+        "textAnswer": "CAP theorem proves that any networked shared-data system can have at most two of Consistency, Availability, and Partition tolerance.",
+        "awardedPoints": 12,
+        "isGraded": true,
+        "teacherFeedback": "Excellent grasp of partition tolerance constraints.",
+        "timeSpentSeconds": 520
+      }
+    }
+  }
+]
