@@ -91,6 +91,13 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
 
   // Student's historical resit requests
   const myRequests = getStoredResitRequests().filter((r) => r.studentId === student.id);
+  const normCourse = courseCode.trim().toUpperCase();
+  const existingPendingOrApproved = myRequests.find(
+    (r) =>
+      (r.courseCode?.trim().toUpperCase() === normCourse || (preselectedExam && r.examId === preselectedExam.id)) &&
+      (r.status === 'pending' || r.status === 'approved')
+  );
+  const isBlockedDuplicate = Boolean(existingPendingOrApproved);
 
   const processSelectedFile = async (file: File) => {
     setFileUploadError(null);
@@ -164,6 +171,20 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+
+    if (isBlockedDuplicate) {
+      setErrorMsg(
+        existingPendingOrApproved?.status === 'pending'
+          ? `A resit request for ${normCourse} has already been submitted and is currently pending Directorate approval. Students can only send one resit request per missed examination.`
+          : `Clearance has already been approved for ${normCourse}. Please wait for your instructor to re-register you.`
+      );
+      triggerFlash({
+        type: 'error',
+        text: 'Duplicate Request Blocked',
+        subtext: `You have already lodged a resit clearance request for ${normCourse}. Multiple submissions are disabled.`,
+      });
+      return;
+    }
 
     if (!courseCode.trim() || !examTitle.trim() || !reasonDetails.trim()) {
       setErrorMsg('Please specify Course Code, Examination Title, and a comprehensive explanation.');
@@ -676,6 +697,26 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
                 )}
               </div>
 
+              {/* Duplicate Protection Warning Banner */}
+              {isBlockedDuplicate && (
+                <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1 text-xs">
+                    <div className="font-bold text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
+                      <span>Resit Request Already Lodged &mdash; Awaiting Approval</span>
+                      <span className="px-2 py-0.2 rounded-full text-[10px] font-mono uppercase bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-200 font-bold">
+                        {existingPendingOrApproved?.status}
+                      </span>
+                    </div>
+                    <p className="leading-relaxed">
+                      {existingPendingOrApproved?.status === 'pending'
+                        ? `You have already lodged a formal resit clearance request for ${normCourse}. Institutional regulations allow only one resit request per missed examination sitting while awaiting Super Admin Directorate approval. The submit button is deactivated to prevent duplicate requests.`
+                        : `Your resit clearance for ${normCourse} has already been approved by the Directorate. Please wait for your course instructor to assign you an examination sitting.`}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="pt-2 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
@@ -686,10 +727,26 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold flex items-center gap-2 shadow-md cursor-pointer transition-colors"
+                  disabled={isBlockedDuplicate}
+                  className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-md transition-all ${
+                    isBlockedDuplicate
+                      ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-300 dark:border-slate-700 cursor-not-allowed opacity-60 pointer-events-none'
+                      : 'bg-amber-600 hover:bg-amber-700 text-white cursor-pointer hover:scale-105 active:scale-95'
+                  }`}
+                  title={
+                    isBlockedDuplicate
+                      ? 'Resit request already lodged. Await Directorate clearance decision.'
+                      : 'Submit Resit Clearance Request'
+                  }
                 >
                   <Send className="w-4 h-4" />
-                  <span>Submit Resit Clearance Request</span>
+                  <span>
+                    {existingPendingOrApproved?.status === 'pending'
+                      ? 'Request Lodged · Awaiting Approval'
+                      : existingPendingOrApproved?.status === 'approved'
+                      ? 'Clearance Approved ✓'
+                      : 'Submit Resit Clearance Request'}
+                  </span>
                 </button>
               </div>
             </form>

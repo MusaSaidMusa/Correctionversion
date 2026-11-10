@@ -1285,6 +1285,23 @@ export function submitResitRequest(data: {
   }
 
   const requests = getStoredResitRequests();
+  const normCode = normalizeCourseCode(data.courseCode);
+
+  // Institutional Rule: Student can only send examination resit request once and wait for approval for each missed exam
+  const existingPendingOrApproved = requests.find(
+    (r) =>
+      (r.studentId === data.studentId || normalizeAdmission(r.studentNumber) === normalizeAdmission(data.studentNumber)) &&
+      normalizeCourseCode(r.courseCode) === normCode &&
+      (r.status === 'pending' || r.status === 'approved')
+  );
+  if (existingPendingOrApproved) {
+    throw new Error(
+      existingPendingOrApproved.status === 'pending'
+        ? `You have already lodged a resit clearance request for ${data.courseCode}. Students can only submit one request per missed examination while waiting for Directorate approval.`
+        : `A resit request for ${data.courseCode} has already been approved by the Directorate. Please await examination re-registration.`
+    );
+  }
+
   const newReq: ResitRequest = {
     id: `resit-${Date.now()}`,
     ...data,
@@ -1301,7 +1318,6 @@ export function submitResitRequest(data: {
 
   // Mark status in missed exam record
   const missed = getStoredMissedExams();
-  const normCode = normalizeCourseCode(data.courseCode);
   const match = missed.find(
     (m) => m.studentId === data.studentId && normalizeCourseCode(m.courseCode) === normCode
   );
@@ -1410,6 +1426,16 @@ export function reRegisterStudentForResitExam(
   const targetExam = exams.find((e) => e.id === targetExamId);
   if (!targetExam) return { success: false, error: 'Target examination not found.' };
 
+  // Rule Check: The teacher cannot re-register student to examination with a different examination code
+  const normOriginalCode = normalizeCourseCode(req.courseCode);
+  const normTargetCode = normalizeCourseCode(targetExam.courseCode);
+  if (normOriginalCode !== normTargetCode) {
+    return {
+      success: false,
+      error: `Re-Registration Blocked: Candidate cannot be re-registered to a different examination code (${targetExam.courseCode}). Institutional governance requires re-registration into an examination session matching the approved missed code (${req.courseCode}).`,
+    };
+  }
+
   // Ensure target exam registers this student
   if (!targetExam.registeredStudentIds) {
     targetExam.registeredStudentIds = [];
@@ -1424,6 +1450,30 @@ export function reRegisterStudentForResitExam(
   if (student && !student.enrolledCourseCodes.includes(targetExam.courseCode)) {
     student.enrolledCourseCodes.push(targetExam.courseCode);
     saveStoredStudents(students);
+  }
+
+  // Once student has been re-registered to an examination, that examination should be actively available
+  // for the student to commence it. If it's a past examination, reset schedule to a new current timeframe.
+  const nowTime = Date.now();
+  const pastEnd = targetExam.scheduledEndTime ? new Date(targetExam.scheduledEndTime).getTime() : 0;
+  const isPast =
+    !targetExam.scheduledEndTime ||
+    pastEnd <= nowTime ||
+    targetExam.status === 'completed' ||
+    targetExam.status === 'archived';
+
+  if (isPast) {
+    const currentIso = new Date().toISOString();
+    const startTime = new Date(nowTime - 2 * 60000).toISOString();
+    const durationMinutes = targetExam.durationMinutes || 60;
+    // Provide ample active window: duration + 4 hours buffer to sit and submit
+    const endTime = new Date(nowTime + durationMinutes * 60000 + 4 * 3600000).toISOString();
+
+    targetExam.scheduledDate = currentIso.split('T')[0];
+    targetExam.scheduledStartTime = startTime;
+    targetExam.scheduledEndTime = endTime;
+    targetExam.status = 'published';
+    targetExam.isActive = true;
   }
 
   // Mark the resit request as re-registered
@@ -1543,12 +1593,18 @@ export function getExamAttendanceSummary(examId: string): ExamAttendanceSummary 
   const students = getStoredStudents();
   const submissions = getStoredSubmissions();
 
-  // All students registered for this course/exam
-  const registered = students.filter(
-    (s) =>
-      (exam.registeredStudentIds && exam.registeredStudentIds.includes(s.id)) ||
-      (s.enrolledCourseCodes && s.enrolledCourseCodes.includes(exam.courseCode))
-  );
+  // Candidates registered strictly on this particular examination unit:
+  const normExamCode = normalizeCourseCode(exam.courseCode);
+  const registered = students.filter((s) => {
+    // 1. Explicitly registered in exam.registeredStudentIds
+    const isExplicitlyRegistered = Array.isArray(exam.registeredStudentIds) && exam.registeredStudentIds.includes(s.id);
+    // 2. Enrolled specifically in this examination course unit (not generic 'ALL')
+    const isEnrolledInUnit =
+      normExamCode !== 'ALL' &&
+      Array.isArray(s.enrolledCourseCodes) &&
+      s.enrolledCourseCodes.some((c) => normalizeCourseCode(c) === normExamCode);
+    return isExplicitlyRegistered || isEnrolledInUnit;
+  });
 
   const satSubmissions = submissions.filter((s) => s.examId === examId);
   const satStudentIds = new Set(satSubmissions.map((s) => s.studentId));
@@ -2590,14 +2646,26 @@ export function manualGradeFullSubmission(
       };
     }
     const ans = sub.answers[qId];
-    ans.originalScore = ans.originalScore ?? ans.awardedPoints ?? 0;
+    const prevAwarded = ans.awardedPoints;
     ans.awardedPoints = grade.awardedPoints;
     ans.teacherFeedback = grade.feedback || ans.teacherFeedback;
     ans.isGraded = true;
-    ans.isOverridden = true;
-    ans.overriddenBy = instructorName;
-    ans.overriddenAt = new Date().toISOString();
-    ans.overrideReason = overallRemarks || 'Official manual evaluation by course instructor.';
+
+    // Only flag as overridden mark modification if this question already had a previously recorded mark,
+    // the teacher actively changed the score, and provided modification justification.
+    if (
+      prevAwarded !== undefined &&
+      prevAwarded !== null &&
+      prevAwarded !== grade.awardedPoints &&
+      overallRemarks
+    ) {
+      ans.originalScore = ans.originalScore ?? prevAwarded;
+      ans.isOverridden = true;
+      ans.overriddenBy = instructorName;
+      ans.overriddenAt = new Date().toISOString();
+      ans.overrideReason = overallRemarks;
+      ans.overrideStatus = 'pending_admin_review';
+    }
   });
 
   // Calculate final score

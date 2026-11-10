@@ -587,7 +587,16 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     const exam = exams.find((e) => e.id === sub.examId);
     const student = students.find((s) => s.id === sub.studentId);
     Object.entries(sub.answers || {}).forEach(([qId, ans]) => {
-      if (ans.isOverridden) {
+      // Rule: Do not add marks that do not need modification on the modification request list unless the teacher requested the modification.
+      const hasTeacherModificationRequest =
+        Boolean(ans.isOverridden) &&
+        Boolean(ans.overrideReason || ans.overriddenBy) &&
+        (ans.originalScore !== ans.awardedPoints ||
+          ans.overrideStatus === 'pending_admin_review' ||
+          ans.overrideStatus === 'approved' ||
+          ans.overrideStatus === 'declined');
+
+      if (hasTeacherModificationRequest) {
         const q = exam?.questions?.find((question) => question.id === qId);
         allModifiedMarks.push({
           submission: sub,
@@ -2017,59 +2026,82 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                     <div
                       key={exam.id}
                       data-exam-card="true"
-                      className="exam-card p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 dark:hover:bg-amber-950/20 transition-all text-xs"
+                      className="exam-card group relative p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900/90 shadow-xs hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 dark:hover:bg-amber-950/20 hover:shadow-md transition-all duration-200 text-xs flex flex-col xl:flex-row xl:items-center justify-between gap-4"
                     >
-                      <div className="space-y-1.5 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono font-bold text-sm text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                      <div className="space-y-3 flex-1 min-w-0">
+                        {/* Title & Status Header */}
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span className="font-mono font-bold text-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/80 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800 shadow-2xs">
                             {exam.courseCode}
                           </span>
-                          <span className="font-bold text-slate-900 dark:text-white text-sm">
+                          <h4 className="font-bold text-slate-900 dark:text-white text-sm md:text-base tracking-tight leading-snug">
                             {exam.title}
-                          </span>
+                          </h4>
                           <span
-                            className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded ${
+                            className={`inline-flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase px-2.5 py-0.5 rounded-full border ${
                               exam.status === 'active'
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800'
+                                : exam.status === 'published'
+                                ? 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800'
+                                : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
                             }`}
                           >
+                            <span className={`w-1.5 h-1.5 rounded-full ${exam.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
                             {exam.status}
                           </span>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-3 text-slate-500 dark:text-slate-400">
-                          <span>Instructor: <strong className="text-slate-700 dark:text-slate-200">{exam.instructorName}</strong></span>
-                          <span>·</span>
-                          <span>Duration: <strong>{exam.durationMinutes} mins</strong></span>
-                          <span>·</span>
-                          <span>Questions: <strong>{exam.questions.length} ({totalPoints} pts)</strong></span>
-                          <span>·</span>
-                          <span>Submissions: <strong className="text-indigo-600 dark:text-indigo-400">{examSubs.length}</strong></span>
-                          <span>·</span>
-                          <span>Enrolled: <strong>{enrolledCount} Candidates</strong></span>
+                        {/* Metadata Statistics Badges */}
+                        <div className="flex flex-wrap items-center gap-2 text-slate-600 dark:text-slate-300">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-medium">
+                            <GraduationCap className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                            <span>Examiner: <strong className="text-slate-900 dark:text-white">{exam.instructorName}</strong></span>
+                          </span>
+
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-medium">
+                            <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                            <span><strong>{exam.durationMinutes}</strong> mins</span>
+                          </span>
+
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-medium">
+                            <FileText className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+                            <span><strong>{exam.questions.length}</strong> Questions ({totalPoints} pts)</span>
+                          </span>
+
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-50/70 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 font-medium text-indigo-800 dark:text-indigo-300">
+                            <Users className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                            <span>Unit Enrolled: <strong>{enrolledCount}</strong> Candidates</span>
+                          </span>
+
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50/70 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 font-medium text-emerald-800 dark:text-emerald-300">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            <span>Submissions: <strong>{examSubs.length}</strong></span>
+                          </span>
                         </div>
 
                         {/* Security Protocols Bar */}
-                        <div className="flex items-center gap-2 pt-1 font-mono text-[11px]">
-                          <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                            <Check className="w-3 h-3" /> Camera Locked
+                        <div className="flex flex-wrap items-center gap-2 pt-0.5 font-mono text-[11px]">
+                          <span className="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 shadow-2xs font-semibold">
+                            <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>Camera Locked</span>
                           </span>
-                          <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                            <Check className="w-3 h-3" /> Microphone Active
+                          <span className="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 shadow-2xs font-semibold">
+                            <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>Microphone Active</span>
                           </span>
-                          <span className="flex items-center gap-1 text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
-                            <Check className="w-3 h-3" /> SEB Handshake Verified
+                          <span className="inline-flex items-center gap-1.5 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800 shadow-2xs font-semibold">
+                            <Shield className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                            <span>SEB Handshake Verified</span>
                           </span>
                         </div>
                       </div>
 
                       {/* Super Admin Exam Actions */}
-                      <div className="flex flex-wrap items-center gap-2 self-end lg:self-center">
+                      <div className="flex flex-wrap items-center gap-2 self-start xl:self-center shrink-0 pt-2 xl:pt-0 border-t xl:border-t-0 border-slate-100 dark:border-slate-800 w-full xl:w-auto">
                         <button
                           type="button"
                           onClick={() => setViewingPaperExam(exam)}
-                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer text-xs"
+                          className="px-3 py-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-semibold flex items-center gap-1.5 cursor-pointer text-xs border border-slate-200 dark:border-slate-700 shadow-2xs transition-colors"
                           title="View official examination paper formatted in Times New Roman 12pt"
                         >
                           <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
@@ -2079,7 +2111,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                         <button
                           type="button"
                           onClick={() => setViewingSchemeExam(exam)}
-                          className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer text-xs border border-indigo-200 dark:border-indigo-800"
+                          className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-xl font-semibold flex items-center gap-1.5 cursor-pointer text-xs border border-indigo-200 dark:border-indigo-800 shadow-2xs transition-colors"
                           title="View official marking scheme formatted in Times New Roman 12pt"
                         >
                           <Award className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
@@ -2089,7 +2121,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                         <button
                           type="button"
                           onClick={() => setInspectingExam(exam)}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer text-xs"
+                          className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-semibold flex items-center gap-1.5 cursor-pointer text-xs transition-colors"
                         >
                           <Eye className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
                           <span>Inspect ({exam.questions.length})</span>
@@ -2098,7 +2130,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                         <button
                           type="button"
                           onClick={() => handleDeleteExamAction(exam.id, exam.title)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 cursor-pointer"
+                          className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/50 cursor-pointer transition-colors"
                           title="Delete Exam from Institution"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -2198,16 +2230,24 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                   return (
                     <div
                       key={teacher.id}
-                      className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs hover:border-sky-400 dark:hover:border-sky-500 hover:bg-sky-50/20 dark:hover:bg-sky-950/20 hover:shadow-md transition-all text-xs border-l-4 border-l-indigo-600 dark:border-l-indigo-500"
+                      className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 dark:hover:bg-amber-950/20 hover:shadow-md transition-all text-xs border-l-4 border-l-indigo-600 dark:border-l-indigo-500"
                     >
-                      <div className="flex items-start sm:items-center gap-3.5">
-                        <img
-                          src={teacher.avatar}
-                          alt={teacher.name}
-                          className="w-12 h-12 rounded-full object-cover border-2 border-slate-200 dark:border-slate-700 shrink-0"
-                        />
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
+                      <div className="flex items-start sm:items-center gap-4">
+                        <div className="relative shrink-0">
+                          <img
+                            src={teacher.avatar}
+                            alt={teacher.name}
+                            className="w-13 h-13 rounded-full object-cover border-2 border-slate-200 dark:border-slate-700 shadow-2xs"
+                          />
+                          <span
+                            className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 ${
+                              teacher.accessStatus === 'active' ? 'bg-emerald-500' : 'bg-rose-500'
+                            }`}
+                            title={`Status: ${teacher.accessStatus}`}
+                          />
+                        </div>
+                        <div className="space-y-1.5 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
                             <button
                               type="button"
                               onClick={() => setSelectedProfileModal({ type: 'teacher', id: teacher.id })}
@@ -2217,13 +2257,13 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                               {teacher.name}
                             </button>
                             <span className="text-slate-400">·</span>
-                            <span className="text-slate-500 font-medium">
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                               {teacher.title}
                             </span>
                           </div>
-                          <div className="text-slate-500 font-mono">{teacher.email}</div>
+                          <div className="text-slate-500 font-mono text-[11px]">{teacher.email}</div>
                           <div className="text-slate-600 dark:text-slate-400 flex flex-wrap items-center gap-2 pt-0.5">
-                            <span className="font-semibold">{teacher.department}</span>
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">{teacher.department}</span>
                             <span>·</span>
                             <span className="text-indigo-600 dark:text-indigo-400 font-mono font-medium">
                               Assigned Courses: {teacher.assignedCourseCodes?.join(', ') || 'None assigned'}
@@ -2233,47 +2273,47 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                           {/* Specific Faculty Rights Badges */}
                           <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px] font-mono">
                             <span
-                              className={`px-1.5 py-0.5 rounded ${
+                              className={`px-2 py-0.5 rounded-md font-semibold border ${
                                 rights.canCreateExams
-                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                                  : 'bg-slate-100 text-slate-400 line-through'
+                                  ? 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800'
+                                  : 'bg-slate-100 text-slate-400 border-slate-200 line-through dark:bg-slate-800 dark:border-slate-700'
                               }`}
                             >
                               Create Exams
                             </span>
                             <span
-                              className={`px-1.5 py-0.5 rounded ${
+                              className={`px-2 py-0.5 rounded-md font-semibold border ${
                                 rights.canGradeMarks
-                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                  : 'bg-slate-100 text-slate-400 line-through'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800'
+                                  : 'bg-slate-100 text-slate-400 border-slate-200 line-through dark:bg-slate-800 dark:border-slate-700'
                               }`}
                             >
                               Grade / Override Marks
                             </span>
                             <span
-                              className={`px-1.5 py-0.5 rounded ${
+                              className={`px-2 py-0.5 rounded-md font-semibold border ${
                                 rights.canAdmitStudents
-                                  ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
-                                  : 'bg-slate-100 text-slate-400 line-through'
+                                  ? 'bg-indigo-50 text-indigo-800 border-indigo-200 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-800'
+                                  : 'bg-slate-100 text-slate-400 border-slate-200 line-through dark:bg-slate-800 dark:border-slate-700'
                               }`}
                             >
                               Admit Students
                             </span>
                             <span
-                              className={`px-1.5 py-0.5 rounded ${
+                              className={`px-2 py-0.5 rounded-md font-semibold border ${
                                 rights.canDeleteExams
-                                  ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                                  : 'bg-slate-100 text-slate-400'
+                                  ? 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800'
+                                  : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700'
                               }`}
                             >
-                              {rights.canDeleteExams ? 'Delete Exam Privileges' : 'No Delete Privileges'}
+                              {rights.canDeleteExams ? 'Delete Privileges' : 'No Delete Privileges'}
                             </span>
                           </div>
                         </div>
                       </div>
 
                       {/* Actions: Edit Details & Rights, Toggle Clearance, Delete */}
-                      <div className="flex items-center gap-2 self-end lg:self-center">
+                      <div className="flex items-center gap-2 self-end lg:self-center shrink-0">
                         <span
                           className={`text-xs font-mono px-3 py-1 rounded-full font-bold uppercase ${
                             teacher.accessStatus === 'active'
@@ -2289,7 +2329,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                         <button
                           type="button"
                           onClick={() => handleOpenEditTeacher(teacher)}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer"
+                          className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
                           title="Modify Teacher Details & Rights"
                         >
                           <Edit2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
@@ -2300,7 +2340,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                           <button
                             type="button"
                             onClick={() => handleToggleAccess(teacher.id, 'active')}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-semibold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
                           >
                             <Unlock className="w-3.5 h-3.5" />
                             <span>Grant</span>
@@ -2309,7 +2349,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                           <button
                             type="button"
                             onClick={() => handleToggleAccess(teacher.id, 'suspended')}
-                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950 dark:hover:bg-rose-900 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded-lg font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                            className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950 dark:hover:bg-rose-900 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded-xl font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
                           >
                             <Lock className="w-3.5 h-3.5" />
                             <span>Suspend</span>
@@ -2319,7 +2359,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                         <button
                           type="button"
                           onClick={() => handleDeleteTeacher(teacher.id, teacher.name)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 dark:hover:bg-rose-950/50 cursor-pointer"
+                          className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/50 cursor-pointer transition-colors"
                           title="Permanently Delete Teacher"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -2612,13 +2652,14 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
                         <button
                           type="button"
+                          disabled={status === 'approved'}
                           onClick={(e) => handleDirectApproveOverride(submission, questionId, e)}
-                          className={`px-4 py-1.5 rounded-lg font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+                          className={`px-4 py-1.5 rounded-lg font-bold shadow-xs flex items-center gap-1.5 transition-all border ${
                             status === 'approved'
-                              ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/20'
-                              : 'bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                              ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-300 dark:border-slate-700 cursor-not-allowed opacity-60 pointer-events-none'
+                              : 'bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 cursor-pointer'
                           }`}
-                          title="Approve and accept this mark modification for the student"
+                          title={status === 'approved' ? 'Mark modification has already been approved and committed. Action is inactive.' : 'Approve and accept this mark modification for the student'}
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           <span>{status === 'approved' ? 'Modification Approved ✓' : 'Approve Modification'}</span>
@@ -2903,35 +2944,66 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                   </button>
                 )}
               </div>
-              <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                {faculties.map((faculty) => (
-                  <div key={faculty.name} className="p-4 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white">{faculty.name}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{faculty.department}</p>
+              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3.5 bg-slate-50/50 dark:bg-slate-950/20">
+                {faculties.map((faculty) => {
+                  const facultyCourses = courses.filter((c) => c.department?.toLowerCase() === faculty.department?.toLowerCase());
+                  const facultyTeachers = teachers.filter((t) => t.department?.toLowerCase() === faculty.department?.toLowerCase());
+
+                  return (
+                    <div
+                      key={faculty.name}
+                      className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 dark:hover:bg-amber-950/20 hover:shadow-sm transition-all duration-200 flex flex-col justify-between gap-3 text-xs"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center shrink-0 shadow-2xs">
+                            <Building2 className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                              {faculty.name}
+                            </h4>
+                            <p className="text-xs text-slate-500 mt-0.5 line-clamp-1 font-medium">
+                              {faculty.department}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleEditFaculty(faculty.name, faculty.department)}
+                            className="p-2 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer transition-colors"
+                            title={`Edit ${faculty.name}`}
+                            aria-label={`Edit ${faculty.name}`}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFaculty(faculty.name)}
+                            className="p-2 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer transition-colors"
+                            title={`Delete ${faculty.name}`}
+                            aria-label={`Delete ${faculty.name}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-medium">
+                          <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
+                          <span><strong>{facultyCourses.length}</strong> Courses</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-medium">
+                          <Users className="w-3.5 h-3.5 text-emerald-500" />
+                          <span><strong>{facultyTeachers.length}</strong> Faculty Staff</span>
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleEditFaculty(faculty.name, faculty.department)}
-                        className="p-2 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer"
-                        title={`Edit ${faculty.name}`}
-                        aria-label={`Edit ${faculty.name}`}
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteFaculty(faculty.name)}
-                        className="p-2 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
-                        title={`Delete ${faculty.name}`}
-                        aria-label={`Delete ${faculty.name}`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           </div>
@@ -3172,9 +3244,9 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
               </div>
 
               <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
-                <span className="text-[11px] font-semibold text-slate-500 uppercase">Total Sittings Registered</span>
+                <span className="text-[11px] font-semibold text-slate-500 uppercase">Unit Candidate Sittings</span>
                 <div className="text-xl font-black text-indigo-600 dark:text-indigo-400 font-mono">{totalRegisteredSittings}</div>
-                <span className="text-[10px] text-slate-400">Sum of Candidate Enrollments</span>
+                <span className="text-[10px] text-slate-400">Sum of Unit-Specific Enrollments</span>
               </div>
 
               <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
@@ -3204,7 +3276,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                     Institutional Examination Attendance Sum-Up ({attendanceSummaries.length} Exams)
                   </h3>
                   <p className="text-xs text-slate-500 font-mono">
-                    Official census of registered candidates, completed sittings, and missed examination sessions.
+                    Official census of registered candidates per specific examination unit, completed sittings, and missed examination sessions.
                   </p>
                 </div>
 
@@ -3236,7 +3308,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                     <tr className="bg-slate-100/70 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-700">
                       <th className="p-3.5">Course Code & Examination Title</th>
                       <th className="p-3.5">Chief Examiner</th>
-                      <th className="p-3.5 text-center">Total Registered</th>
+                      <th className="p-3.5 text-center">Unit Registered Candidates</th>
                       <th className="p-3.5 text-center">Sat & Completed</th>
                       <th className="p-3.5 text-center">Registered But Missed</th>
                       <th className="p-3.5 text-center">Attendance %</th>
@@ -3256,8 +3328,15 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                         <td className="p-3.5 text-slate-600 dark:text-slate-300 font-medium">
                           {summary.instructorName}
                         </td>
-                        <td className="p-3.5 text-center font-mono font-bold text-slate-800 dark:text-slate-200">
-                          {summary.totalRegistered}
+                        <td className="p-3.5 text-center">
+                          <div className="inline-flex flex-col items-center">
+                            <span className="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm">
+                              {summary.totalRegistered}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              unit candidates
+                            </span>
+                          </div>
                         </td>
                         <td className="p-3.5 text-center font-mono font-bold text-emerald-600 dark:text-emerald-400">
                           {summary.totalSat}
@@ -3426,12 +3505,14 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
                         <button
                           type="button"
+                          disabled={req.status === 'approved'}
                           onClick={() => handleApproveResitRequest(req.id)}
-                          className={`px-4 py-1.5 rounded-lg font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+                          className={`px-4 py-1.5 rounded-lg font-bold shadow-xs flex items-center gap-1.5 transition-all border ${
                             req.status === 'approved'
-                              ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/20'
-                              : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500'
+                              ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-300 dark:border-slate-700 cursor-not-allowed opacity-60 pointer-events-none'
+                              : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 cursor-pointer'
                           }`}
+                          title={req.status === 'approved' ? 'Clearance is approved. Action is inactive.' : 'Approve Clearance (Authorize Sitting)'}
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           <span>{req.status === 'approved' ? 'Clearance Approved ✓' : 'Approve Clearance (Authorize Sitting)'}</span>
@@ -4264,15 +4345,20 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
               <button
                 type="submit"
-                className={`w-full py-2.5 text-white rounded-xl font-bold shadow-md cursor-pointer transition-all hover:bg-orange-600 active:bg-emerald-700 border border-transparent hover:border-orange-500 ${
-                  adminReviewAction === 'approve'
-                    ? 'bg-emerald-600'
+                disabled={activeOverrideTarget?.answer.overrideStatus === 'approved' && adminReviewAction === 'approve'}
+                className={`w-full py-2.5 rounded-xl font-bold shadow-md transition-all border ${
+                  activeOverrideTarget?.answer.overrideStatus === 'approved' && adminReviewAction === 'approve'
+                    ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-300 dark:border-slate-700 cursor-not-allowed opacity-60 pointer-events-none'
+                    : adminReviewAction === 'approve'
+                    ? 'bg-emerald-600 text-white hover:bg-orange-600 active:bg-emerald-700 border-transparent hover:border-orange-500 cursor-pointer'
                     : adminReviewAction === 'decline'
-                    ? 'bg-rose-600'
-                    : 'bg-indigo-600'
+                    ? 'bg-rose-600 text-white hover:bg-orange-600 active:bg-rose-700 border-transparent hover:border-orange-500 cursor-pointer'
+                    : 'bg-indigo-600 text-white hover:bg-orange-600 active:bg-indigo-700 border-transparent hover:border-orange-500 cursor-pointer'
                 }`}
               >
-                {adminReviewAction === 'approve'
+                {activeOverrideTarget?.answer.overrideStatus === 'approved' && adminReviewAction === 'approve'
+                  ? 'Mark Modification Already Approved ✓'
+                  : adminReviewAction === 'approve'
                   ? 'Confirm Approval of Modified Mark'
                   : adminReviewAction === 'decline'
                   ? 'Decline & Revert Score to Original Mark'
@@ -5449,14 +5535,20 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
                 <button
                   type="button"
+                  disabled={viewingEvidenceModal.status === 'approved'}
                   onClick={() => {
                     handleApproveResitRequest(viewingEvidenceModal.id);
                     setViewingEvidenceModal(null);
                   }}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors"
+                  className={`px-4 py-2 rounded-xl font-bold flex items-center gap-1.5 shadow-sm transition-colors border ${
+                    viewingEvidenceModal.status === 'approved'
+                      ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-300 dark:border-slate-700 cursor-not-allowed opacity-60 pointer-events-none'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 cursor-pointer'
+                  }`}
+                  title={viewingEvidenceModal.status === 'approved' ? 'Clearance is approved. Action is inactive.' : 'Approve Clearance (Medical Verified)'}
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Approve Clearance (Medical Verified)</span>
+                  <span>{viewingEvidenceModal.status === 'approved' ? 'Clearance Approved ✓' : 'Approve Clearance (Medical Verified)'}</span>
                 </button>
               </div>
             </div>

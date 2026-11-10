@@ -40,6 +40,8 @@ import {
   hasUnapprovedMissedExam,
   getStoredResitRequests,
   markResitCommenced,
+  getStoredExams,
+  saveStoredExams,
 } from '../../services/storageService';
 import { triggerFlash } from '../common/FlashMessage';
 import { playAlertBeep } from '../../services/soundService';
@@ -320,10 +322,23 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     const start = new Date(exam.scheduledStartTime).getTime();
     const end = new Date(exam.scheduledEndTime).getTime();
 
+    // Check if the student is re-registered for this exam unit and has not yet commenced/completed the resit sitting
+    const isReRegisteredForThisExam = studentResitRequests.some(
+      (r) =>
+        r.reRegistered &&
+        (r.reRegisteredExamId === exam.id ||
+          (r.reRegisteredCourseCode && r.reRegisteredCourseCode.toUpperCase() === exam.courseCode.toUpperCase()) ||
+          r.courseCode.toUpperCase() === exam.courseCode.toUpperCase()) &&
+        !r.commencedAt
+    );
+
     let statusType: 'in_progress' | 'completed' | 'active_now' | 'upcoming' | 'expired' =
       'upcoming';
 
-    if (sub?.status === 'submitted' || sub?.status === 'graded') {
+    if (isReRegisteredForThisExam && (!sub || sub.status === 'in_progress')) {
+      // Once re-registered, the exam is actively available for the candidate to commence immediately
+      statusType = 'active_now';
+    } else if (sub?.status === 'submitted' || sub?.status === 'graded') {
       statusType = 'completed';
     } else if (sub?.status === 'in_progress') {
       statusType = 'in_progress';
@@ -339,6 +354,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
       exam,
       sub,
       statusType,
+      isReRegistered: isReRegisteredForThisExam,
     };
   });
 
@@ -375,10 +391,40 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   // Flow: Check conflict -> Schedule timeframe check -> Hardware diagnostics / Waiting Room
   const handleInitiateExam = (exam: Exam) => {
-    // ENFORCE: "Student can not select and do examiantion whose schedule timeframe has passed unless if the teacher remodified the schedules."
     const now = Date.now();
     const end = new Date(exam.scheduledEndTime).getTime();
-    if (now > end) {
+
+    // Check if the student is re-registered for this exam
+    const isReRegistered = studentResitRequests.some(
+      (r) =>
+        r.reRegistered &&
+        (r.reRegisteredExamId === exam.id ||
+          r.reRegisteredCourseCode?.toUpperCase() === exam.courseCode.toUpperCase() ||
+          r.courseCode.toUpperCase() === exam.courseCode.toUpperCase()) &&
+        !r.commencedAt
+    );
+
+    // If re-registered and timeframe had passed, reset schedule to a new current timeframe so student can do it and submit
+    if (isReRegistered && now > end) {
+      const currentIso = new Date().toISOString();
+      const startTime = new Date(now - 2 * 60000).toISOString();
+      const durationMinutes = exam.durationMinutes || 60;
+      const newEndTime = new Date(now + durationMinutes * 60000 + 4 * 3600000).toISOString();
+
+      exam.scheduledDate = currentIso.split('T')[0];
+      exam.scheduledStartTime = startTime;
+      exam.scheduledEndTime = newEndTime;
+      exam.status = 'published';
+      exam.isActive = true;
+
+      const stored = getStoredExams();
+      const idx = stored.findIndex((e) => e.id === exam.id);
+      if (idx !== -1) {
+        stored[idx] = { ...exam };
+        saveStoredExams(stored);
+      }
+    } else if (now > end) {
+      // ENFORCE: "Student can not select and do examination whose schedule timeframe has passed unless the teacher remodified the schedules."
       triggerFlash({
         type: 'error',
         text: 'Examination Schedule Timeframe Expired',

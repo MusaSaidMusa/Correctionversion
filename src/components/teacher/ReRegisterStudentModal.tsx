@@ -52,41 +52,48 @@ export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
     originalExam?.isMarkingSchemeReleased || originalExam?.status === 'completed'
   );
 
-  // Group examinations:
-  // Recommended similar unit exams: same department/prefix AND marking scheme not yet released
-  const missedPrefix = (resitRequest.courseCode || '').split(/[-_\s\d]/)[0]?.toUpperCase() || '';
+  // Find examinations matching the approved resit course code
+  const requiredCode = (resitRequest.courseCode || '').trim().toUpperCase();
 
-  const similarUnitExams = exams.filter((e) => {
-    // If exam has scheme released, it's not in the primary recommended set
-    if (e.isMarkingSchemeReleased) return false;
-    const prefix = e.courseCode.split(/[-_\s\d]/)[0]?.toUpperCase() || '';
-    const isSamePrefix = prefix && missedPrefix && prefix === missedPrefix;
-    const isSameDept = e.department && originalExam?.department && e.department === originalExam.department;
-    return isSamePrefix || isSameDept;
-  });
+  const matchingCodeExams = exams.filter(
+    (e) => (e.courseCode || '').trim().toUpperCase() === requiredCode
+  );
 
-  const otherExams = exams.filter((e) => !similarUnitExams.some((s) => s.id === e.id));
+  const nonMatchingCodeExams = exams.filter(
+    (e) => (e.courseCode || '').trim().toUpperCase() !== requiredCode
+  );
 
-  // Default selection: the first recommended similar exam without scheme released, or original exam if safe
+  // Default selection: first matching exam, or original exam if match
   const defaultExamId =
-    similarUnitExams.length > 0
-      ? similarUnitExams[0].id
-      : originalExam && !isOriginalSchemeReleased
-      ? originalExam.id
-      : exams[0]?.id || '';
+    matchingCodeExams.length > 0
+      ? matchingCodeExams[0].id
+      : '';
 
   const [selectedExamId, setSelectedExamId] = useState<string>(defaultExamId);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedExam = exams.find((e) => e.id === selectedExamId);
+  const isCodeMatch = Boolean(
+    selectedExam && (selectedExam.courseCode || '').trim().toUpperCase() === requiredCode
+  );
   const isSelectedSchemeReleased = Boolean(selectedExam?.isMarkingSchemeReleased);
 
   const handleConfirmReRegistration = async () => {
-    if (!selectedExamId) {
+    if (!selectedExamId || !selectedExam) {
       triggerFlash({
         type: 'error',
         text: 'Selection Required',
-        subtext: 'Please select an examination session to re-register the candidate.',
+        subtext: 'Please select an authorized examination session to re-register the candidate.',
+      });
+      return;
+    }
+
+    // Strict Rule: Teacher cannot re-register student to examination with different examination code
+    if (!isCodeMatch) {
+      triggerFlash({
+        type: 'error',
+        text: 'Examination Code Mismatch',
+        subtext: `Institutional Rule: Candidate can only be re-registered to an examination matching course code [${requiredCode}]. Re-registering to [${selectedExam.courseCode}] is strictly prohibited.`,
       });
       return;
     }
@@ -100,6 +107,11 @@ export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
       );
 
       if (res.success) {
+        triggerFlash({
+          type: 'success',
+          text: 'Candidate Re-Registered Successfully',
+          subtext: `${resitRequest.studentName} is now enrolled for ${res.exam?.courseCode} - "${res.exam?.title}". Session is actively available for sitting.`,
+        });
         onSuccess?.();
         onClose();
       } else {
@@ -224,23 +236,24 @@ export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
             <div className="flex items-center justify-between">
               <label className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
-                <span>Select Target Examination for Re-Registration:</span>
+                <span>Select Target Examination Session (Required Code: {requiredCode}):</span>
               </label>
               <span className="text-[11px] text-slate-500">
-                {exams.length} examinations available in portal
+                {matchingCodeExams.length} matching session{matchingCodeExams.length === 1 ? '' : 's'} available
               </span>
             </div>
 
-            {/* Recommended Similar Unit Section */}
-            {similarUnitExams.length > 0 && (
+            {/* Matching Course Code Examinations Section */}
+            {matchingCodeExams.length > 0 ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 dark:text-emerald-300">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Recommended Similar Unit Examinations (Marking Scheme Confidential &amp; Safe):</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Eligible Examination Sessions (Matching Course Code {requiredCode}):</span>
                 </div>
                 <div className="grid grid-cols-1 gap-2">
-                  {similarUnitExams.map((ex) => {
+                  {matchingCodeExams.map((ex) => {
                     const isSelected = selectedExamId === ex.id;
+                    const hasSchemeReleased = Boolean(ex.isMarkingSchemeReleased);
                     return (
                       <label
                         key={ex.id}
@@ -265,7 +278,7 @@ export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
                                 {ex.courseCode} &mdash; {ex.title}
                               </span>
                               <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
-                                Similar Unit
+                                Code Verified
                               </span>
                             </div>
                             <div className="flex flex-wrap items-center gap-3 mt-1 text-[11px] text-slate-500 font-mono">
@@ -281,18 +294,20 @@ export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
                               <span>·</span>
                               <span>{ex.questions?.length || 0} Questions</span>
                               <span>·</span>
-                              <span className="text-emerald-600 font-semibold">
-                                ✓ Scheme Confidential
+                              <span className={hasSchemeReleased ? 'text-amber-600 font-semibold' : 'text-emerald-600 font-semibold'}>
+                                {hasSchemeReleased ? '⚠️ Scheme Released' : '✓ Scheme Confidential'}
                               </span>
                             </div>
                           </div>
                         </div>
 
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
-                          isSelected
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                        }`}>
+                        <span
+                          className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
+                            isSelected
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                          }`}
+                        >
                           {isSelected ? 'Selected' : 'Select'}
                         </span>
                       </label>
@@ -300,67 +315,69 @@ export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
                   })}
                 </div>
               </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 text-amber-900 dark:text-amber-200 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-xs text-amber-800 dark:text-amber-300">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>No Active Examination Session Found with Course Code {requiredCode}</span>
+                </div>
+                <p className="text-[11px] leading-relaxed">
+                  Institutional regulations require that re-registration matches the approved missed course code (<strong>{requiredCode}</strong>). You cannot re-register the candidate under a different examination code.
+                </p>
+                {onCreateNewExam && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onCreateNewExam(resitRequest);
+                    }}
+                    className="mt-1 w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Create Fresh Resit Examination for {requiredCode} Now</span>
+                  </button>
+                )}
+              </div>
             )}
 
-            {/* Other Examinations Section */}
-            {otherExams.length > 0 && (
-              <div className="space-y-2 pt-2">
-                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block">
-                  Other Available Examinations in Faculty / Department:
-                </span>
-                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
-                  {otherExams.map((ex) => {
-                    const isSelected = selectedExamId === ex.id;
-                    const hasSchemeReleased = Boolean(ex.isMarkingSchemeReleased);
-                    return (
-                      <label
-                        key={ex.id}
-                        className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
-                          isSelected
-                            ? 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-500 ring-2 ring-indigo-400/40 shadow-xs'
-                            : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:border-indigo-300'
-                        }`}
-                      >
-                        <div className="flex items-start gap-2.5">
-                          <input
-                            type="radio"
-                            name="targetExam"
-                            value={ex.id}
-                            checked={isSelected}
-                            onChange={() => setSelectedExamId(ex.id)}
-                            className="mt-1 text-indigo-600 focus:ring-indigo-500"
-                          />
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                {ex.courseCode} &mdash; {ex.title}
-                              </span>
-                              {hasSchemeReleased && (
-                                <span className="px-1.5 py-0.2 rounded text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300">
-                                  Scheme Released
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[10px] text-slate-500 font-mono">
-                              <span>{ex.durationMinutes} Mins</span>
-                              <span>·</span>
-                              <span>{ex.questions?.length || 0} Questions</span>
-                              <span>·</span>
-                              <span>{ex.department || 'Department Exam'}</span>
-                            </div>
+            {/* Ineligible Different Code Examinations (Disabled from Re-registration) */}
+            {nonMatchingCodeExams.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Other Examinations (Disabled &mdash; Code Mismatch with {requiredCode}):</span>
+                  </span>
+                  <span className="text-[10px] text-rose-500 font-mono font-semibold">
+                    Re-registration strictly prohibited
+                  </span>
+                </div>
+                <div className="max-h-36 overflow-y-auto space-y-1.5 opacity-60">
+                  {nonMatchingCodeExams.map((ex) => (
+                    <div
+                      key={ex.id}
+                      className="p-2.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 flex items-center justify-between gap-3 cursor-not-allowed select-none"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-3 h-3 rounded-full border border-slate-300 bg-slate-200 dark:bg-slate-700" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-slate-700 dark:text-slate-300 line-through">
+                              {ex.courseCode}
+                            </span>
+                            <span className="text-slate-600 dark:text-slate-400">&mdash; {ex.title}</span>
                           </div>
+                          <span className="text-[10px] text-rose-600 dark:text-rose-400 font-mono">
+                            Cannot re-register: code does not match {requiredCode}
+                          </span>
                         </div>
+                      </div>
 
-                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
-                          isSelected
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
-                        }`}>
-                          {isSelected ? 'Selected' : 'Select'}
-                        </span>
-                      </label>
-                    );
-                  })}
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 shrink-0">
+                        Code Mismatch
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -368,11 +385,15 @@ export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
 
           {/* Selected Exam Integrity Summary */}
           {selectedExam && (
-            <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
-              isSelectedSchemeReleased
-                ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 text-amber-900 dark:text-amber-200'
-                : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 text-emerald-900 dark:text-emerald-200'
-            }`}>
+            <div
+              className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                !isCodeMatch
+                  ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 text-rose-900 dark:text-rose-200'
+                  : isSelectedSchemeReleased
+                  ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 text-amber-900 dark:text-amber-200'
+                  : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 text-emerald-900 dark:text-emerald-200'
+              }`}
+            >
               <div className="flex items-center gap-2">
                 <FileCheck2 className="w-4 h-4 shrink-0" />
                 <span className="text-[11px] font-semibold">
@@ -380,7 +401,11 @@ export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
                 </span>
               </div>
               <span className="font-mono text-[10px] uppercase font-bold">
-                {isSelectedSchemeReleased ? '⚠️ Scheme Released' : '✓ Scheme Confidential'}
+                {!isCodeMatch
+                  ? '❌ Code Mismatch Blocked'
+                  : isSelectedSchemeReleased
+                  ? '⚠️ Scheme Released'
+                  : '✓ Eligible Session'}
               </span>
             </div>
           )}
@@ -399,15 +424,21 @@ export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
 
           <button
             type="button"
-            disabled={!selectedExamId || isSubmitting}
+            disabled={!selectedExamId || !isCodeMatch || isSubmitting}
             onClick={handleConfirmReRegistration}
-            className="px-5 py-2.5 rounded-xl bg-[#d1e231] hover:bg-[#c0d725] text-slate-950 font-extrabold text-xs flex items-center gap-2 shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer border border-[#a3b817] disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`px-5 py-2.5 rounded-xl text-slate-950 font-extrabold text-xs flex items-center gap-2 shadow-md transition-all border ${
+              !selectedExamId || !isCodeMatch || isSubmitting
+                ? 'opacity-50 cursor-not-allowed bg-slate-200 border-slate-300 text-slate-500'
+                : 'bg-[#d1e231] hover:bg-[#c0d725] border-[#a3b817] hover:scale-105 active:scale-95 cursor-pointer'
+            }`}
           >
             <UserCheck className="w-4 h-4" />
             <span>
               {isSubmitting
                 ? 'Re-Registering Candidate...'
-                : `Confirm Re-Registration (${selectedExam?.courseCode || 'Exam'})`}
+                : !isCodeMatch
+                ? `Code Mismatch (Must match ${requiredCode})`
+                : `Confirm Re-Registration (${selectedExam?.courseCode})`}
             </span>
           </button>
         </div>

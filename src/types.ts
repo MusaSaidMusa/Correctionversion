@@ -205,7 +205,8 @@ export interface Exam {
   passingScorePercentage?: number;
   maxAttempts?: number;
   accessPassword?: string;
-  status: 'upcoming' | 'ongoing' | 'completed' | 'archived' | 'active';
+  status: 'upcoming' | 'ongoing' | 'completed' | 'archived' | 'active' | 'published' | 'draft';
+  isActive?: boolean;
   questions: Question[];
   securityProtocols: SecurityProtocols;
   registeredStudentIds: string[];
