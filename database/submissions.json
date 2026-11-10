@@ -36,5 +36,78 @@
         "timeSpentSeconds": 520
       }
     }
+  },
+  {
+    "id": "sub-sam-cs401",
+    "examId": "exam-cs401-midterm",
+    "studentId": "student-sam",
+    "studentName": "Samuel K. Ochieng",
+    "studentEmail": "sam.ochieng@student.edu",
+    "studentAvatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200",
+    "studentNumber": "MSA-2026/6-3045",
+    "attemptNumber": 1,
+    "status": "graded",
+    "startedAt": "2026-11-09T08:05:00.000Z",
+    "submittedAt": "2026-11-09T09:20:00.000Z",
+    "score": 38,
+    "totalPoints": 100,
+    "percentage": 38,
+    "integrityScore": 95,
+    "incidents": [],
+    "isResultCommitted": true,
+    "committedAt": "2026-11-09T12:00:00.000Z",
+    "committedBy": "Prof. Evelyn Vance",
+    "answers": {
+      "q-cs401-1": {
+        "questionId": "q-cs401-1",
+        "selectedOptionIds": ["opt-b"],
+        "awardedPoints": 0,
+        "isGraded": true,
+        "teacherFeedback": "Incorrect option chosen. Review consensus definitions."
+      },
+      "q-cs401-2": {
+        "questionId": "q-cs401-2",
+        "textAnswer": "Distributed consensus is when nodes agree.",
+        "awardedPoints": 38,
+        "isGraded": true,
+        "teacherFeedback": "Incomplete answer. Lacks proof of CAP theorem trade-offs.",
+        "timeSpentSeconds": 600
+      }
+    }
+  },
+  {
+    "id": "sub-alex-cs302",
+    "examId": "exam-cs302-final",
+    "studentId": "student-alex",
+    "studentName": "Alex Rivera",
+    "studentEmail": "alex.rivera@student.edu",
+    "studentAvatar": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200",
+    "studentNumber": "MSA-2026/8-2041",
+    "attemptNumber": 1,
+    "status": "graded",
+    "startedAt": "2026-11-08T09:00:00.000Z",
+    "submittedAt": "2026-11-08T10:15:00.000Z",
+    "score": 34,
+    "totalPoints": 100,
+    "percentage": 34,
+    "integrityScore": 99,
+    "incidents": [],
+    "isResultCommitted": true,
+    "committedAt": "2026-11-08T15:00:00.000Z",
+    "committedBy": "Prof. Evelyn Vance",
+    "answers": {
+      "q-cs302-1": {
+        "questionId": "q-cs302-1",
+        "awardedPoints": 14,
+        "isGraded": true,
+        "teacherFeedback": "Partial credit awarded for transaction isolation level discussion."
+      },
+      "q-cs302-2": {
+        "questionId": "q-cs302-2",
+        "awardedPoints": 20,
+        "isGraded": true,
+        "teacherFeedback": "Write-ahead logging explanation missing checkpoint recovery details."
+      }
+    }
   }
 ]

@@ -16,6 +16,7 @@ interface ExamResultsModalProps {
   submission: ExamSubmission;
   isOpen: boolean;
   onClose: () => void;
+  onRequestResit?: (exam: Exam, submission: ExamSubmission) => void;
 }
 
 export const ExamResultsModal: React.FC<ExamResultsModalProps> = ({
@@ -23,6 +24,7 @@ export const ExamResultsModal: React.FC<ExamResultsModalProps> = ({
   submission,
   isOpen,
   onClose,
+  onRequestResit,
 }) => {
   if (!isOpen) return null;
 
@@ -33,7 +35,8 @@ export const ExamResultsModal: React.FC<ExamResultsModalProps> = ({
   const score = submission.score ?? 0;
   const percentage =
     submission.percentage ?? (totalPoints > 0 ? Math.round((score / totalPoints) * 100) : 0);
-  const isPassed = percentage >= (exam.passingScorePercentage || 50);
+  const passThreshold = exam.passingScorePercentage || 50;
+  const isPassed = percentage >= passThreshold;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
@@ -52,7 +55,7 @@ export const ExamResultsModal: React.FC<ExamResultsModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -64,7 +67,7 @@ export const ExamResultsModal: React.FC<ExamResultsModalProps> = ({
             className={`p-6 rounded-2xl border text-center ${
               isPassed
                 ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100'
-                : 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100'
+                : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-100'
             }`}
           >
             <div className="text-xs font-bold uppercase tracking-wider opacity-75">
@@ -74,7 +77,10 @@ export const ExamResultsModal: React.FC<ExamResultsModalProps> = ({
               {score} <span className="text-xl font-normal opacity-70">/ {totalPoints}</span>
             </div>
             <div className="text-sm font-semibold">
-              Percentage: {percentage}% &bull; {isPassed ? 'Standing: PASS' : 'Standing: RESIT REQUIRED'}
+              Percentage: {percentage}% &bull; {isPassed ? 'Standing: PASS' : 'Standing: RESIT REQUIRED (BELOW THRESHOLD)'}
+            </div>
+            <div className="text-xs text-slate-500 mt-1">
+              Required Passing Mark: <strong>{passThreshold}%</strong> {isPassed ? '✓ Threshold Met' : `(Deficit: -${passThreshold - percentage}%)`}
             </div>
             {submission.isResultCommitted ? (
               <div className="mt-2 text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold flex items-center justify-center gap-1">
@@ -88,6 +94,32 @@ export const ExamResultsModal: React.FC<ExamResultsModalProps> = ({
               </div>
             )}
           </div>
+
+          {/* BELOW PASSING THRESHOLD RESIT APPLICATION CALLOUT */}
+          {!isPassed && onRequestResit && (
+            <div className="p-4 rounded-xl bg-gradient-to-r from-rose-500/10 to-amber-500/10 border border-rose-300 dark:border-rose-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="space-y-1">
+                <div className="font-bold text-rose-900 dark:text-rose-200 flex items-center gap-1.5 text-xs">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>Failed to Attain Passing Threshold — Eligible for Resit</span>
+                </div>
+                <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[11px]">
+                  College policy stipulates that students who score below threshold must apply for resit clearance and state the reason for failing for Admin Directorate verification.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onRequestResit(exam, submission);
+                }}
+                className="shrink-0 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center gap-1.5"
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>Apply for Resit &rarr;</span>
+              </button>
+            </div>
+          )}
 
           {/* Academic Integrity & Proctoring Summary */}
           <div className="grid grid-cols-2 gap-3">

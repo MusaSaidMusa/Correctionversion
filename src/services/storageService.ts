@@ -1,4 +1,4 @@
-import { Exam, Question, ExamSubmission, ProctorIncident, StudentProfile, TeacherProfile, HelpTicket, ThemeMode, Course, AuthUser, MissedExamRecord, ResitRequest, ExamAttendanceSummary, AcademicRecord } from '../types';
+import { Exam, Question, ExamSubmission, ProctorIncident, StudentProfile, TeacherProfile, HelpTicket, ThemeMode, Course, AuthUser, MissedExamRecord, ResitRequest, ResitType, FailedStudentRecord, ExamAttendanceSummary, AcademicRecord } from '../types';
 import { INITIAL_EXAMS, INITIAL_QUESTION_BANK, INITIAL_SUBMISSIONS, INITIAL_STUDENTS, CURRENT_TEACHER, INITIAL_TEACHERS, INITIAL_HELP_TICKETS, INITIAL_COURSES, SUPER_ADMIN, INITIAL_MISSED_EXAMS, INITIAL_RESIT_REQUESTS } from '../data/mockData';
 import { triggerFlash } from '../components/common/FlashMessage';
 import { compressImageFile } from './imageCompressionService';
@@ -1248,6 +1248,129 @@ export function adminRevokeMissedExamClearance(
 }
 
 
+export function getFailedStudentsList(): FailedStudentRecord[] {
+  const students = getStoredStudents();
+  const exams = getStoredExams();
+  const submissions = getStoredSubmissions();
+  const academicRecords = getStoredAcademicRecords();
+  const resitRequests = getStoredResitRequests();
+
+  const failedMap = new Map<string, FailedStudentRecord>();
+
+  // 1. Process from graded/submitted submissions
+  submissions.forEach((sub) => {
+    if (!sub.studentId) return;
+    const exam = exams.find((e) => e.id === sub.examId);
+    const passThreshold = exam?.passingScorePercentage ?? 50;
+    const totalPoints = sub.totalPoints || exam?.questions?.reduce((s, q) => s + (q.points || 0), 0) || 100;
+    const score = sub.score ?? 0;
+    const percentage = sub.percentage ?? (totalPoints > 0 ? Math.round((score / totalPoints) * 100) : 0);
+
+    if (percentage < passThreshold) {
+      const student = students.find((s) => s.id === sub.studentId);
+      const studentName = sub.studentName || student?.name || 'Candidate';
+      const studentNumber = sub.studentNumber || student?.studentNumber || sub.studentId;
+      const courseCode = (exam?.courseCode || 'CS401').toUpperCase();
+      const compositeKey = `${normalizeAdmission(studentNumber)}#${normalizeCourseCode(courseCode)}`;
+
+      // Check if student applied for resit
+      const matchingResit = resitRequests.find(
+        (r) =>
+          (r.studentId === sub.studentId || normalizeAdmission(r.studentNumber) === normalizeAdmission(studentNumber)) &&
+          normalizeCourseCode(r.courseCode) === normalizeCourseCode(courseCode)
+      );
+
+      let resitStatus: FailedStudentRecord['resitStatus'] = 'not_applied';
+      if (matchingResit) {
+        if (matchingResit.status === 'approved') resitStatus = 'approved';
+        else if (matchingResit.status === 'declined') resitStatus = 'declined';
+        else resitStatus = 'pending';
+      }
+
+      const rec: FailedStudentRecord = {
+        id: `failed-${sub.id}`,
+        studentId: sub.studentId,
+        studentName,
+        studentNumber,
+        studentEmail: sub.studentEmail || student?.email,
+        studentAvatar: sub.studentAvatar || student?.avatar,
+        department: exam?.department || student?.department || 'Computer Science & Software Engineering',
+        faculty: exam?.faculty || student?.faculty || 'Faculty of Computing & Information Technologies',
+        courseCode,
+        unitName: exam?.title || exam?.courseTitle || 'Examination Unit',
+        examId: sub.examId,
+        submissionId: sub.id,
+        score,
+        totalPoints,
+        percentage,
+        passingScorePercentage: passThreshold,
+        deficitPercentage: Math.max(0, passThreshold - percentage),
+        grade: percentage < 40 ? 'F' : 'D',
+        dateRecorded: sub.submittedAt || sub.startedAt || new Date().toISOString(),
+        resitStatus,
+        resitRequest: matchingResit,
+      };
+
+      failedMap.set(compositeKey, rec);
+    }
+  });
+
+  // 2. Also incorporate from Academic Records where percentage < 50 or grade === 'F'
+  academicRecords.forEach((acad) => {
+    const passThreshold = 50;
+    const percentage = acad.percentage ?? (acad.totalPoints > 0 ? Math.round((acad.score / acad.totalPoints) * 100) : 0);
+    if (percentage < passThreshold || acad.grade === 'F' || acad.grade === 'E') {
+      const courseCode = (acad.course || 'UNIT').toUpperCase();
+      const studentNumber = acad.studentAdmission;
+      const compositeKey = `${normalizeAdmission(studentNumber)}#${normalizeCourseCode(courseCode)}`;
+
+      if (!failedMap.has(compositeKey)) {
+        const student = students.find((s) => normalizeAdmission(s.studentNumber) === normalizeAdmission(studentNumber));
+        const matchingResit = resitRequests.find(
+          (r) =>
+            (normalizeAdmission(r.studentNumber) === normalizeAdmission(studentNumber) || (student && r.studentId === student.id)) &&
+            normalizeCourseCode(r.courseCode) === normalizeCourseCode(courseCode)
+        );
+
+        let resitStatus: FailedStudentRecord['resitStatus'] = 'not_applied';
+        if (matchingResit) {
+          if (matchingResit.status === 'approved') resitStatus = 'approved';
+          else if (matchingResit.status === 'declined') resitStatus = 'declined';
+          else resitStatus = 'pending';
+        }
+
+        const rec: FailedStudentRecord = {
+          id: `failed-acad-${acad.id}`,
+          studentId: student?.id || `student-${studentNumber}`,
+          studentName: acad.studentName || student?.name || 'Candidate',
+          studentNumber,
+          studentEmail: student?.email,
+          studentAvatar: student?.avatar,
+          department: acad.department || student?.department || 'Computer Science & Software Engineering',
+          faculty: acad.faculty || student?.faculty || 'Faculty of Computing & Information Technologies',
+          courseCode,
+          unitName: acad.unitName,
+          examId: acad.examId,
+          submissionId: acad.submissionId,
+          score: acad.score,
+          totalPoints: acad.totalPoints,
+          percentage,
+          passingScorePercentage: passThreshold,
+          deficitPercentage: Math.max(0, passThreshold - percentage),
+          grade: acad.grade || (percentage < 40 ? 'F' : 'D'),
+          dateRecorded: acad.recordedAt || new Date().toISOString(),
+          resitStatus,
+          resitRequest: matchingResit,
+        };
+
+        failedMap.set(compositeKey, rec);
+      }
+    }
+  });
+
+  return Array.from(failedMap.values()).sort((a, b) => a.courseCode.localeCompare(b.courseCode));
+}
+
 export function submitResitRequest(data: {
   studentId: string;
   studentName: string;
@@ -1256,8 +1379,22 @@ export function submitResitRequest(data: {
   courseCode: string;
   examTitle: string;
   examId?: string;
-  missedDate: string;
-  reasonCategory: 'medical' | 'technical' | 'compassionate' | 'academic_clash' | 'other';
+  resitType?: ResitType;
+  missedDate?: string;
+  failedScore?: number;
+  totalPoints?: number;
+  percentage?: number;
+  passingScorePercentage?: number;
+  reasonCategory?:
+    | 'medical'
+    | 'technical'
+    | 'compassionate'
+    | 'academic_clash'
+    | 'academic_difficulty'
+    | 'failed_threshold'
+    | 'health_during_exam'
+    | 'time_pressure'
+    | 'other';
   reasonDetails: string;
   evidenceNotes?: string;
   attachmentFileName?: string;
@@ -1271,6 +1408,8 @@ export function submitResitRequest(data: {
   explanation?: string;
   evidenceDocument?: string;
 }): ResitRequest {
+  const isFailedType = data.resitType === 'failed';
+
   // If the reason category is medical, ensure that medical evidence is compulsory attached
   if (data.reasonCategory === 'medical') {
     const hasEvidence = Boolean(
@@ -1279,7 +1418,7 @@ export function submitResitRequest(data: {
     );
     if (!hasEvidence) {
       throw new Error(
-        'Compulsory Requirement: Medical evidence documentation must be attached when selecting Medical reason for missed examination resit.'
+        'Compulsory Requirement: Medical evidence documentation must be attached when selecting Medical reason for resit request.'
       );
     }
   }
@@ -1287,7 +1426,7 @@ export function submitResitRequest(data: {
   const requests = getStoredResitRequests();
   const normCode = normalizeCourseCode(data.courseCode);
 
-  // Institutional Rule: Student can only send examination resit request once and wait for approval for each missed exam
+  // Institutional Rule: Student can only send examination resit request once and wait for approval for each unit
   const existingPendingOrApproved = requests.find(
     (r) =>
       (r.studentId === data.studentId || normalizeAdmission(r.studentNumber) === normalizeAdmission(data.studentNumber)) &&
@@ -1297,7 +1436,7 @@ export function submitResitRequest(data: {
   if (existingPendingOrApproved) {
     throw new Error(
       existingPendingOrApproved.status === 'pending'
-        ? `You have already lodged a resit clearance request for ${data.courseCode}. Students can only submit one request per missed examination while waiting for Directorate approval.`
+        ? `You have already lodged a resit clearance request for ${data.courseCode}. Students can only submit one request per unit while waiting for Directorate approval.`
         : `A resit request for ${data.courseCode} has already been approved by the Directorate. Please await examination re-registration.`
     );
   }
@@ -1305,7 +1444,8 @@ export function submitResitRequest(data: {
   const newReq: ResitRequest = {
     id: `resit-${Date.now()}`,
     ...data,
-    grounds: data.grounds || data.reasonCategory,
+    resitType: data.resitType || (isFailedType ? 'failed' : 'missed'),
+    grounds: data.grounds || data.reasonCategory || (isFailedType ? 'failed_threshold' : 'other'),
     explanation: data.explanation || data.reasonDetails,
     evidenceDocument: data.evidenceDocument || data.attachmentFileName,
     isMedicalCompulsoryMet: data.reasonCategory === 'medical' ? true : undefined,
@@ -1316,15 +1456,22 @@ export function submitResitRequest(data: {
   requests.unshift(newReq);
   saveStoredResitRequests(requests);
 
-  // Mark status in missed exam record
-  const missed = getStoredMissedExams();
-  const match = missed.find(
-    (m) => m.studentId === data.studentId && normalizeCourseCode(m.courseCode) === normCode
-  );
-  if (match) {
-    match.status = 'resit_pending';
-    saveStoredMissedExams(missed);
+  // If missed exam type, update status in missed exam record
+  if (newReq.resitType === 'missed') {
+    const missed = getStoredMissedExams();
+    const match = missed.find(
+      (m) => m.studentId === data.studentId && normalizeCourseCode(m.courseCode) === normCode
+    );
+    if (match) {
+      match.status = 'resit_pending';
+      saveStoredMissedExams(missed);
+    }
   }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('examguard_resit_requests_updated', { detail: { requests } }));
+  }
+  broadcastSync('examguard_resit_requests_updated', { requests });
 
   return newReq;
 }

@@ -17,6 +17,7 @@ import {
   Check,
   Download,
   Camera,
+  Clock,
   Image as ImageIcon,
   ZoomIn,
   ZoomOut,
@@ -37,6 +38,13 @@ interface StudentResitRequestModalProps {
   student: StudentProfile;
   exams: Exam[];
   preselectedExam?: Exam | null;
+  initialResitType?: 'missed' | 'failed';
+  preselectedFailedData?: {
+    score?: number;
+    totalPoints?: number;
+    percentage?: number;
+    passingScorePercentage?: number;
+  };
   onSubmitted?: () => void;
 }
 
@@ -46,8 +54,11 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
   student,
   exams,
   preselectedExam,
+  initialResitType = 'missed',
+  preselectedFailedData,
   onSubmitted,
 }) => {
+  const [resitType, setResitType] = useState<'missed' | 'failed'>(initialResitType);
   const [courseCode, setCourseCode] = useState(preselectedExam?.courseCode || 'CS401');
   const [examTitle, setExamTitle] = useState(
     preselectedExam?.title || 'Midterm Examination: Distributed Systems Architecture'
@@ -55,9 +66,16 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
   const [missedDate, setMissedDate] = useState(
     preselectedExam?.scheduledDate || new Date().toISOString().split('T')[0]
   );
-  const [reasonCategory, setReasonCategory] = useState<
-    'medical' | 'technical' | 'compassionate' | 'academic_clash' | 'other'
-  >('medical');
+  const [failedScore, setFailedScore] = useState<number | undefined>(preselectedFailedData?.score ?? 38);
+  const [totalPoints, setTotalPoints] = useState<number | undefined>(preselectedFailedData?.totalPoints ?? 100);
+  const [percentage, setPercentage] = useState<number | undefined>(preselectedFailedData?.percentage ?? 38);
+  const [passingScorePercentage, setPassingScorePercentage] = useState<number>(
+    preselectedFailedData?.passingScorePercentage ?? preselectedExam?.passingScorePercentage ?? 50
+  );
+
+  const [reasonCategory, setReasonCategory] = useState<string>(
+    initialResitType === 'failed' ? 'failed_threshold' : 'medical'
+  );
   const [reasonDetails, setReasonDetails] = useState('');
   const [evidenceNotes, setEvidenceNotes] = useState('');
   
@@ -217,34 +235,49 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
         courseCode: courseCode.trim().toUpperCase(),
         examTitle: examTitle.trim(),
         examId: preselectedExam?.id,
-        missedDate,
-        reasonCategory,
+        resitType,
+        missedDate: resitType === 'missed' ? missedDate : undefined,
+        failedScore: resitType === 'failed' ? (failedScore ?? 38) : undefined,
+        totalPoints: resitType === 'failed' ? (totalPoints ?? 100) : undefined,
+        percentage: resitType === 'failed' ? (percentage ?? 38) : undefined,
+        passingScorePercentage: resitType === 'failed' ? (passingScorePercentage ?? 50) : undefined,
+        reasonCategory: reasonCategory as any,
         reasonDetails: reasonDetails.trim(),
         evidenceNotes: evidenceNotes.trim() || undefined,
         attachmentFileName: attachmentFileName.trim() || undefined,
         attachmentFileUrl: attachmentFileUrl || undefined,
         attachmentFileType: attachmentFileType || undefined,
         attachmentFileSize: attachmentFileSize || undefined,
-        medicalFacility: reasonCategory === 'medical' ? medicalFacility.trim() || undefined : undefined,
-        doctorName: reasonCategory === 'medical' ? doctorName.trim() || undefined : undefined,
-        medicalCertificateRef: reasonCategory === 'medical' ? medicalCertificateRef.trim() || undefined : undefined,
-        grounds: reasonCategory,
+        medicalFacility:
+          reasonCategory === 'medical' || reasonCategory === 'health_during_exam'
+            ? medicalFacility.trim() || undefined
+            : undefined,
+        doctorName:
+          reasonCategory === 'medical' || reasonCategory === 'health_during_exam'
+            ? doctorName.trim() || undefined
+            : undefined,
+        medicalCertificateRef:
+          reasonCategory === 'medical' || reasonCategory === 'health_during_exam'
+            ? medicalCertificateRef.trim() || undefined
+            : undefined,
+        grounds: resitType === 'failed' ? 'failed_threshold' : reasonCategory,
         explanation: reasonDetails.trim(),
         evidenceDocument: attachmentFileName.trim() || undefined,
       });
 
       setSuccessMsg(
-        'Your Examination Resit & Clearance Request with verified attachments has been officially lodged. The Super Admin Directorate will review your case. Once cleared, candidate registration and examination room admission will be approved.'
+        resitType === 'failed'
+          ? `Your Below-Passing-Threshold Resit Application for ${courseCode.trim().toUpperCase()} has been officially lodged. The Super Admin Directorate will verify your reasons for failing and approve clearance for re-registration.`
+          : 'Your Examination Resit & Clearance Request with verified attachments has been officially lodged. The Super Admin Directorate will review your case. Once cleared, candidate registration and examination room admission will be approved.'
       );
       triggerFlash({
         type: 'success',
-        text: 'Resit Clearance Request Submitted',
+        text: resitType === 'failed' ? 'Failed Exam Resit Application Submitted' : 'Resit Clearance Request Submitted',
         subtext: `Application for ${courseCode.trim().toUpperCase()} lodged with Super Admin Directorate for review and approval.`,
       });
       setErrorMsg(null);
       setReasonDetails('');
       setEvidenceNotes('');
-      // Keep attachments clear
       handleRemoveAttachment();
       if (onSubmitted) onSubmitted();
     } catch (err: any) {
@@ -277,12 +310,20 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
           {/* Header */}
           <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 flex items-center justify-center font-bold">
-                <FileText className="w-5 h-5" />
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+                  resitType === 'failed'
+                    ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-400'
+                    : 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400'
+                }`}
+              >
+                {resitType === 'failed' ? <AlertTriangle className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
               </div>
               <div>
                 <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                  Request Examination Resit &amp; Clearance
+                  {resitType === 'failed'
+                    ? 'Apply for Examination Resit (Below Passing Threshold)'
+                    : 'Request Examination Resit & Clearance (Missed Sitting)'}
                 </h3>
                 <p className="text-xs text-slate-500 font-mono">
                   Rifkins Education College &bull; Academic Assessment Directorate
@@ -298,17 +339,86 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
             </button>
           </div>
 
+          {/* Mode Switcher Tabs */}
+          <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-950 p-1.5 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setResitType('missed');
+                setReasonCategory('medical');
+                setErrorMsg(null);
+              }}
+              className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                resitType === 'missed'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs border border-slate-300 dark:border-slate-700'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <FileText className="w-4 h-4 text-amber-500" />
+              <span>Missed Examination Sitting</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setResitType('failed');
+                setReasonCategory('failed_threshold');
+                setErrorMsg(null);
+              }}
+              className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                resitType === 'failed'
+                  ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 shadow-xs border border-rose-300 dark:border-rose-700'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <AlertTriangle className="w-4 h-4 text-rose-600" />
+              <span>Failed Passing Marks Threshold (Resit Application)</span>
+            </button>
+          </div>
+
           <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 text-xs">
             {/* Institutional Clearance Notice */}
-            <div className="p-4 bg-amber-50/80 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 space-y-1">
-              <div className="font-bold text-sm flex items-center gap-1.5">
-                <ShieldAlert className="w-4 h-4 text-amber-600" />
-                <span>Institutional Policy on Missed Examinations</span>
+            {resitType === 'failed' ? (
+              <div className="p-4 bg-rose-50/80 dark:bg-rose-950/30 rounded-xl border border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200 space-y-2">
+                <div className="font-bold text-sm flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-rose-600" />
+                  <span>Institutional Policy on Below-Threshold Examination Performance</span>
+                </div>
+                <p className="leading-relaxed text-xs">
+                  In case the candidate fails to attain the designated passing marks threshold for a unit, they must officially apply for a resit: <strong>under the reason below, state the specific reason for failed</strong>. Your application and academic record undergo verification by the Super Admin Directorate for approval prior to examination re-registration.
+                </p>
+                {/* Score vs Threshold Banner */}
+                <div className="mt-2 p-3 bg-white/90 dark:bg-slate-900/90 rounded-lg border border-rose-300 dark:border-rose-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500">Achieved Score:</span>
+                    <strong className="text-rose-700 dark:text-rose-400 font-mono text-sm font-bold">
+                      {failedScore ?? 38} / {totalPoints ?? 100} ({percentage ?? 38}%)
+                    </strong>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500">Passing Mark Threshold:</span>
+                    <strong className="text-slate-900 dark:text-white font-mono text-sm font-bold">
+                      {passingScorePercentage}%
+                    </strong>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500">Score Deficit:</span>
+                    <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200 font-mono font-bold text-[11px]">
+                      -{Math.max(0, passingScorePercentage - (percentage ?? 38))}%
+                    </span>
+                  </div>
+                </div>
               </div>
-              <p className="leading-relaxed">
-                In accordance with college regulations, candidates who registered for an examination but missed connecting or sitting the session must seek official clearance from the Super Admin Directorate. Once your justification is reviewed and approved, your candidate registration will be accepted and exam room admission unblocked.
-              </p>
-            </div>
+            ) : (
+              <div className="p-4 bg-amber-50/80 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 space-y-1">
+                <div className="font-bold text-sm flex items-center gap-1.5">
+                  <ShieldAlert className="w-4 h-4 text-amber-600" />
+                  <span>Institutional Policy on Missed Examinations</span>
+                </div>
+                <p className="leading-relaxed">
+                  In accordance with college regulations, candidates who registered for an examination but missed connecting or sitting the session must seek official clearance from the Super Admin Directorate. Once your justification is reviewed and approved, your candidate registration will be accepted and exam room admission unblocked.
+                </p>
+              </div>
+            )}
 
             {/* Candidate Bio-Bar */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 font-mono text-[11px]">
@@ -330,10 +440,12 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
               </div>
             </div>
 
-            {/* Quick Select from Enrolled / Missed Exams */}
+            {/* Quick Select from Enrolled / Target Exams */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider text-[11px]">
-                Select Missed Examination or Course:
+                {resitType === 'failed'
+                  ? 'Select Examination Unit Failed / Requiring Resit:'
+                  : 'Select Missed Examination or Course:'}
               </label>
               <div className="flex flex-wrap gap-2">
                 {exams.map((ex) => (
@@ -343,7 +455,9 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
                     onClick={() => handleSelectExamPreset(ex)}
                     className={`px-3 py-1.5 rounded-lg border text-left font-sans transition-all cursor-pointer ${
                       courseCode === ex.courseCode && examTitle === ex.title
-                        ? 'bg-amber-100 border-amber-500 text-amber-900 dark:bg-amber-950 dark:text-amber-200 font-bold'
+                        ? resitType === 'failed'
+                          ? 'bg-rose-100 border-rose-500 text-rose-900 dark:bg-rose-950 dark:text-rose-200 font-bold'
+                          : 'bg-amber-100 border-amber-500 text-amber-900 dark:bg-amber-950 dark:text-amber-200 font-bold'
                         : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-400'
                     }`}
                   >
@@ -378,7 +492,7 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Course Code *
+                    Course / Unit Code *
                   </label>
                   <input
                     type="text"
@@ -392,7 +506,7 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
 
                 <div className="sm:col-span-2">
                   <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Examination Title *
+                    Examination Unit Title *
                   </label>
                   <input
                     type="text"
@@ -406,55 +520,107 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Missed Sitting Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={missedDate}
-                    onChange={(e) => setMissedDate(e.target.value)}
-                    className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950"
-                  />
-                </div>
+                {resitType === 'missed' ? (
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Missed Sitting Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={missedDate}
+                      onChange={(e) => setMissedDate(e.target.value)}
+                      className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Achieved Score / Pass Threshold (%)
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={percentage ?? 38}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setPercentage(val);
+                          setFailedScore(val);
+                        }}
+                        className="w-1/2 p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-mono font-bold text-rose-600"
+                        placeholder="Candidate %"
+                      />
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={passingScorePercentage}
+                        onChange={(e) => setPassingScorePercentage(Number(e.target.value))}
+                        className="w-1/2 p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 font-mono font-bold text-slate-600"
+                        placeholder="Passing Threshold %"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Primary Grounds for Absence *
+                    {resitType === 'failed' ? 'Primary Cause / Context for Failure *' : 'Primary Grounds for Absence *'}
                   </label>
                   <select
                     value={reasonCategory}
                     onChange={(e) => {
-                      const newCategory = e.target.value as any;
+                      const newCategory = e.target.value;
                       setReasonCategory(newCategory);
                       setErrorMsg(null);
                     }}
                     className={`w-full p-2.5 rounded-lg border bg-slate-50 dark:bg-slate-950 font-medium ${
-                      reasonCategory === 'medical'
+                      reasonCategory === 'medical' || reasonCategory === 'health_during_exam'
                         ? 'border-rose-400 dark:border-rose-700 ring-2 ring-rose-500/20 text-rose-900 dark:text-rose-200 font-bold'
                         : 'border-slate-300 dark:border-slate-700'
                     }`}
                   >
-                    <option value="medical">Medical Emergency / Acute Illness (Attachment Compulsory)</option>
-                    <option value="technical">Technical / Network Connectivity Outage</option>
-                    <option value="compassionate">Compassionate / Family Bereavement</option>
-                    <option value="academic_clash">Academic Timetable Clashing</option>
-                    <option value="other">Other Extenuating Circumstances</option>
+                    {resitType === 'failed' ? (
+                      <>
+                        <option value="failed_threshold">Below Passing Mark Threshold (Academic Grounds)</option>
+                        <option value="academic_difficulty">Conceptual Struggle with Advanced Subject Matter</option>
+                        <option value="health_during_exam">Acute Illness / Distress Experienced During Sitting</option>
+                        <option value="time_pressure">Severe Time Constraints & Incomplete Paper</option>
+                        <option value="technical">Technical Glitch / Device Lag During Session</option>
+                        <option value="compassionate">Compassionate Hardship / Bereavement</option>
+                        <option value="other">Other Extenuating Circumstances</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="medical">Medical Emergency / Acute Illness (Attachment Compulsory)</option>
+                        <option value="technical">Technical / Network Connectivity Outage</option>
+                        <option value="compassionate">Compassionate / Family Bereavement</option>
+                        <option value="academic_clash">Academic Timetable Clashing</option>
+                        <option value="other">Other Extenuating Circumstances</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>
 
               <div>
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Detailed Circumstantial Explanation *
+                  {resitType === 'failed'
+                    ? 'State the Reason for Failed (Compulsory) *'
+                    : 'Detailed Circumstantial Explanation *'}
                 </label>
                 <textarea
                   rows={3}
                   required
                   value={reasonDetails}
                   onChange={(e) => setReasonDetails(e.target.value)}
-                  placeholder="Provide complete explanation of what occurred, why you missed connecting or sitting the exam, and request authorization for resit registration..."
+                  placeholder={
+                    resitType === 'failed'
+                      ? 'State specifically what caused you to fail to attain the passing marks threshold (e.g. topic difficulty with Raft/consensus proofs, illness during examination, time pressure, etc.)...'
+                      : 'Provide complete explanation of what occurred, why you missed connecting or sitting the exam, and request authorization for resit registration...'
+                  }
                   className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs"
                 />
               </div>
@@ -790,6 +956,18 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
                           >
                             {req.status === 'approved' ? '✓ Clearance Approved' : req.status === 'declined' ? '✗ Request Declined' : '⏳ Pending Admin Review'}
                           </span>
+
+                          {req.resitType === 'failed' ? (
+                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3 text-rose-600" />
+                              <span>Failed Threshold ({req.percentage ?? req.failedScore}% · Pass {req.passingScorePercentage ?? 50}%)</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>Missed Sitting</span>
+                            </span>
+                          )}
 
                           {req.reasonCategory === 'medical' && (
                             <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 flex items-center gap-1">

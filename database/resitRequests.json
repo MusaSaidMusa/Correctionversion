@@ -17,6 +17,28 @@
     "reRegistered": false
   },
   {
+    "id": "resit-sam-failed-cs401",
+    "studentId": "student-sam",
+    "studentName": "Samuel K. Ochieng",
+    "studentNumber": "MSA-2026/6-3045",
+    "studentEmail": "sam.ochieng@student.edu",
+    "courseCode": "CS401",
+    "examTitle": "Midterm Examination: Distributed Systems Architecture",
+    "examId": "exam-cs401-midterm",
+    "resitType": "failed",
+    "failedScore": 38,
+    "totalPoints": 100,
+    "percentage": 38,
+    "passingScorePercentage": 50,
+    "reasonCategory": "academic_difficulty",
+    "reasonDetails": "Failed to attain the 50% passing threshold (achieved 38/100) due to conceptual difficulty with Vector Clocks and Distributed Consensus algorithms, along with acute fatigue. I have undergone departmental remedial tutoring and request Directorate clearance to sit the resit examination.",
+    "grounds": "failed_threshold",
+    "explanation": "Failed to attain the 50% passing threshold (achieved 38/100) due to conceptual difficulty with Vector Clocks and Distributed Consensus algorithms, along with acute fatigue. I have undergone departmental remedial tutoring and request Directorate clearance to sit the resit examination.",
+    "status": "pending",
+    "submittedAt": "2026-11-09T14:30:00.000Z",
+    "reRegistered": false
+  },
+  {
     "id": "resit-maya-001",
     "studentId": "student-maya",
     "studentName": "Maya Lin",

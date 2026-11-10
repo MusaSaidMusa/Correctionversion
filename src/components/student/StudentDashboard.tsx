@@ -98,6 +98,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   // Student Resit & Clearance modal state
   const [isResitModalOpen, setIsResitModalOpen] = useState(false);
   const [resitTargetExam, setResitTargetExam] = useState<Exam | null>(null);
+  const [resitTargetType, setResitTargetType] = useState<'missed' | 'failed'>('missed');
+  const [resitTargetFailedData, setResitTargetFailedData] = useState<{
+    score?: number;
+    totalPoints?: number;
+    percentage?: number;
+    passingScorePercentage?: number;
+  } | undefined>(undefined);
 
   // Real-time live admission alert banner state
   const [realtimeAdmissionAlert, setRealtimeAdmissionAlert] = useState<{
@@ -1202,52 +1209,82 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                   {/* Right: Functional Action Buttons */}
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     {/* Completed Submissions Actions */}
-                    {statusType === 'completed' && sub && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedResultExam({ exam, submission: sub })}
-                          className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-xs"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-cyan-300" />
-                          <span>View Scorecard</span>
-                        </button>
+                    {statusType === 'completed' && sub && (() => {
+                      const passPct = exam.passingScorePercentage || 50;
+                      const totalPts = sub.totalPoints || exam.questions.reduce((sum, q) => sum + (q.points || 0), 0) || 100;
+                      const subPct = sub.percentage ?? (totalPts > 0 ? Math.round(((sub.score ?? 0) / totalPts) * 100) : 0);
+                      const isFailedThreshold = subPct < passPct;
 
-                        <button
-                          type="button"
-                          onClick={() => setViewingAnswerSheetTarget({ exam, submission: sub })}
-                          className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                          title="Open official Times New Roman 12pt answer sheet (Protected Candidate View)"
-                        >
-                          <FileText className="w-3.5 h-3.5" />
-                          <span>Answer Sheet</span>
-                        </button>
+                      return (
+                        <>
+                          {isFailedThreshold && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setResitTargetExam(exam);
+                                setResitTargetType('failed');
+                                setResitTargetFailedData({
+                                  score: sub.score,
+                                  totalPoints: totalPts,
+                                  percentage: subPct,
+                                  passingScorePercentage: passPct,
+                                });
+                                setIsResitModalOpen(true);
+                                playAlertBeep('info');
+                              }}
+                              className="flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95 border border-rose-500"
+                              title={`Candidate achieved ${subPct}% (below required pass mark of ${passPct}%). Click to apply for official resit clearance.`}
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5 text-rose-200" />
+                              <span>Apply for Resit (Below Passing Mark)</span>
+                            </button>
+                          )}
 
-                        {/* Question Paper in Times New Roman 12pt format - STRICTLY INVISIBLE until student submits work */}
-                        <button
-                          type="button"
-                          onClick={() => setViewingQuestionPaperExam(exam)}
-                          className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-700 transition-colors cursor-pointer"
-                          title="View & download official examination paper in Times New Roman 12pt format (.doc/print)"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                          <span>Question Paper (.doc)</span>
-                        </button>
-
-                        {/* Marking Scheme button (only visible if released by teacher) */}
-                        {exam.isMarkingSchemeReleased && (
                           <button
                             type="button"
-                            onClick={() => setViewingMarkingSchemeExam(exam)}
-                            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 dark:text-emerald-300 rounded-xl text-xs font-semibold border border-emerald-300 dark:border-emerald-700 transition-colors cursor-pointer"
-                            title="View & download official marking scheme in Times New Roman 12pt format (.doc/print)"
+                            onClick={() => setSelectedResultExam({ exam, submission: sub })}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-xs"
                           >
-                            <Award className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Marking Scheme</span>
+                            <FileText className="w-3.5 h-3.5 text-cyan-300" />
+                            <span>View Scorecard</span>
                           </button>
-                        )}
-                      </>
-                    )}
+
+                          <button
+                            type="button"
+                            onClick={() => setViewingAnswerSheetTarget({ exam, submission: sub })}
+                            className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                            title="Open official Times New Roman 12pt answer sheet (Protected Candidate View)"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>Answer Sheet</span>
+                          </button>
+
+                          {/* Question Paper in Times New Roman 12pt format - STRICTLY INVISIBLE until student submits work */}
+                          <button
+                            type="button"
+                            onClick={() => setViewingQuestionPaperExam(exam)}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-700 transition-colors cursor-pointer"
+                            title="View & download official examination paper in Times New Roman 12pt format (.doc/print)"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                            <span>Question Paper (.doc)</span>
+                          </button>
+
+                          {/* Marking Scheme button (only visible if released by teacher) */}
+                          {exam.isMarkingSchemeReleased && (
+                            <button
+                              type="button"
+                              onClick={() => setViewingMarkingSchemeExam(exam)}
+                              className="flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 dark:text-emerald-300 rounded-xl text-xs font-semibold border border-emerald-300 dark:border-emerald-700 transition-colors cursor-pointer"
+                              title="View & download official marking scheme in Times New Roman 12pt format (.doc/print)"
+                            >
+                              <Award className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Marking Scheme</span>
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
 
                     {/* In Progress Session Action */}
                     {statusType === 'in_progress' && sub && (
@@ -1380,6 +1417,27 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           submission={selectedResultExam.submission}
           isOpen={true}
           onClose={() => setSelectedResultExam(null)}
+          onRequestResit={(targetExam, targetSub) => {
+            const passPct = targetExam.passingScorePercentage || 50;
+            const totalPts =
+              targetSub.totalPoints ||
+              targetExam.questions.reduce((sum, q) => sum + (q.points || 0), 0) ||
+              100;
+            const subPct =
+              targetSub.percentage ?? (totalPts > 0 ? Math.round(((targetSub.score ?? 0) / totalPts) * 100) : 0);
+
+            setSelectedResultExam(null);
+            setResitTargetExam(targetExam);
+            setResitTargetType('failed');
+            setResitTargetFailedData({
+              score: targetSub.score,
+              totalPoints: totalPts,
+              percentage: subPct,
+              passingScorePercentage: passPct,
+            });
+            setIsResitModalOpen(true);
+            playAlertBeep('info');
+          }}
         />
       )}
 
@@ -1492,10 +1550,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         onClose={() => {
           setIsResitModalOpen(false);
           setResitTargetExam(null);
+          setResitTargetType('missed');
+          setResitTargetFailedData(undefined);
         }}
         student={student}
         exams={exams}
         preselectedExam={resitTargetExam}
+        initialResitType={resitTargetType}
+        preselectedFailedData={resitTargetFailedData}
       />
     </div>
   );

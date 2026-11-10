@@ -373,6 +373,8 @@ export interface MissedExamRecord {
   clearedBy?: string;
 }
 
+export type ResitType = 'missed' | 'failed';
+
 export interface ResitRequest {
   id: string;
   studentId: string;
@@ -382,8 +384,22 @@ export interface ResitRequest {
   courseCode: string;
   examTitle: string;
   examId?: string;
+  resitType?: ResitType;
   missedDate?: string;
-  reasonCategory?: 'medical' | 'technical' | 'compassionate' | 'academic_clash' | 'other';
+  failedScore?: number;
+  totalPoints?: number;
+  percentage?: number;
+  passingScorePercentage?: number;
+  reasonCategory?:
+    | 'medical'
+    | 'technical'
+    | 'compassionate'
+    | 'academic_clash'
+    | 'academic_difficulty'
+    | 'failed_threshold'
+    | 'health_during_exam'
+    | 'time_pressure'
+    | 'other';
   reasonDetails?: string;
   grounds?: string;
   explanation?: string;
@@ -410,6 +426,30 @@ export interface ResitRequest {
   reRegisteredAt?: string;
   reRegisteredBy?: string;
   commencedAt?: string;
+}
+
+export interface FailedStudentRecord {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentNumber: string;
+  studentEmail?: string;
+  studentAvatar?: string;
+  department?: string;
+  faculty?: string;
+  courseCode: string;
+  unitName: string;
+  examId?: string;
+  submissionId?: string;
+  score: number;
+  totalPoints: number;
+  percentage: number;
+  passingScorePercentage: number;
+  deficitPercentage: number;
+  grade?: string;
+  dateRecorded: string;
+  resitStatus: 'not_applied' | 'pending' | 'approved' | 'declined';
+  resitRequest?: ResitRequest;
 }
 
 export interface ExamAttendanceSummary {
