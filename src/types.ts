@@ -29,6 +29,7 @@ export interface StudentProfile {
   department?: string;
   faculty?: string;
   program?: string;
+  programCode?: string;
   admissionYear?: string;
   academicStanding?: string;
   gpa?: string;

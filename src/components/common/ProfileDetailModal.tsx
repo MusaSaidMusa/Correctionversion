@@ -34,6 +34,8 @@ import {
   verifyUserPassword,
   updateUserPassword,
   uploadFileToServer,
+  deriveProgramCode,
+  resolveStudentCourseProgram,
 } from '../../services/storageService';
 
 interface ProfileDetailModalProps {
@@ -74,6 +76,13 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
   );
   const [studentNumber, setStudentNumber] = useState(
     initialStudent?.studentNumber || ''
+  );
+  const initialStudentCourse = resolveStudentCourseProgram(initialStudent);
+  const [program, setProgram] = useState(
+    initialStudent ? initialStudentCourse.programName : ''
+  );
+  const [programCode, setProgramCode] = useState(
+    initialStudent ? initialStudentCourse.programCode : ''
   );
   const [department, setDepartment] = useState(
     initialStudent?.department || initialTeacher?.department || initialAdmin?.department || 'Computer Science & Software Engineering'
@@ -143,6 +152,8 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
           email: email.trim(),
           avatar,
           studentNumber: studentNumber.trim(),
+          program: program.trim() || initialStudent.program,
+          programCode: deriveProgramCode(program.trim() || initialStudent.program, programCode.trim()),
           department: department.trim(),
           faculty: faculty.trim(),
           phone: phone.trim(),
@@ -370,6 +381,18 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-xs">
+                {targetType === 'student' && (
+                  <>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">Course (Program)</div>
+                      <div className="font-semibold text-slate-900 dark:text-slate-100 mt-0.5">{program}</div>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">Course Code</div>
+                      <div className="font-mono font-bold text-[#556b2f] dark:text-teal-300 mt-0.5">{programCode}</div>
+                    </div>
+                  </>
+                )}
                 <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
                   <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">Department</div>
                   <div className="font-semibold text-slate-900 dark:text-slate-100 mt-0.5">{department}</div>
@@ -512,6 +535,42 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
                   />
                 </div>
               </div>
+
+              {targetType === 'student' && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Course (Program Enrolled)
+                    </label>
+                    <input
+                      type="text"
+                      value={program}
+                      onChange={(e) => {
+                        const nextProg = e.target.value;
+                        const prevAuto = deriveProgramCode(program);
+                        setProgram(nextProg);
+                        if (!programCode.trim() || programCode === prevAuto) {
+                          setProgramCode(deriveProgramCode(nextProg));
+                        }
+                      }}
+                      placeholder="e.g. Diploma in Information Technology"
+                      className="w-full p-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Course Code
+                    </label>
+                    <input
+                      type="text"
+                      value={programCode}
+                      onChange={(e) => setProgramCode(e.target.value.toUpperCase())}
+                      placeholder="e.g. DIT"
+                      className="w-full p-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-mono font-bold"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Department & Faculty Fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

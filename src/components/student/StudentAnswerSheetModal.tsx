@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Printer, FileText, CheckCircle2, Lock, ShieldAlert } from 'lucide-react';
 import { Exam, ExamSubmission } from '../../types';
 import { cleanDisplayCaption } from '../../services/imageCompressionService';
+import { getStoredStudents, resolveStudentCourseProgram } from '../../services/storageService';
 
 interface StudentAnswerSheetModalProps {
   isOpen: boolean;
@@ -19,6 +20,15 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
   isStudent = false,
 }) => {
   if (!isOpen) return null;
+
+  const matchedStudent = getStoredStudents().find(
+    (s) =>
+      s.id === submission.studentId ||
+      (submission.studentNumber &&
+        s.studentNumber.toUpperCase() === submission.studentNumber.toUpperCase())
+  );
+  const { programName: resolvedCourseProgram, programCode: resolvedProgramCode } =
+    resolveStudentCourseProgram(matchedStudent);
 
   const totalPoints =
     submission.totalPoints ||
@@ -51,7 +61,7 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-indigo-600" />
             <span className="font-bold text-sm text-slate-800">
-              Candidate Examination Answer Sheet — {exam.courseCode}: {exam.courseTitle || exam.title}
+              Candidate Examination Answer Sheet — {resolvedProgramCode}: {resolvedCourseProgram} ({exam.title})
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -135,13 +145,16 @@ export const StudentAnswerSheetModal: React.FC<StudentAnswerSheetModalProps> = (
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm border-b-2 border-black pb-4 mb-6">
             <div>
-              <strong>Examination Title:</strong> {exam.title}
+              <strong>Course (Program):</strong> {resolvedCourseProgram}
             </div>
             <div>
-              <strong>Course Code:</strong> <span className="font-mono font-bold">{exam.courseCode}</span>
+              <strong>Course Code:</strong> <span className="font-mono font-bold">{resolvedProgramCode}</span>
             </div>
             <div>
-              <strong>Course Title:</strong> {exam.courseTitle || exam.title}
+              <strong>Unit / Exam Title:</strong> {exam.title}
+            </div>
+            <div>
+              <strong>Unit Code:</strong> <span className="font-mono font-bold">{exam.courseCode}</span>
             </div>
             <div>
               <strong>Candidate Name:</strong> {submission.studentName || submission.studentId}

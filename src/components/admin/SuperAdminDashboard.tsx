@@ -112,6 +112,8 @@ import {
   getAllExamsAttendanceSummaries,
   getFailedStudentsList,
   registerStudentToExamWithValidation,
+  deriveProgramCode,
+  resolveStudentCourseProgram,
 } from '../../services/storageService';
 import { ProfileDetailModal } from '../common/ProfileDetailModal';
 import { ExaminationPaperModal } from '../common/ExaminationPaperModal';
@@ -339,7 +341,9 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   const [newStudentName, setNewStudentName] = useState('');
   const [newStudentEmail, setNewStudentEmail] = useState('');
   const [newStudentNumber, setNewStudentNumber] = useState(`MSA-2026/8-${Math.floor(1000 + Math.random() * 9000)}`);
-  const [newStudentDept, setNewStudentDept] = useState('Computer Science');
+  const [newStudentDept, setNewStudentDept] = useState('Computer Science & Software Engineering');
+  const [newStudentProgram, setNewStudentProgram] = useState('Diploma in Information Technology');
+  const [newStudentProgramCode, setNewStudentProgramCode] = useState('DIT');
   const [newStudentCourses, setNewStudentCourses] = useState('CS-405, CS-301');
   const [studentAvatar, setStudentAvatar] = useState('');
   const [selectedExamEnrollments, setSelectedExamEnrollments] = useState<string[]>([]);
@@ -382,7 +386,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       type: isError ? 'error' : 'success',
       text: msg,
     });
-    setTimeout(() => setToastMessage(null), 4000);
+    setTimeout(() => setToastMessage(null), 2200);
   };
 
   // Reload helpers
@@ -1256,6 +1260,8 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     setNewStudentEmail('');
     setNewStudentNumber(`MSA-2026/8-${Math.floor(1000 + Math.random() * 9000)}`);
     setNewStudentDept(allDepartments[0] || 'Computer Science & Software Engineering');
+    setNewStudentProgram('Diploma in Information Technology');
+    setNewStudentProgramCode('DIT');
     setNewStudentCourses('CS-405, CS-301');
     setStudentAvatar('');
     setSelectedExamEnrollments([]);
@@ -1269,6 +1275,9 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     setNewStudentEmail(s.email);
     setNewStudentNumber(s.studentNumber);
     setNewStudentDept(s.department || '');
+    const resolvedProg = resolveStudentCourseProgram(s);
+    setNewStudentProgram(resolvedProg.programName);
+    setNewStudentProgramCode(resolvedProg.programCode);
     setNewStudentCourses((s.enrolledCourseCodes || []).join(', '));
     setStudentAvatar(s.avatar || '');
     const enrolledIds = exams
@@ -1300,18 +1309,24 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       .split(',')
       .map((c) => c.trim().toUpperCase())
       .filter(Boolean);
+    const finalProgram = newStudentProgram.trim() || 'Diploma in Information Technology';
+    const finalProgramCode = deriveProgramCode(finalProgram, newStudentProgramCode.trim());
 
     if (editingStudentId) {
+      const existingCandidate = students.find((s) => s.id === editingStudentId);
       const updatedCandidate: StudentProfile = {
+        ...(existingCandidate || {}),
         id: editingStudentId,
         name: newStudentName.trim(),
         email: newStudentEmail.trim().toLowerCase(),
         studentNumber: newStudentNumber.trim(),
         department: newStudentDept.trim(),
+        program: finalProgram,
+        programCode: finalProgramCode,
         enrolledCourseCodes: courseCodes,
         avatar:
           studentAvatar.trim() ||
-          students.find((s) => s.id === editingStudentId)?.avatar ||
+          existingCandidate?.avatar ||
           `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
       };
 
@@ -1344,6 +1359,8 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         email: newStudentEmail.trim().toLowerCase(),
         studentNumber: newStudentNumber.trim(),
         department: newStudentDept.trim(),
+        program: finalProgram,
+        programCode: finalProgramCode,
         enrolledCourseCodes: courseCodes,
         avatar:
           studentAvatar.trim() ||
@@ -1742,20 +1759,20 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           }}
           className={`p-4 rounded-2xl border text-left cursor-pointer transition-all duration-200 group relative overflow-hidden shadow-xs hover:shadow-md hover:-translate-y-0.5 ${
             activeTab === 'all_exams'
-              ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-400 dark:border-blue-600 ring-2 ring-blue-500/20'
-              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-blue-300'
+              ? 'bg-[#556b2f]/12 dark:bg-[#556b2f]/25 border-[#556b2f] ring-2 ring-[#556b2f]/25'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-teal-500 hover:bg-teal-50/70 dark:hover:bg-teal-950/30'
           }`}
         >
-          <div className="flex items-center justify-between text-xs font-semibold text-blue-700 dark:text-blue-400">
+          <div className="flex items-center justify-between text-xs font-semibold text-blue-700 dark:text-blue-400 group-hover:text-teal-800 dark:group-hover:text-teal-300">
             <span>All Examinations</span>
-            <BookOpen className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
+            <BookOpen className="w-4 h-4 text-blue-600 group-hover:text-teal-600 group-hover:scale-110 transition-all" />
           </div>
           <div className="text-2xl font-extrabold font-mono text-slate-900 dark:text-white mt-1.5">
             {exams.length}
           </div>
           <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-between">
             <span>{allDepartments.length} Departments</span>
-            <span className="font-semibold text-blue-600 dark:text-blue-400 flex items-center text-[10px]">
+            <span className="font-semibold text-blue-600 dark:text-blue-400 group-hover:text-teal-700 flex items-center text-[10px]">
               View All <ChevronRight className="w-3 h-3" />
             </span>
           </div>
@@ -1771,20 +1788,20 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           }}
           className={`p-4 rounded-2xl border text-left cursor-pointer transition-all duration-200 group relative overflow-hidden shadow-xs hover:shadow-md hover:-translate-y-0.5 ${
             activeTab === 'teachers'
-              ? 'bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-500/20'
-              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-300'
+              ? 'bg-[#556b2f]/12 dark:bg-[#556b2f]/25 border-[#556b2f] ring-2 ring-[#556b2f]/25'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-teal-500 hover:bg-teal-50/70 dark:hover:bg-teal-950/30'
           }`}
         >
-          <div className="flex items-center justify-between text-xs font-semibold text-indigo-700 dark:text-indigo-400">
+          <div className="flex items-center justify-between text-xs font-semibold text-indigo-700 dark:text-indigo-400 group-hover:text-teal-800 dark:group-hover:text-teal-300">
             <span>Authorized Faculty</span>
-            <Users className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
+            <Users className="w-4 h-4 text-indigo-600 group-hover:text-teal-600 group-hover:scale-110 transition-all" />
           </div>
           <div className="text-2xl font-extrabold font-mono text-slate-900 dark:text-white mt-1.5">
             {teachers.length}
           </div>
           <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center justify-between">
             <span>{teachers.filter((t) => t.accessStatus === 'active').length} Active Clearance</span>
-            <span className="font-semibold text-indigo-600 dark:text-indigo-400 flex items-center text-[10px]">
+            <span className="font-semibold text-indigo-600 dark:text-indigo-400 group-hover:text-teal-700 flex items-center text-[10px]">
               Manage <ChevronRight className="w-3 h-3" />
             </span>
           </div>
@@ -1800,13 +1817,13 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           }}
           className={`p-4 rounded-2xl border text-left cursor-pointer transition-all duration-200 group relative overflow-hidden shadow-xs hover:shadow-md hover:-translate-y-0.5 ${
             activeTab === 'mark_overrides'
-              ? 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-400 dark:border-amber-600 ring-2 ring-amber-500/20'
-              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-amber-300'
+              ? 'bg-[#556b2f]/12 dark:bg-[#556b2f]/25 border-[#556b2f] ring-2 ring-[#556b2f]/25'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-teal-500 hover:bg-teal-50/70 dark:hover:bg-teal-950/30'
           }`}
         >
-          <div className="flex items-center justify-between text-xs font-semibold text-amber-700 dark:text-amber-400">
+          <div className="flex items-center justify-between text-xs font-semibold text-amber-700 dark:text-amber-400 group-hover:text-teal-800 dark:group-hover:text-teal-300">
             <span>Modified Marks</span>
-            <Award className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
+            <Award className="w-4 h-4 text-amber-600 group-hover:text-teal-600 group-hover:scale-110 transition-all" />
           </div>
           <div className="text-2xl font-extrabold font-mono text-amber-600 dark:text-amber-400 mt-1.5 flex items-baseline gap-2">
             <span>{allModifiedMarks.length}</span>
@@ -1823,7 +1840,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           </div>
           <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-between">
             <span>Audit & Justifications</span>
-            <span className="font-semibold text-amber-600 dark:text-amber-400 flex items-center text-[10px]">
+            <span className="font-semibold text-amber-600 dark:text-amber-400 group-hover:text-teal-700 flex items-center text-[10px]">
               Review <ChevronRight className="w-3 h-3" />
             </span>
           </div>
@@ -1838,20 +1855,20 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           }}
           className={`p-4 rounded-2xl border text-left cursor-pointer transition-all duration-200 group relative overflow-hidden shadow-xs hover:shadow-md hover:-translate-y-0.5 ${
             activeTab === 'student_registrations'
-              ? 'bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-500/20'
-              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-300'
+              ? 'bg-[#556b2f]/12 dark:bg-[#556b2f]/25 border-[#556b2f] ring-2 ring-[#556b2f]/25'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-teal-500 hover:bg-teal-50/70 dark:hover:bg-teal-950/30'
           }`}
         >
-          <div className="flex items-center justify-between text-xs font-semibold text-indigo-700 dark:text-indigo-400">
+          <div className="flex items-center justify-between text-xs font-semibold text-indigo-700 dark:text-indigo-400 group-hover:text-teal-800 dark:group-hover:text-teal-300">
             <span>Candidate Registry</span>
-            <GraduationCap className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
+            <GraduationCap className="w-4 h-4 text-indigo-600 group-hover:text-teal-600 group-hover:scale-110 transition-all" />
           </div>
           <div className="text-2xl font-extrabold font-mono text-slate-900 dark:text-white mt-1.5">
             {students.length}
           </div>
           <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-between">
             <span>Enrolled Students</span>
-            <span className="font-semibold text-indigo-600 dark:text-indigo-400 flex items-center text-[10px]">
+            <span className="font-semibold text-indigo-600 dark:text-indigo-400 group-hover:text-teal-700 flex items-center text-[10px]">
               Roster <ChevronRight className="w-3 h-3" />
             </span>
           </div>
@@ -1866,20 +1883,20 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           }}
           className={`p-4 rounded-2xl border text-left cursor-pointer transition-all duration-200 group relative overflow-hidden shadow-xs hover:shadow-md hover:-translate-y-0.5 ${
             activeTab === 'tickets'
-              ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-400 dark:border-rose-600 ring-2 ring-rose-500/20'
-              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-rose-300'
+              ? 'bg-[#556b2f]/12 dark:bg-[#556b2f]/25 border-[#556b2f] ring-2 ring-[#556b2f]/25'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-teal-500 hover:bg-teal-50/70 dark:hover:bg-teal-950/30'
           }`}
         >
-          <div className="flex items-center justify-between text-xs font-semibold text-rose-700 dark:text-rose-400">
+          <div className="flex items-center justify-between text-xs font-semibold text-rose-700 dark:text-rose-400 group-hover:text-teal-800 dark:group-hover:text-teal-300">
             <span>Inquiries & Help</span>
-            <LifeBuoy className="w-4 h-4 text-rose-600 group-hover:scale-110 transition-transform" />
+            <LifeBuoy className="w-4 h-4 text-rose-600 group-hover:text-teal-600 group-hover:scale-110 transition-all" />
           </div>
           <div className="text-2xl font-extrabold font-mono text-rose-600 dark:text-rose-400 mt-1.5">
             {tickets.filter((t) => t.status !== 'resolved').length}
           </div>
           <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-between">
             <span>{tickets.filter((t) => t.status === 'resolved').length} Resolved</span>
-            <span className="font-semibold text-rose-600 dark:text-rose-400 flex items-center text-[10px]">
+            <span className="font-semibold text-rose-600 dark:text-rose-400 group-hover:text-teal-700 flex items-center text-[10px]">
               Queue <ChevronRight className="w-3 h-3" />
             </span>
           </div>
@@ -1893,11 +1910,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('academic_database')}
           className={`flex-1 min-w-[160px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'academic_database'
-              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+              ? 'bg-[#556b2f] text-white border-[#3f5220] active-olive animate-olive-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
           }`}
         >
-          <Database className={`w-4 h-4 ${activeTab === 'academic_database' ? 'text-[#1a2200]' : 'text-indigo-600'}`} />
+          <Database className={`w-4 h-4 ${activeTab === 'academic_database' ? 'text-white' : 'text-indigo-600'}`} />
           <span>Academic Database [PK: Admission]</span>
         </button>
 
@@ -1906,11 +1923,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('all_exams')}
           className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'all_exams'
-              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+              ? 'bg-[#556b2f] text-white border-[#3f5220] active-olive animate-olive-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
           }`}
         >
-          <BookOpen className={`w-4 h-4 ${activeTab === 'all_exams' ? 'text-[#1a2200]' : 'text-blue-500'}`} />
+          <BookOpen className={`w-4 h-4 ${activeTab === 'all_exams' ? 'text-white' : 'text-blue-500'}`} />
           <span>All Accumulated Examinations ({exams.length})</span>
         </button>
 
@@ -1919,11 +1936,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('teachers')}
           className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'teachers'
-              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+              ? 'bg-[#556b2f] text-white border-[#3f5220] active-olive animate-olive-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
           }`}
         >
-          <Users className={`w-4 h-4 ${activeTab === 'teachers' ? 'text-[#1a2200]' : 'text-indigo-500'}`} />
+          <Users className={`w-4 h-4 ${activeTab === 'teachers' ? 'text-white' : 'text-indigo-500'}`} />
           <span>Faculty Directory & Rights ({teachers.length})</span>
         </button>
 
@@ -1932,11 +1949,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('departments')}
           className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'departments'
-              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+              ? 'bg-[#556b2f] text-white border-[#3f5220] active-olive animate-olive-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
           }`}
         >
-          <Building2 className={`w-4 h-4 ${activeTab === 'departments' ? 'text-[#1a2200]' : 'text-orange-500'}`} />
+          <Building2 className={`w-4 h-4 ${activeTab === 'departments' ? 'text-white' : 'text-orange-500'}`} />
           <span>Faculties, Departments & Courses ({courses.length})</span>
         </button>
 
@@ -1945,11 +1962,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('mark_overrides')}
           className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'mark_overrides'
-              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+              ? 'bg-[#556b2f] text-white border-[#3f5220] active-olive animate-olive-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
           }`}
         >
-          <Award className={`w-4 h-4 ${activeTab === 'mark_overrides' ? 'text-[#1a2200]' : 'text-amber-500'}`} />
+          <Award className={`w-4 h-4 ${activeTab === 'mark_overrides' ? 'text-white' : 'text-amber-500'}`} />
           <span>Modified Marks & Justifications ({allModifiedMarks.length + committedMarkChangeRequests.length})</span>
         </button>
 
@@ -1958,11 +1975,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('student_registrations')}
           className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'student_registrations'
-              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+              ? 'bg-[#556b2f] text-white border-[#3f5220] active-olive animate-olive-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
           }`}
         >
-          <GraduationCap className={`w-4 h-4 ${activeTab === 'student_registrations' ? 'text-[#1a2200]' : 'text-indigo-500'}`} />
+          <GraduationCap className={`w-4 h-4 ${activeTab === 'student_registrations' ? 'text-white' : 'text-indigo-500'}`} />
           <span>Candidate Registrations ({students.length})</span>
         </button>
 
@@ -1971,11 +1988,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('tickets')}
           className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'tickets'
-              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+              ? 'bg-[#556b2f] text-white border-[#3f5220] active-olive animate-olive-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
           }`}
         >
-          <LifeBuoy className={`w-4 h-4 ${activeTab === 'tickets' ? 'text-[#1a2200]' : 'text-rose-500'}`} />
+          <LifeBuoy className={`w-4 h-4 ${activeTab === 'tickets' ? 'text-white' : 'text-rose-500'}`} />
           <span>Incident Inquiries ({tickets.length})</span>
         </button>
 
@@ -1984,11 +2001,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('attendance_missed')}
           className={`flex-1 min-w-[170px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'attendance_missed'
-              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+              ? 'bg-[#556b2f] text-white border-[#3f5220] active-olive animate-olive-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
           }`}
         >
-          <Users className={`w-4 h-4 ${activeTab === 'attendance_missed' ? 'text-[#1a2200]' : 'text-amber-600'}`} />
+          <Users className={`w-4 h-4 ${activeTab === 'attendance_missed' ? 'text-white' : 'text-amber-600'}`} />
           <span>Attendance & Missed Exam Clearance ({resitRequests.filter((r) => r.status === 'pending').length} Pending)</span>
         </button>
 
@@ -1997,11 +2014,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           onClick={() => setActiveTab('reports')}
           className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'reports'
-              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+              ? 'bg-[#556b2f] text-white border-[#3f5220] active-olive animate-olive-pulse font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
           }`}
         >
-          <BarChart3 className={`w-4 h-4 ${activeTab === 'reports' ? 'text-[#1a2200]' : 'text-emerald-500'}`} />
+          <BarChart3 className={`w-4 h-4 ${activeTab === 'reports' ? 'text-white' : 'text-emerald-500'}`} />
           <span>Institutional Reports & Analytics</span>
         </button>
       </div>
@@ -2079,7 +2096,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                     <div
                       key={exam.id}
                       data-exam-card="true"
-                      className="exam-card group relative p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900/90 shadow-xs hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 dark:hover:bg-amber-950/20 hover:shadow-md transition-all duration-200 text-xs flex flex-col xl:flex-row xl:items-center justify-between gap-4"
+                      className="exam-card group relative p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900/90 shadow-xs hover:border-teal-500 dark:hover:border-teal-400 hover:bg-teal-50/70 dark:hover:bg-teal-950/25 hover:shadow-md transition-all duration-200 text-xs flex flex-col xl:flex-row xl:items-center justify-between gap-4"
                     >
                       <div className="space-y-3 flex-1 min-w-0">
                         {/* Title & Status Header */}
@@ -2283,7 +2300,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                   return (
                     <div
                       key={teacher.id}
-                      className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 dark:hover:bg-amber-950/20 hover:shadow-md transition-all text-xs border-l-4 border-l-indigo-600 dark:border-l-indigo-500"
+                      className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs hover:border-teal-500 dark:hover:border-teal-400 hover:bg-teal-50/70 dark:hover:bg-teal-950/25 hover:shadow-md transition-all text-xs border-l-4 border-l-indigo-600 dark:border-l-indigo-500"
                     >
                       <div className="flex items-start sm:items-center gap-4">
                         <div className="relative shrink-0">
@@ -2802,6 +2819,9 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                         <div className="text-slate-400 font-mono text-[11px]">
                           {student.studentNumber} · {student.department}
                         </div>
+                        <div className="text-[11px] font-semibold text-[#556b2f] dark:text-teal-300">
+                          Course: {deriveProgramCode(student.program, student.programCode)} &mdash; {student.program || 'B.Sc. Computer Science (Honours)'}
+                        </div>
                       </div>
                     </div>
 
@@ -3005,7 +3025,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                   return (
                     <div
                       key={faculty.name}
-                      className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 dark:hover:bg-amber-950/20 hover:shadow-sm transition-all duration-200 flex flex-col justify-between gap-3 text-xs"
+                      className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs hover:border-teal-500 dark:hover:border-teal-400 hover:bg-teal-50/70 dark:hover:bg-teal-950/25 hover:shadow-sm transition-all duration-200 flex flex-col justify-between gap-3 text-xs"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3 min-w-0">
@@ -5033,6 +5053,51 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Enrolled Course (Program)
+                  </label>
+                  <input
+                    type="text"
+                    list="program-course-presets"
+                    value={newStudentProgram}
+                    onChange={(e) => {
+                      const nextProg = e.target.value;
+                      const prevAuto = deriveProgramCode(newStudentProgram);
+                      setNewStudentProgram(nextProg);
+                      if (!newStudentProgramCode.trim() || newStudentProgramCode === prevAuto) {
+                        setNewStudentProgramCode(deriveProgramCode(nextProg));
+                      }
+                    }}
+                    placeholder="e.g. Diploma in Information Technology"
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100"
+                  />
+                  <datalist id="program-course-presets">
+                    <option value="Diploma in Information Technology" />
+                    <option value="Diploma in Computer Science" />
+                    <option value="Diploma in Business Information Technology" />
+                    <option value="B.Sc. Computer Science (Honours)" />
+                    <option value="B.Sc. Software Engineering" />
+                    <option value="B.Sc. Cybersecurity & Digital Forensics" />
+                    <option value="Certificate in Web Development" />
+                  </datalist>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Course Code
+                  </label>
+                  <input
+                    type="text"
+                    value={newStudentProgramCode}
+                    onChange={(e) => setNewStudentProgramCode(e.target.value.toUpperCase())}
+                    placeholder="e.g. DIT"
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono font-bold"
+                  />
+                </div>
               </div>
 
               {/* Specific Examinations to Register candidate into */}

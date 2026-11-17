@@ -221,9 +221,9 @@ export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
                       onClose();
                       onCreateNewExam(resitRequest);
                     }}
-                    className="w-full py-2 px-3.5 bg-[#d1e231] hover:bg-[#c0d725] text-slate-950 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs border border-[#a3b817] cursor-pointer active-pear animate-pear-pulse"
+                    className="w-full py-2 px-3.5 bg-[#556b2f] hover:bg-teal-700 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs border border-[#3f5220] cursor-pointer active-olive animate-olive-pulse"
                   >
-                    <Plus className="w-4 h-4 text-slate-950" />
+                    <Plus className="w-4 h-4 text-white" />
                     <span>Create New Resit Examination &amp; Enroll Candidate Now</span>
                   </button>
                 </div>
@@ -259,8 +259,8 @@ export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
                         key={ex.id}
                         className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
                           isSelected
-                            ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 ring-2 ring-emerald-400/40 shadow-xs'
-                            : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-emerald-300'
+                            ? 'bg-[#f3f6e8] dark:bg-[#556b2f]/20 border-[#556b2f] ring-2 ring-[#556b2f]/35 shadow-xs'
+                            : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-teal-500 hover:bg-teal-50/60 dark:hover:bg-teal-950/30'
                         }`}
                       >
                         <div className="flex items-start gap-3">
@@ -304,7 +304,7 @@ export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
                         <span
                           className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
                             isSelected
-                              ? 'bg-emerald-600 text-white'
+                              ? 'bg-[#556b2f] text-white'
                               : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
                           }`}
                         >
@@ -426,10 +426,10 @@ export const ReRegisterStudentModal: React.FC<ReRegisterStudentModalProps> = ({
             type="button"
             disabled={!selectedExamId || !isCodeMatch || isSubmitting}
             onClick={handleConfirmReRegistration}
-            className={`px-5 py-2.5 rounded-xl text-slate-950 font-extrabold text-xs flex items-center gap-2 shadow-md transition-all border ${
+            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-md transition-all border ${
               !selectedExamId || !isCodeMatch || isSubmitting
                 ? 'opacity-50 cursor-not-allowed bg-slate-200 border-slate-300 text-slate-500'
-                : 'bg-[#d1e231] hover:bg-[#c0d725] border-[#a3b817] hover:scale-105 active:scale-95 cursor-pointer'
+                : 'bg-[#556b2f] hover:bg-teal-700 text-white border-[#3f5220] hover:scale-105 active:scale-95 cursor-pointer'
             }`}
           >
             <UserCheck className="w-4 h-4" />

@@ -44,14 +44,14 @@ export const FlashMessage: React.FC<FlashMessageProps> = ({ message, onClose }) 
     if (!message) return;
     hasPlayedSoundRef.current = false;
 
-    // Trigger acoustic beep immediately upon completion of animated entrance (~350ms)
+    // Trigger acoustic beep immediately upon completion of fast entrance (~150ms)
     const soundTimer = setTimeout(() => {
       playBeepOnce();
-    }, 350);
+    }, 150);
 
     const autoCloseTimer = setTimeout(() => {
       onClose();
-    }, 4500);
+    }, 2200);
 
     return () => {
       clearTimeout(soundTimer);
@@ -116,7 +116,7 @@ export const FlashMessage: React.FC<FlashMessageProps> = ({ message, onClose }) 
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none">
       {/* Light translucent backdrop */}
       <div
-        className="fixed inset-0 bg-slate-950/35 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-200 pointer-events-auto"
+        className="fixed inset-0 bg-slate-950/35 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-150 pointer-events-auto"
         onClick={onClose}
         aria-hidden="true"
       />

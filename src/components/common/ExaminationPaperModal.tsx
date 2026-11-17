@@ -1,7 +1,11 @@
-import React, { useEffect } from 'react';
-import { X, Printer, FileText, Lock, ShieldAlert, Award, Calendar, Clock, CheckCircle } from 'lucide-react';
-import { Exam } from '../../types';
+import React, { useEffect, useState } from 'react';
+import { X, Printer, FileText, Lock, ShieldAlert, GraduationCap } from 'lucide-react';
+import { Exam, StudentProfile } from '../../types';
 import { cleanDisplayCaption } from '../../services/imageCompressionService';
+import {
+  getStoredStudents,
+  resolveStudentCourseProgram,
+} from '../../services/storageService';
 
 interface ExaminationPaperModalProps {
   isOpen: boolean;
@@ -11,6 +15,7 @@ interface ExaminationPaperModalProps {
   canDownload?: boolean;
   faculty?: string;
   department?: string;
+  student?: StudentProfile | null;
 }
 
 export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
@@ -21,16 +26,31 @@ export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
   canDownload = true,
   faculty,
   department,
+  student,
 }) => {
-  if (!isOpen) return null;
-
   const isStudent = userRole === 'student' || canDownload === false;
 
-  // Use the exact marks specified by teacher during examination setting
-  const totalTeacherMarks = exam.questions.reduce((sum, q) => {
-    const pts = typeof q.points === 'number' && Number.isFinite(q.points) ? q.points : 0;
-    return sum + pts;
-  }, 0);
+  const allStudents = getStoredStudents();
+  const enrolledCandidates = allStudents.filter(
+    (s) =>
+      exam.registeredStudentIds?.includes(s.id) ||
+      s.enrolledCourseCodes?.some(
+        (code) => code.toUpperCase() === (exam.courseCode || '').toUpperCase()
+      )
+  );
+  const candidatePool = enrolledCandidates.length > 0 ? enrolledCandidates : allStudents;
+
+  const [selectedPreviewStudentId, setSelectedPreviewStudentId] = useState<string>(
+    () => student?.id || candidatePool[0]?.id || ''
+  );
+
+  useEffect(() => {
+    if (student?.id) {
+      setSelectedPreviewStudentId(student.id);
+    } else if (candidatePool.length > 0 && !candidatePool.some((s) => s.id === selectedPreviewStudentId)) {
+      setSelectedPreviewStudentId(candidatePool[0].id);
+    }
+  }, [student?.id, exam.id]);
 
   useEffect(() => {
     if (!isOpen || !isStudent) return;
@@ -44,6 +64,34 @@ export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isOpen, isStudent]);
 
+  if (!isOpen) return null;
+
+  // Dynamically resolve student registration profile for Course (Program) & Course Code
+  const resolvedStudent =
+    student ||
+    candidatePool.find((s) => s.id === selectedPreviewStudentId) ||
+    candidatePool[0] ||
+    null;
+
+  const { programName: resolvedCourseProgram, programCode: resolvedProgramCode } =
+    resolvedStudent
+      ? resolveStudentCourseProgram(resolvedStudent)
+      : {
+          programName: exam.courseTitle?.trim() || 'Institutional Academic Program',
+          programCode: (exam.courseCode || 'PROG').trim().toUpperCase(),
+        };
+
+  // Unit / Exam Title created by the teacher when creating the examination
+  const resolvedUnitExamTitle =
+    exam.title?.trim() || exam.courseTitle?.trim() || 'Examination Unit';
+  const resolvedUnitCode = (exam.courseCode || 'UNIT').trim().toUpperCase();
+
+  // Use the exact marks specified by teacher during examination setting
+  const totalTeacherMarks = exam.questions.reduce((sum, q) => {
+    const pts = typeof q.points === 'number' && Number.isFinite(q.points) ? q.points : 0;
+    return sum + pts;
+  }, 0);
+
   const handlePrint = () => {
     if (isStudent) return;
     window.print();
@@ -53,25 +101,45 @@ export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-xs">
       <div className="bg-white text-slate-900 rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
         {/* Modal Action Header (Excluded when printed) */}
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 print:hidden">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+        <div className="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50 print:hidden">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
               <FileText className="w-4 h-4" />
             </div>
-            <div>
-              <span className="font-bold text-sm text-slate-900">
-                Official Examination Paper &mdash; {exam.courseCode}
+            <div className="min-w-0">
+              <span className="font-bold text-sm text-slate-900 block truncate">
+                Official Examination Paper &mdash; {resolvedProgramCode}: {resolvedCourseProgram}
               </span>
-              <p className="text-[11px] text-slate-500 font-medium">
-                {exam.courseTitle || exam.title} &bull; Rifkins Education College
+              <p className="text-[11px] text-slate-500 font-medium truncate">
+                Unit / Exam Title: {resolvedUnitExamTitle} ({resolvedUnitCode}) &bull; Rifkins Education College
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {!isStudent && candidatePool.length > 0 && (
+              <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2 py-1 text-[11px]">
+                <GraduationCap className="w-3.5 h-3.5 text-[#556b2f] shrink-0" />
+                <select
+                  value={resolvedStudent?.id || ''}
+                  onChange={(e) => setSelectedPreviewStudentId(e.target.value)}
+                  className="bg-transparent text-slate-800 font-semibold focus:outline-hidden cursor-pointer max-w-[190px]"
+                  title="Preview Course & Course Code dynamically from enrolled student profile"
+                >
+                  {candidatePool.map((cand) => {
+                    const prog = resolveStudentCourseProgram(cand);
+                    return (
+                      <option key={cand.id} value={cand.id}>
+                        {cand.name} ({prog.programCode}: {prog.programName})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
             {!isStudent && canDownload ? (
               <button
                 onClick={handlePrint}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
                 <span>Print / Save as PDF</span>
@@ -84,7 +152,7 @@ export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
             )}
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer"
+              className="p-1.5 text-slate-400 hover:text-teal-900 rounded-lg hover:bg-teal-100 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -130,33 +198,61 @@ export const ExaminationPaperModal: React.FC<ExaminationPaperModalProps> = ({
               "Impacting lives since 1953"
             </p>
             <h2 className="text-sm font-bold uppercase tracking-widest text-slate-900 pt-1">
-              {faculty || exam.faculty || 'Faculty of Computing & Information Technologies'}
+              {faculty || resolvedStudent?.faculty || exam.faculty || 'Faculty of Computing & Information Technologies'}
             </h2>
             <h3 className="text-xs uppercase tracking-wider text-slate-700 font-sans">
-              {department || exam.department || 'Academic Department of Examinations & Assessments'}
+              {department || resolvedStudent?.department || exam.department || 'Academic Department of Examinations & Assessments'}
             </h3>
-            <div className="pt-2">
+            <div className="pt-2 space-y-1">
               <span className="inline-block px-3 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[11px] font-mono font-bold uppercase tracking-wider border border-slate-300">
                 Official University Examination Paper
               </span>
+              <div className="pt-1.5 font-sans">
+                <div className="text-base font-extrabold text-black uppercase tracking-tight">
+                  COURSE: {resolvedProgramCode} &mdash; {resolvedCourseProgram}
+                </div>
+                <div className="text-sm font-bold text-slate-800">
+                  UNIT / EXAM TITLE: {resolvedUnitExamTitle} ({resolvedUnitCode})
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Official Examination Metadata Table */}
           <div className="border border-slate-400 rounded-lg p-4 mb-6 bg-slate-50/50 text-sm font-sans grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
             <div>
-              <span className="text-slate-500 font-medium">Course Code:</span>{' '}
-              <strong className="font-mono text-black">{exam.courseCode}</strong>
+              <span className="text-slate-500 font-medium">Course (Program):</span>{' '}
+              <strong className="text-black">{resolvedCourseProgram}</strong>
             </div>
+            <div>
+              <span className="text-slate-500 font-medium">Course Code:</span>{' '}
+              <strong className="font-mono text-black">{resolvedProgramCode}</strong>
+            </div>
+            <div>
+              <span className="text-slate-500 font-medium">Unit / Exam Title:</span>{' '}
+              <strong className="text-black">{resolvedUnitExamTitle}</strong>
+            </div>
+            <div>
+              <span className="text-slate-500 font-medium">Unit Code:</span>{' '}
+              <strong className="font-mono text-black">{resolvedUnitCode}</strong>
+            </div>
+            {resolvedStudent && (
+              <>
+                <div>
+                  <span className="text-slate-500 font-medium">Candidate Profile:</span>{' '}
+                  <strong className="text-black">{resolvedStudent.name}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">Admission / Reg. No:</span>{' '}
+                  <strong className="font-mono text-black">{resolvedStudent.studentNumber}</strong>
+                </div>
+              </>
+            )}
             <div>
               <span className="text-slate-500 font-medium">Examination Date:</span>{' '}
               <strong className="text-black">
                 {exam.scheduledDate || new Date(exam.scheduledStartTime).toLocaleDateString()}
               </strong>
-            </div>
-            <div>
-              <span className="text-slate-500 font-medium">Course Title:</span>{' '}
-              <strong className="text-black">{exam.courseTitle || exam.title}</strong>
             </div>
             <div>
               <span className="text-slate-500 font-medium">Time Allowed:</span>{' '}

@@ -521,6 +521,65 @@ export function saveStoredSubmissions(submissions: ExamSubmission[]): void {
   broadcastSync('examguard_submissions_updated', { submissions });
 }
 
+export function deriveProgramCode(programName?: string, explicitCode?: string): string {
+  if (explicitCode && explicitCode.trim()) {
+    return explicitCode.trim().toUpperCase();
+  }
+  const raw = (programName || '').trim();
+  if (!raw) return 'GEN-PROG';
+
+  const lower = raw.toLowerCase();
+  let prefix = '';
+  let remainder = raw;
+
+  const prefixRules: Array<{ pattern: RegExp; code: string }> = [
+    { pattern: /^\s*higher\s+national\s+diploma\b/i, code: 'HND' },
+    { pattern: /^\s*postgraduate\s+diploma\b/i, code: 'PGD' },
+    { pattern: /^\s*diploma\b/i, code: 'D' },
+    { pattern: /^\s*certificate\b/i, code: 'C' },
+    { pattern: /^\s*(b\.?\s*sc\.?|bachelor\s+of\s+science)\b/i, code: 'BS' },
+    { pattern: /^\s*(b\.?\s*a\.?|bachelor\s+of\s+arts)\b/i, code: 'BA' },
+    { pattern: /^\s*(b\.?\s*ed\.?|bachelor\s+of\s+education)\b/i, code: 'BED' },
+    { pattern: /^\s*bachelor\b/i, code: 'B' },
+    { pattern: /^\s*(m\.?\s*sc\.?|master\s+of\s+science)\b/i, code: 'MS' },
+    { pattern: /^\s*(m\.?\s*b\.?\s*a\.?)\b/i, code: 'MBA' },
+    { pattern: /^\s*master\b/i, code: 'M' },
+    { pattern: /^\s*(ph\.?\s*d\.?|doctorate)\b/i, code: 'PHD' },
+  ];
+
+  for (const rule of prefixRules) {
+    if (rule.pattern.test(lower)) {
+      prefix = rule.code;
+      remainder = raw.replace(rule.pattern, '').trim();
+      break;
+    }
+  }
+
+  const stopWords = new Set(['in', 'of', 'and', '&', 'for', 'the', 'with', 'honours', 'hons', 'degree']);
+  const words = remainder
+    .replace(/[().,/\\-]+/g, ' ')
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0 && !stopWords.has(w.toLowerCase()));
+
+  const initials = words.map((w) => w[0].toUpperCase()).join('');
+  const combined = `${prefix}${initials}`.replace(/[^A-Z0-9-]/g, '');
+
+  if (combined.length >= 2) {
+    return combined.slice(0, 10);
+  }
+  return raw.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 6) || 'PROG';
+}
+
+export function resolveStudentCourseProgram(student?: StudentProfile | null): {
+  programName: string;
+  programCode: string;
+} {
+  const programName = student?.program?.trim() || 'B.Sc. Computer Science (Honours)';
+  const programCode = deriveProgramCode(programName, student?.programCode);
+  return { programName, programCode };
+}
+
 export function getStoredStudents(): StudentProfile[] {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.STUDENTS);
@@ -531,6 +590,8 @@ export function getStoredStudents(): StudentProfile[] {
     const students: StudentProfile[] = JSON.parse(data);
     return students.map((student) => ({
       ...student,
+      program: student.program || 'B.Sc. Computer Science (Honours)',
+      programCode: deriveProgramCode(student.program || 'B.Sc. Computer Science (Honours)', student.programCode),
       accessStatus: student.accessStatus || 'active',
     }));
   } catch {

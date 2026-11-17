@@ -455,13 +455,19 @@ export const StudentResitRequestModal: React.FC<StudentResitRequestModalProps> =
                     onClick={() => handleSelectExamPreset(ex)}
                     className={`px-3 py-1.5 rounded-lg border text-left font-sans transition-all cursor-pointer ${
                       courseCode === ex.courseCode && examTitle === ex.title
-                        ? resitType === 'failed'
-                          ? 'bg-rose-100 border-rose-500 text-rose-900 dark:bg-rose-950 dark:text-rose-200 font-bold'
-                          : 'bg-amber-100 border-amber-500 text-amber-900 dark:bg-amber-950 dark:text-amber-200 font-bold'
-                        : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-400'
+                        ? 'bg-[#556b2f] border-[#3f5220] text-white font-bold shadow-xs'
+                        : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-teal-500 hover:bg-teal-50/70 dark:hover:bg-teal-950/30'
                     }`}
                   >
-                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{ex.courseCode}</span>
+                    <span
+                      className={`font-mono font-bold ${
+                        courseCode === ex.courseCode && examTitle === ex.title
+                          ? 'text-teal-200'
+                          : 'text-indigo-600 dark:text-indigo-400'
+                      }`}
+                    >
+                      {ex.courseCode}
+                    </span>
                     <span className="ml-1.5 truncate max-w-[200px] inline-block align-bottom">{ex.title}</span>
                   </button>
                 ))}

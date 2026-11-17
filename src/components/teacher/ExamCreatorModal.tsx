@@ -135,9 +135,9 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
   const [title, setTitle] = useState(
     existingExam?.title || initialTitle || (initialCourseCode ? `${initialCourseCode} Resit Examination Session` : '')
   );
-  const [courseCode, setCourseCode] = useState(existingExam?.courseCode || initialCourseCode || 'CS-405');
+  const [courseCode, setCourseCode] = useState(existingExam?.courseCode || initialCourseCode || 'DIT-102');
   const [courseTitle, setCourseTitle] = useState(
-    existingExam?.courseTitle || initialCourseTitle || 'Network Security & Protocol Forensics'
+    existingExam?.courseTitle || initialCourseTitle || existingExam?.title || initialTitle || ''
   );
   const [faculty, setFaculty] = useState<string>(
     currentTeacher?.faculty || existingExam?.faculty || 'Faculty of Computing & Information Technologies'
@@ -718,7 +718,7 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
       id: existingExam?.id || `exam-${Date.now()}`,
       title: title.trim(),
       courseCode: courseCode.trim().toUpperCase(),
-      courseTitle: courseTitle.trim() || 'Curriculum Subject',
+      courseTitle: title.trim() || courseTitle.trim() || 'Examination Unit',
       instructorName: existingExam?.instructorName || currentTeacher?.name || 'Prof. Evelyn Vance',
       instructorEmail: existingExam?.instructorEmail || currentTeacher?.email || 'e.vance@university.edu',
       faculty: faculty.trim() || currentTeacher?.faculty || existingExam?.faculty || 'Faculty of Computing & Information Technologies',
@@ -762,9 +762,9 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
 
   const previewExam: Exam = {
     id: existingExam?.id || `preview-exam-${Date.now()}`,
-    title: title.trim() || 'Comprehensive Examination Paper',
-    courseCode: courseCode.trim().toUpperCase() || 'EXAM-101',
-    courseTitle: courseTitle.trim() || 'Curriculum Subject Assessment',
+    title: title.trim() || 'Introduction to Web Development',
+    courseCode: courseCode.trim().toUpperCase() || 'UNIT-101',
+    courseTitle: title.trim() || courseTitle.trim() || 'Examination Unit',
     instructorName: currentTeacher?.name || existingExam?.instructorName || 'Chief Academic Invigilator',
     instructorEmail: currentTeacher?.email || existingExam?.instructorEmail || 'e.vance@university.edu',
     faculty: faculty.trim() || currentTeacher?.faculty || existingExam?.faculty || 'Faculty of Computing & Information Technologies',
@@ -881,24 +881,27 @@ export const ExamCreatorModal: React.FC<ExamCreatorModalProps> = ({
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">Examination Title</label>
+                  <label className="block font-medium text-slate-700 mb-1">Unit / Exam Title</label>
                   <input
                     type="text"
                     value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Midterm Assessment: Network Security"
+                    onChange={(e) => {
+                      setTitle(e.target.value);
+                      setCourseTitle(e.target.value);
+                    }}
+                    placeholder="e.g. Introduction to Web Development"
                     className="w-full p-2.5 border border-slate-300 rounded bg-slate-50 text-xs focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div>
-                    <label className="block font-medium text-slate-700 mb-1">Course Code</label>
+                    <label className="block font-medium text-slate-700 mb-1">Unit Code</label>
                     <input
                       type="text"
                       value={courseCode}
                       onChange={(e) => setCourseCode(e.target.value)}
-                      placeholder="e.g. CS-405"
+                      placeholder="e.g. DIT-102"
                       className="w-full p-2.5 border border-slate-300 rounded bg-slate-50 text-xs"
                     />
                   </div>

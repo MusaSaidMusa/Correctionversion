@@ -2,32 +2,33 @@
 
 /* 
   Global Requirements:
-  1. Hover all items with light amber (#fffbeb / #fef3c7, border #f59e0b / #fbbf24, text #92400e).
-  2. Actively selected items are animated with PEAR GREEN (#d1e231 / #c0d725), including exams selected and buttons across all dashboards.
+  1. Hover items with TEAL color (#f0fdfa / #ccfbf1, border #14b8a6, text #115e59).
+  2. Actively selected items are styled and animated with GREEN OLIVE (#556b2f / #6b8e23), including exams selected and buttons across all dashboards.
   3. Maintain the color of writings to automatic black even after dark mode is activated.
 */
 
-@keyframes pear-glow-pulse {
+@keyframes olive-glow-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(209, 226, 49, 0.75);
-    border-color: #d1e231;
+    box-shadow: 0 0 0 0 rgba(85, 107, 47, 0.7);
+    border-color: #556b2f;
   }
   50% {
-    box-shadow: 0 0 0 7px rgba(209, 226, 49, 0.22), 0 0 16px rgba(209, 226, 49, 0.6);
-    border-color: #9eb51c;
+    box-shadow: 0 0 0 6px rgba(107, 142, 35, 0.25), 0 0 14px rgba(85, 107, 47, 0.5);
+    border-color: #6b8e23;
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(209, 226, 49, 0);
-    border-color: #d1e231;
+    box-shadow: 0 0 0 0 rgba(85, 107, 47, 0);
+    border-color: #556b2f;
   }
 }
 
-.animate-pear-pulse {
-  animation: pear-glow-pulse 2s infinite ease-in-out !important;
+.animate-pear-pulse,
+.animate-olive-pulse {
+  animation: olive-glow-pulse 2s infinite ease-in-out !important;
 }
 
 @layer base {
-  /* Generic buttons and interactive controls default to light amber hover */
+  /* Generic buttons and interactive controls default transition */
   button:not(:disabled):hover,
   [role="button"]:not(:disabled):hover {
     transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
@@ -35,62 +36,70 @@
 }
 
 @layer utilities {
-  /* Light amber hover utility */
+  /* Teal hover utility */
+  .hover-teal,
   .hover-light-amber,
   .hover-amber,
   .hover-light-blue,
   .hover-blue {
     transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
   }
+  .hover-teal:hover,
   .hover-light-amber:hover,
   .hover-amber:hover,
   .hover-light-blue:hover,
   .hover-blue:hover {
-    background-color: #fef3c7 !important; /* Light amber */
-    border-color: #f59e0b !important;
-    color: #92400e !important;
+    background-color: #ccfbf1 !important; /* Teal 100 */
+    border-color: #14b8a6 !important; /* Teal 500 */
+    color: #115e59 !important; /* Teal 800 */
   }
+  .dark .hover-teal:hover,
   .dark .hover-light-amber:hover,
   .dark .hover-amber:hover,
   .dark .hover-light-blue:hover,
   .dark .hover-blue:hover {
-    background-color: rgba(245, 158, 11, 0.22) !important;
-    border-color: #d97706 !important;
-    color: #fef3c7 !important;
+    background-color: rgba(20, 184, 166, 0.24) !important;
+    border-color: #2dd4bf !important;
+    color: #99f6e4 !important;
   }
 
-  /* Actively selected buttons across all dashboards: Animated Pear Green */
+  /* Actively selected buttons across all dashboards: Green Olive */
+  .active-olive,
+  .selected-olive,
   .active-pear,
   .selected-pear,
   .active-green,
   .selected-green,
   button.bg-emerald-600,
   button[aria-selected="true"] {
-    background-color: #d1e231 !important; /* Pear Green */
-    border-color: #a3b817 !important;
-    color: #1a2200 !important; /* High contrast black/olive for pear green */
+    background-color: #556b2f !important; /* Green Olive */
+    border-color: #3f5220 !important;
+    color: #ffffff !important;
     font-weight: 700 !important;
-    animation: pear-glow-pulse 2s infinite ease-in-out !important;
+    animation: olive-glow-pulse 2s infinite ease-in-out !important;
   }
 
+  .active-olive *,
+  .selected-olive *,
   .active-pear *,
   .selected-pear *,
   .active-green *,
   .selected-green *,
   button.bg-emerald-600 * {
-    color: #1a2200 !important;
+    color: #ffffff !important;
   }
 
-  /* Subtle active pear utility */
+  /* Subtle active green olive utility */
+  .active-olive-subtle,
   .active-pear-subtle,
   .active-green-subtle {
-    background-color: #f7fbe6 !important;
-    border-color: #d1e231 !important;
-    color: #1a2200 !important;
-    animation: pear-glow-pulse 2.2s infinite ease-in-out !important;
+    background-color: #eef2e2 !important;
+    border-color: #556b2f !important;
+    color: #2d3a16 !important;
+    animation: olive-glow-pulse 2.2s infinite ease-in-out !important;
   }
 
-  /* Universal exam card & list items hover */
+  /* Universal exam card & list items hover (Teal) */
   .exam-card,
   .examination-card,
   [data-exam-card] {
@@ -100,29 +109,36 @@
   .exam-card:hover,
   .examination-card:hover,
   [data-exam-card]:hover {
-    border-color: #f59e0b !important;
-    background-color: #fffbeb !important; /* Light amber hover */
+    border-color: #14b8a6 !important; /* Teal 500 */
+    background-color: #f0fdfa !important; /* Teal 50 */
   }
 
-  /* Selected exam card / item: Animated with Pear Green */
+  .dark .exam-card:hover,
+  .dark .examination-card:hover,
+  .dark [data-exam-card]:hover {
+    border-color: #2dd4bf !important;
+    background-color: #f0fdfa !important; /* Keep light surface in dark mode so automatic black text remains legible */
+  }
+
+  /* Selected exam card / item: Green Olive */
   .exam-card.selected,
   .examination-card.selected,
   [data-exam-card].selected,
   [data-selected="true"] {
-    border-color: #d1e231 !important;
+    border-color: #556b2f !important; /* Green Olive */
     border-width: 2.5px !important;
-    background-color: #f8fce8 !important;
-    animation: pear-glow-pulse 2.2s infinite ease-in-out !important;
+    background-color: #f3f6e8 !important;
+    animation: olive-glow-pulse 2.2s infinite ease-in-out !important;
   }
 
   .dark .exam-card.selected,
   .dark .examination-card.selected,
   .dark [data-exam-card].selected,
   .dark [data-selected="true"] {
-    border-color: #d1e231 !important;
+    border-color: #556b2f !important;
     border-width: 2.5px !important;
     background-color: #ffffff !important; /* White background in dark mode keeps writings automatic black */
-    animation: pear-glow-pulse 2.2s infinite ease-in-out !important;
+    animation: olive-glow-pulse 2.2s infinite ease-in-out !important;
   }
 
   /* Orange outline separator utility */
@@ -175,6 +191,14 @@
   color: #000000 !important;
 }
 
+/* Preserve white text on explicitly active-olive buttons inside dark exam cards */
+.dark .exam-card .active-olive,
+.dark .exam-card .active-olive *,
+.dark .exam-card .active-pear,
+.dark .exam-card .active-pear * {
+  color: #ffffff !important;
+}
+
 /* Security Print Restriction for Student Role */
 @media print {
   .student-print-restricted {
@@ -195,15 +219,15 @@
   }
 }
 
-/* Flashcard Animations */
+/* Flashcard Animations — Fast & Smooth */
 @keyframes flashcard-bounce-in {
   0% {
     opacity: 0;
-    transform: scale(0.85) translateY(-24px);
+    transform: scale(0.94) translateY(-10px);
   }
-  60% {
+  70% {
     opacity: 1;
-    transform: scale(1.03) translateY(4px);
+    transform: scale(1.01) translateY(1px);
   }
   100% {
     opacity: 1;
@@ -226,16 +250,16 @@
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
   }
   50% {
-    transform: scale(1.08);
-    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+    transform: scale(1.05);
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
   }
 }
 
 .animate-flashcard-entry {
-  animation: flashcard-bounce-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  animation: flashcard-bounce-in 0.18s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
 }
 
 .animate-flashcard-timer {
-  animation: flashcard-progress-bar 4.5s linear forwards !important;
+  animation: flashcard-progress-bar 2.2s linear forwards !important;
 }
 

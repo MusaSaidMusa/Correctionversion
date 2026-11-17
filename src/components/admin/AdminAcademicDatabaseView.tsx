@@ -269,23 +269,6 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
     };
   }, [filteredRecords]);
 
-  // Compute multi-unit candidate enrollments to showcase single students taking several units
-  const multiUnitStudents = useMemo(() => {
-    const map = new Map<string, { admission: string; name: string; courses: string[]; count: number }>();
-    records.forEach((r) => {
-      const adm = r.studentAdmission.trim().toUpperCase();
-      if (!map.has(adm)) {
-        map.set(adm, { admission: adm, name: r.studentName, courses: [], count: 0 });
-      }
-      const entry = map.get(adm)!;
-      if (!entry.courses.includes(r.course)) {
-        entry.courses.push(r.course);
-      }
-      entry.count++;
-    });
-    return Array.from(map.values()).filter((item) => item.count > 1);
-  }, [records]);
-
   // Handle Dynamic Sync with Submissions
   const handleManualSync = () => {
     const fresh = syncAcademicDatabaseWithSubmissions();
@@ -355,7 +338,7 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
         );
         if (conflict) {
           setFormError(
-            `Integrity Constraint Violation: A record for Composite Primary Key [${normAdmission} # ${normCourse}] already exists. A student can enroll in multiple units, but cannot have duplicate entries for the exact same unit.`
+            `Integrity Constraint Violation: A record for Composite Primary Key [${normAdmission} # ${normCourse}] already exists for this unit.`
           );
           return;
         }
@@ -566,10 +549,6 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
               <span>Composite Primary Key: [Student Admission + Course Code]</span>
             </span>
             <span className="text-xs text-slate-300 font-mono">&bull;</span>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-xs font-bold border border-emerald-400/40">
-              Multi-Unit Support Active
-            </span>
-            <span className="text-xs text-slate-300 font-mono">&bull;</span>
             <span className="text-xs text-amber-300 font-medium">Dynamic Immediate Sync</span>
           </div>
 
@@ -579,7 +558,7 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
           </h2>
 
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            Centralized institutional ledger using <strong>Composite Primary Key [Student Admission (PK 1/2) + Course Code (PK 2/2)]</strong> to enforce integrity constraints. A single student can sit for <strong>several units</strong> without conflict. Whenever marks are modified anywhere in the system, this database updates immediately for consistency.
+            Centralized institutional ledger using <strong>Composite Primary Key [Student Admission (PK 1/2) + Course Code (PK 2/2)]</strong> to enforce integrity constraints. Whenever marks are modified anywhere in the system, this database updates immediately for consistency.
           </p>
         </div>
 
@@ -617,7 +596,7 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
       </div>
 
       {/* Dynamic Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
             Total Unit Records
@@ -677,53 +656,7 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
             Admin Moderated
           </div>
         </div>
-
-        <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
-          <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            Grade Distinction
-          </div>
-          <div className="mt-1 flex items-baseline gap-1.5 font-mono text-sm font-bold text-slate-900 dark:text-white">
-            <span className="text-emerald-600">A: {stats.gradesCount.A}</span>
-            <span className="text-blue-600">B: {stats.gradesCount.B}</span>
-            <span className="text-amber-600">C: {stats.gradesCount.C}</span>
-          </div>
-          <div className="text-[10px] text-slate-500 font-medium mt-0.5">
-            D: {stats.gradesCount.D} &bull; Fail: {stats.gradesCount.F}
-          </div>
-        </div>
       </div>
-
-      {/* Multi-Unit Candidates Demonstration Strip */}
-      {multiUnitStudents.length > 0 && (
-        <div className="p-3 bg-gradient-to-r from-indigo-50/80 to-blue-50/80 dark:from-indigo-950/40 dark:to-slate-900/60 rounded-xl border border-indigo-200 dark:border-indigo-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
-          <div className="flex items-center gap-2">
-            <GraduationCap className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <span className="font-bold text-slate-800 dark:text-slate-200">
-              Multi-Unit Candidates (Single Student Doing Several Units):
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {multiUnitStudents.map((s) => (
-              <button
-                type="button"
-                key={s.admission}
-                onClick={() => setSearchQuery(s.admission)}
-                className={`px-2.5 py-1 rounded-lg border text-[11px] font-mono font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  searchQuery.toUpperCase() === s.admission
-                    ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
-                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:border-indigo-400'
-                }`}
-                title={`Filter to see all ${s.count} units taken by ${s.name}`}
-              >
-                <span>{s.name} ({s.admission})</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold text-[10px]">
-                  {s.count} units
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Report Generation Tools For Different Periods & Search Bar */}
       <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
@@ -756,8 +689,8 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
                 onClick={() => setPeriodFilter(p.id as PeriodFilterType)}
                 className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer border ${
                   periodFilter === p.id
-                    ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] font-bold shadow-xs active-pear animate-pear-pulse'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-amber-100 hover:text-amber-900'
+                    ? 'bg-[#556b2f] text-white border-[#3f5220] font-bold shadow-xs active-olive animate-olive-pulse'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200'
                 }`}
               >
                 {p.label}
@@ -1147,7 +1080,7 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
                 type="button"
                 disabled={safeCurrentPage === 1}
                 onClick={() => setCurrentPage(1)}
-                className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-35 disabled:cursor-not-allowed hover-light-amber cursor-pointer font-medium"
+                className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-35 disabled:cursor-not-allowed hover-teal cursor-pointer font-medium"
                 title="First Page"
               >
                 <ChevronsLeft className="w-3.5 h-3.5" />
@@ -1157,7 +1090,7 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
                 type="button"
                 disabled={safeCurrentPage === 1}
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-35 disabled:cursor-not-allowed hover-light-amber cursor-pointer flex items-center gap-1 font-semibold"
+                className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-35 disabled:cursor-not-allowed hover-teal cursor-pointer flex items-center gap-1 font-semibold"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
                 <span>Prev</span>
@@ -1184,8 +1117,8 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
                           onClick={() => setCurrentPage(page)}
                           className={`min-w-[28px] h-7 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             isCurrent
-                              ? 'active-pear shadow-xs'
-                              : 'border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover-light-amber'
+                              ? 'active-olive shadow-xs'
+                              : 'border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover-teal'
                           }`}
                         >
                           {page}
@@ -1199,7 +1132,7 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
                 type="button"
                 disabled={safeCurrentPage === totalPages}
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-35 disabled:cursor-not-allowed hover-light-amber cursor-pointer flex items-center gap-1 font-semibold"
+                className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-35 disabled:cursor-not-allowed hover-teal cursor-pointer flex items-center gap-1 font-semibold"
               >
                 <span>Next</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -1209,7 +1142,7 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
                 type="button"
                 disabled={safeCurrentPage === totalPages}
                 onClick={() => setCurrentPage(totalPages)}
-                className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-35 disabled:cursor-not-allowed hover-light-amber cursor-pointer font-medium"
+                className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-35 disabled:cursor-not-allowed hover-teal cursor-pointer font-medium"
                 title="Last Page"
               >
                 <ChevronsRight className="w-3.5 h-3.5" />
@@ -1264,7 +1197,7 @@ export const AdminAcademicDatabaseView: React.FC<AdminAcademicDatabaseViewProps>
                   <span>Composite Primary Key: [Student Admission] + [Course Code]</span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                  Enforces strict data integrity: A single student can sit for <strong>multiple different units</strong> (e.g. CS401, CS302, CYBER201). Duplicate entries for the exact same student and course code are prohibited.
+                  Enforces strict data integrity: duplicate entries for the exact same student and course code are prohibited.
                 </p>
                 {formAdmission.trim() && formCourse.trim() && (
                   <div className="pt-1 flex items-center gap-2 font-mono text-[11px] border-t border-indigo-100 dark:border-indigo-900/60 mt-1">

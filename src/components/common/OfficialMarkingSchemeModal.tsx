@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { X, Printer, CheckCircle2, Award, Lock, ShieldAlert, FileCheck, ExternalLink } from 'lucide-react';
-import { Exam } from '../../types';
+import { Exam, StudentProfile } from '../../types';
 import { cleanDisplayCaption } from '../../services/imageCompressionService';
+import { getStoredStudents, resolveStudentCourseProgram } from '../../services/storageService';
 
 interface OfficialMarkingSchemeModalProps {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface OfficialMarkingSchemeModalProps {
   canDownload?: boolean;
   faculty?: string;
   department?: string;
+  student?: StudentProfile | null;
 }
 
 export const OfficialMarkingSchemeModal: React.FC<OfficialMarkingSchemeModalProps> = ({
@@ -21,11 +23,9 @@ export const OfficialMarkingSchemeModal: React.FC<OfficialMarkingSchemeModalProp
   canDownload = true,
   faculty,
   department,
+  student,
 }) => {
-  if (!isOpen) return null;
-
   const isStudent = userRole === 'student' || canDownload === false;
-  const totalPoints = exam.questions.reduce((sum, q) => sum + (q.points || 0), 0);
 
   useEffect(() => {
     if (!isOpen || !isStudent) return;
@@ -38,6 +38,24 @@ export const OfficialMarkingSchemeModal: React.FC<OfficialMarkingSchemeModalProp
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isOpen, isStudent]);
+
+  if (!isOpen) return null;
+
+  const allStudents = getStoredStudents();
+  const matchedStudent =
+    student ||
+    allStudents.find(
+      (s) =>
+        s.enrolledCourseCodes.includes(exam.courseCode) ||
+        (exam.registeredStudentIds || []).includes(s.id)
+    ) ||
+    allStudents[0] ||
+    null;
+
+  const { programName: resolvedCourseProgram, programCode: resolvedProgramCode } =
+    resolveStudentCourseProgram(matchedStudent);
+  const resolvedUnitTitle = exam.title || exam.courseTitle;
+  const totalPoints = exam.questions.reduce((sum, q) => sum + (q.points || 0), 0);
 
   const handlePrint = () => {
     if (isStudent) return;
@@ -52,7 +70,7 @@ export const OfficialMarkingSchemeModal: React.FC<OfficialMarkingSchemeModalProp
           <div className="flex items-center gap-2">
             <Award className="w-5 h-5 text-emerald-600" />
             <span className="font-bold text-sm text-slate-800">
-              Official Marking Scheme & Grading Guide — {exam.courseCode}: {exam.courseTitle || exam.title}
+              Official Marking Scheme & Grading Guide — {exam.courseCode}: {resolvedUnitTitle}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -118,13 +136,16 @@ export const OfficialMarkingSchemeModal: React.FC<OfficialMarkingSchemeModalProp
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm border-b-2 border-black pb-4 mb-6">
             <div>
-              <strong>Examination Title:</strong> {exam.title}
+              <strong>Course (Program):</strong> {resolvedCourseProgram}
             </div>
             <div>
-              <strong>Course Code:</strong> <span className="font-mono font-bold">{exam.courseCode}</span>
+              <strong>Course Code:</strong> <span className="font-mono font-bold">{resolvedProgramCode}</span>
             </div>
             <div>
-              <strong>Course Title:</strong> {exam.courseTitle || exam.title}
+              <strong>Unit / Exam Title:</strong> {resolvedUnitTitle}
+            </div>
+            <div>
+              <strong>Unit Code:</strong> <span className="font-mono font-bold">{exam.courseCode}</span>
             </div>
             <div>
               <strong>Academic Faculty:</strong> {faculty || exam.faculty || 'Faculty of Computing & Information Technologies'}

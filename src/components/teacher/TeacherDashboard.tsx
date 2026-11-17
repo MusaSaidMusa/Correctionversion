@@ -599,17 +599,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     <button
                       type="button"
                       onClick={() => handleCreateResitExam(req)}
-                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#d1e231] hover:bg-[#c0d725] text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer border border-[#a3b817] active-pear animate-pear-pulse"
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#556b2f] hover:bg-teal-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer border border-[#3f5220] active-olive animate-olive-pulse"
                       title="Create a new secure examination paper with confidential questions and enroll candidate"
                     >
-                      <Plus className="w-4 h-4 text-slate-950" />
+                      <Plus className="w-4 h-4 text-white" />
                       <span>Create New Examination &amp; Add Student</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setReRegisterModalTarget(req)}
-                      className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-white/20"
+                      className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-teal-600/80 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-white/20"
                       title="Or re-register candidate to an existing session in the catalog"
                     >
                       <UserPlus className="w-4 h-4 text-emerald-300" />
@@ -621,7 +621,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     <button
                       type="button"
                       onClick={() => setReRegisterModalTarget(req)}
-                      className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-[#d1e231] hover:bg-[#c0d725] text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer border border-[#a3b817]"
+                      className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-[#556b2f] hover:bg-teal-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer border border-[#3f5220] active-olive"
                     >
                       <UserPlus className="w-4 h-4" />
                       <span>Re-Register Student Now ({queueTotal} in Queue)</span>
@@ -1052,11 +1052,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           onClick={() => setActiveTab('exams')}
           className={`flex-1 min-w-[130px] flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'exams'
-              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] font-bold shadow-xs active-pear animate-pear-pulse'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+              ? 'bg-[#556b2f] text-white border-[#3f5220] font-bold shadow-xs active-olive animate-olive-pulse'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
           }`}
         >
-          <Calendar className={`w-4 h-4 ${activeTab === 'exams' ? 'text-[#1a2200]' : 'text-indigo-600'}`} />
+          <Calendar className={`w-4 h-4 ${activeTab === 'exams' ? 'text-white' : 'text-indigo-600'}`} />
           <span>Exams Bank ({exams.length})</span>
         </button>
 
@@ -1065,11 +1065,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           onClick={() => setActiveTab('submissions')}
           className={`flex-1 min-w-[140px] flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'submissions'
-              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] font-bold shadow-xs active-pear animate-pear-pulse'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+              ? 'bg-[#556b2f] text-white border-[#3f5220] font-bold shadow-xs active-olive animate-olive-pulse'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
           }`}
         >
-          <FileText className={`w-4 h-4 ${activeTab === 'submissions' ? 'text-[#1a2200]' : 'text-emerald-600'}`} />
+          <FileText className={`w-4 h-4 ${activeTab === 'submissions' ? 'text-white' : 'text-emerald-600'}`} />
           <span>Submissions ({submissions.length})</span>
         </button>
 
@@ -1078,11 +1078,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           onClick={() => setActiveTab('candidates')}
           className={`flex-1 min-w-[140px] flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'candidates'
-              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] font-bold shadow-xs active-pear animate-pear-pulse'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+              ? 'bg-[#556b2f] text-white border-[#3f5220] font-bold shadow-xs active-olive animate-olive-pulse'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
           }`}
         >
-          <UserPlus className={`w-4 h-4 ${activeTab === 'candidates' ? 'text-[#1a2200]' : 'text-indigo-600'}`} />
+          <UserPlus className={`w-4 h-4 ${activeTab === 'candidates' ? 'text-white' : 'text-indigo-600'}`} />
           <span>Candidates ({students.length})</span>
         </button>
 
@@ -1091,11 +1091,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           onClick={() => setActiveTab('proctor')}
           className={`flex-1 min-w-[130px] flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'proctor'
-              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] font-bold shadow-xs active-pear animate-pear-pulse'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+              ? 'bg-[#556b2f] text-white border-[#3f5220] font-bold shadow-xs active-olive animate-olive-pulse'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
           }`}
         >
-          <Camera className={`w-4 h-4 ${activeTab === 'proctor' ? 'text-[#1a2200]' : 'text-rose-600'}`} />
+          <Camera className={`w-4 h-4 ${activeTab === 'proctor' ? 'text-white' : 'text-rose-600'}`} />
           <span>Live Proctor Grid</span>
         </button>
 
@@ -1104,11 +1104,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           onClick={() => setActiveTab('analytics')}
           className={`flex-1 min-w-[130px] flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'analytics'
-              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] font-bold shadow-xs active-pear animate-pear-pulse'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+              ? 'bg-[#556b2f] text-white border-[#3f5220] font-bold shadow-xs active-olive animate-olive-pulse'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
           }`}
         >
-          <BarChart3 className={`w-4 h-4 ${activeTab === 'analytics' ? 'text-[#1a2200]' : 'text-cyan-600'}`} />
+          <BarChart3 className={`w-4 h-4 ${activeTab === 'analytics' ? 'text-white' : 'text-cyan-600'}`} />
           <span>Analytics & Reports</span>
         </button>
 
@@ -1117,11 +1117,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           onClick={() => setActiveTab('pastpapers')}
           className={`flex-1 min-w-[140px] flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-all cursor-pointer border ${
             activeTab === 'pastpapers'
-              ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] font-bold shadow-xs active-pear animate-pear-pulse'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+              ? 'bg-[#556b2f] text-white border-[#3f5220] font-bold shadow-xs active-olive animate-olive-pulse'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
           }`}
         >
-          <FolderArchive className={`w-4 h-4 ${activeTab === 'pastpapers' ? 'text-[#1a2200]' : 'text-amber-600'}`} />
+          <FolderArchive className={`w-4 h-4 ${activeTab === 'pastpapers' ? 'text-white' : 'text-amber-600'}`} />
           <span>Past Papers</span>
         </button>
       </div>
@@ -1192,7 +1192,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 <div
                   key={exam.id}
                   data-exam-card="true"
-                  className="exam-card bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-xs hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 dark:hover:bg-amber-950/20 hover:shadow-md transition-all flex flex-col gap-4 sm:gap-5 border-l-4 border-l-indigo-600 dark:border-l-indigo-500"
+                  className="exam-card bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-xs hover:border-teal-500 dark:hover:border-teal-400 hover:bg-teal-50/70 dark:hover:bg-teal-950/25 hover:shadow-md transition-all flex flex-col gap-4 sm:gap-5 border-l-4 border-l-indigo-600 dark:border-l-indigo-500"
                 >
                   {/* Top Bar: Metadata Badges & Utility Controls */}
                   <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-slate-100 dark:border-slate-800/80">

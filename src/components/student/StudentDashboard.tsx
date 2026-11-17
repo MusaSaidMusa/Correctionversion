@@ -24,6 +24,7 @@ import {
   FolderArchive,
   X,
   Stethoscope,
+  Download,
 } from 'lucide-react';
 import { Exam, ExamSubmission, StudentProfile, ResitRequest } from '../../types';
 import { PreExamDiagnosticModal } from './PreExamDiagnosticModal';
@@ -31,6 +32,7 @@ import { ExamResultsModal } from './ExamResultsModal';
 import { ExamWaitingRoomModal } from './ExamWaitingRoomModal';
 import { StudentAnswerSheetModal } from './StudentAnswerSheetModal';
 import { StudentResitRequestModal } from './StudentResitRequestModal';
+import { ProvisionalTranscriptModal } from './ProvisionalTranscriptModal';
 import { ProfileDetailModal } from '../common/ProfileDetailModal';
 import { ExaminationPaperModal } from '../common/ExaminationPaperModal';
 import { OfficialMarkingSchemeModal } from '../common/OfficialMarkingSchemeModal';
@@ -42,7 +44,13 @@ import {
   markResitCommenced,
   getStoredExams,
   saveStoredExams,
+  getStoredCourses,
+  resolveStudentCourseProgram,
 } from '../../services/storageService';
+import {
+  getStudentAcademicSummary,
+  downloadProvisionalTranscriptPdf,
+} from '../../services/transcriptPdfService';
 import { triggerFlash } from '../common/FlashMessage';
 import { playAlertBeep } from '../../services/soundService';
 
@@ -88,6 +96,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     type: 'student' | 'teacher';
     id: string;
   } | null>(null);
+
+  // Dedicated Academic Standing, Admission Registry & Provisional Transcript Modals
+  const [isAcademicStandingModalOpen, setIsAcademicStandingModalOpen] = useState(false);
+  const [isAdmissionRegistryModalOpen, setIsAdmissionRegistryModalOpen] = useState(false);
+  const [isProvisionalTranscriptOpen, setIsProvisionalTranscriptOpen] = useState(false);
 
   // Selected Examination state to sit for
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
@@ -235,11 +248,20 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     setViewingQuestionPaperExam(null);
     setViewingMarkingSchemeExam(null);
     setSelectedProfileModal(null);
+    setIsAcademicStandingModalOpen(false);
+    setIsAdmissionRegistryModalOpen(false);
+    setIsProvisionalTranscriptOpen(false);
     setIsResitModalOpen(false);
     setResitTargetExam(null);
     setRealtimeAdmissionAlert(null);
     setFilter('all');
   }, [resetKey]);
+
+  // Real-time Academic Summary & Enrolled Courses for Cards & Transcript
+  const academicSummary = getStudentAcademicSummary(student, exams, submissions);
+  const allCourses = getStoredCourses();
+  const { programName: studentCourseProgram, programCode: studentCourseProgramCode } =
+    resolveStudentCourseProgram(student);
 
   // Backend Synchronized Student Portal Information for Hue Section & Interactive Cards
   const [studentBackendStats, setStudentBackendStats] = useState<{
@@ -254,20 +276,36 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     clearanceStatus: string;
     enrolledCourseCodes: string[];
   }>({
-    studentNumber: student.studentNumber || 'ADM-CS-2026-084',
+    studentNumber: student.studentNumber || 'MSA-2026/8-2041',
     department: student.department || 'Computer Science & Software Engineering',
-    faculty: 'Faculty of Computing & Information Technologies',
-    program: 'B.Sc. Computer Science (Honors)',
-    academicStanding: "Dean's Honor Roll · Academic Distinction",
-    gpa: '3.92 / 4.00',
-    creditsCompleted: 88,
-    attendanceRate: '98.5%',
-    clearanceStatus: 'Verified & Cleared for Invigilation',
-    enrolledCourseCodes: student.enrolledCourseCodes,
+    faculty: student.faculty || 'Faculty of Computing & Information Technologies',
+    program: student.program || 'B.Sc. Computer Science (Honours)',
+    academicStanding: student.academicStanding || "Dean's Honor List",
+    gpa: student.gpa || '3.88',
+    creditsCompleted: student.creditsCompleted || 78,
+    attendanceRate: student.attendanceRate || '98.5%',
+    clearanceStatus: student.clearanceStatus || 'Verified & Cleared for Invigilation',
+    enrolledCourseCodes: student.enrolledCourseCodes || [],
   });
   const [isBackendLoaded, setIsBackendLoaded] = useState(false);
 
-  // Fetch verified academic credentials & stats from backend API
+  // Sync studentBackendStats when student prop changes
+  useEffect(() => {
+    setStudentBackendStats({
+      studentNumber: student.studentNumber || 'MSA-2026/8-2041',
+      department: student.department || 'Computer Science & Software Engineering',
+      faculty: student.faculty || 'Faculty of Computing & Information Technologies',
+      program: student.program || 'B.Sc. Computer Science (Honours)',
+      academicStanding: student.academicStanding || "Dean's Honor List",
+      gpa: student.gpa || '3.88',
+      creditsCompleted: student.creditsCompleted || 78,
+      attendanceRate: student.attendanceRate || '98.5%',
+      clearanceStatus: student.clearanceStatus || 'Verified & Cleared for Invigilation',
+      enrolledCourseCodes: student.enrolledCourseCodes || [],
+    });
+  }, [student]);
+
+  // Fetch verified academic credentials & stats from backend API (merge without wiping student fields)
   useEffect(() => {
     let isMounted = true;
     fetch(`/api/student-portal/stats/${encodeURIComponent(student.id)}`)
@@ -277,7 +315,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
       })
       .then((json) => {
         if (isMounted && json.success && json.data) {
-          setStudentBackendStats(json.data);
+          setStudentBackendStats((prev) => ({
+            ...prev,
+            ...json.data,
+            studentNumber: json.data.studentNumber || prev.studentNumber,
+            department: json.data.department || prev.department,
+            faculty: json.data.faculty || prev.faculty,
+            program: json.data.program || prev.program,
+            creditsCompleted: json.data.creditsCompleted ?? prev.creditsCompleted,
+            enrolledCourseCodes: json.data.enrolledCourseCodes || prev.enrolledCourseCodes,
+          }));
           setIsBackendLoaded(true);
         }
       })
@@ -492,7 +539,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           }}
           className={`p-4 md:p-5 rounded-2xl shadow-xl border-2 flex flex-col sm:flex-row items-center justify-between gap-4 animate-flashcard-entry ring-4 ${
             activeApprovedResit.reRegistered
-              ? 'bg-gradient-to-r from-emerald-800 via-teal-800 to-indigo-900 text-white border-[#d1e231] ring-[#d1e231]/30 animate-pear-pulse'
+              ? 'bg-gradient-to-r from-[#3f5220] via-[#556b2f] to-teal-900 text-white border-[#6b8e23] ring-[#556b2f]/30 animate-olive-pulse'
               : 'bg-gradient-to-r from-teal-900 via-emerald-950 to-indigo-950 text-white border-emerald-400 ring-emerald-500/20'
           }`}
         >
@@ -500,12 +547,12 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             <div
               className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner border ${
                 activeApprovedResit.reRegistered
-                  ? 'bg-[#d1e231]/20 border-[#d1e231]/50 text-[#d1e231]'
+                  ? 'bg-white/15 border-white/40 text-white'
                   : 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
               }`}
             >
               {activeApprovedResit.reRegistered ? (
-                <Sparkles className="w-6 h-6 animate-spin text-[#d1e231]" />
+                <Sparkles className="w-6 h-6 animate-spin text-white" />
               ) : (
                 <ShieldCheck className="w-6 h-6 animate-pulse text-emerald-300" />
               )}
@@ -521,7 +568,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
                     activeApprovedResit.reRegistered
-                      ? 'bg-[#d1e231] text-slate-950 animate-pulse'
+                      ? 'bg-[#556b2f] text-white border border-white/40 animate-pulse'
                       : 'bg-amber-400 text-slate-950'
                   }`}
                 >
@@ -566,9 +613,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => handleCommenceResitExam(activeApprovedResit)}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#d1e231] hover:bg-[#c0d725] text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer border border-[#a3b817]"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#556b2f] hover:bg-teal-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer border border-white/30"
               >
-                <Play className="w-4 h-4 fill-current text-slate-950" />
+                <Play className="w-4 h-4 fill-current text-white" />
                 <span>Commence Examination Now &rarr;</span>
               </button>
             ) : (
@@ -700,66 +747,71 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         </div>
       </div>
 
-      {/* 4 INTERACTIVE STUDENT INFORMATION CARDS (Fetchable from Backend) */}
+      {/* 4 INTERACTIVE STUDENT INFORMATION CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Academic Standing & Cumulative GPA */}
+        {/* Card 1: Academic Standing & Academic Data */}
         <button
           type="button"
-          onClick={() => setSelectedProfileModal({ type: 'student', id: student.id })}
-          className="group p-5 bg-gradient-to-br from-indigo-50/90 via-white to-indigo-100/40 dark:from-indigo-950/40 dark:via-slate-900 dark:to-indigo-950/20 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800/70 shadow-xs hover:shadow-lg hover:-translate-y-1 transition-all duration-200 text-left cursor-pointer overflow-hidden"
-          title="Click to view full verified academic transcript and honors breakdown"
+          onClick={() => setIsAcademicStandingModalOpen(true)}
+          className="group p-5 bg-gradient-to-br from-indigo-50/90 via-white to-indigo-100/40 dark:from-indigo-950/40 dark:via-slate-900 dark:to-indigo-950/20 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800/70 shadow-xs hover:bg-teal-50 hover:border-teal-500 dark:hover:bg-teal-950/40 dark:hover:border-teal-400 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 text-left cursor-pointer overflow-hidden"
+          title="Click to inspect full academic standing, examined unit marks, and provisional transcript"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider font-mono">
+            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 group-hover:text-teal-800 dark:group-hover:text-teal-300 uppercase tracking-wider font-mono">
               Academic Standing
             </span>
-            <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-xl bg-indigo-600 group-hover:bg-teal-600 text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-all">
               <Award className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-extrabold font-mono text-slate-900 dark:text-white">
-              {studentBackendStats.gpa}
+              {academicSummary.gpa}
             </span>
           </div>
-          <div className="mt-1 text-xs text-indigo-600 dark:text-indigo-300 font-semibold truncate">
-            {studentBackendStats.academicStanding}
+          <div className="mt-1 text-xs text-indigo-700 dark:text-indigo-300 group-hover:text-teal-800 dark:group-hover:text-teal-200 font-semibold truncate">
+            {academicSummary.standing}
           </div>
-          <div className="mt-2 pt-2 border-t border-indigo-100 dark:border-indigo-900 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-            <span>{studentBackendStats.creditsCompleted} ECTS Earned</span>
-            <span className="text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-0.5 group-hover:translate-x-1 transition-transform">
-              Details <ChevronRight className="w-3.5 h-3.5" />
+          <div className="mt-2 pt-2 border-t border-indigo-100 dark:border-indigo-900 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400">
+            <span>
+              {academicSummary.totalUnits} Unit(s) · Mean {academicSummary.averagePercentage}% · {academicSummary.totalCredits} Credits
+            </span>
+            <span className="text-indigo-600 dark:text-indigo-400 group-hover:text-teal-700 dark:group-hover:text-teal-300 font-semibold flex items-center gap-0.5 group-hover:translate-x-1 transition-transform shrink-0">
+              Academic Data <ChevronRight className="w-3.5 h-3.5" />
             </span>
           </div>
         </button>
 
-        {/* Card 2: Institutional Registry & Degree Program */}
+        {/* Card 2: Admission Registry — Enrolled Units & Examinations */}
         <button
           type="button"
-          onClick={() => setSelectedProfileModal({ type: 'student', id: student.id })}
-          className="group p-5 bg-gradient-to-br from-indigo-50/90 via-white to-indigo-100/40 dark:from-indigo-950/40 dark:via-slate-900 dark:to-indigo-950/20 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800/70 shadow-xs hover:shadow-lg hover:-translate-y-1 transition-all duration-200 text-left cursor-pointer overflow-hidden"
-          title="Click to inspect verified departmental enrollment and degree program"
+          onClick={() => setIsAdmissionRegistryModalOpen(true)}
+          className="group p-5 bg-gradient-to-br from-indigo-50/90 via-white to-indigo-100/40 dark:from-indigo-950/40 dark:via-slate-900 dark:to-indigo-950/20 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800/70 shadow-xs hover:bg-teal-50 hover:border-teal-500 dark:hover:bg-teal-950/40 dark:hover:border-teal-400 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 text-left cursor-pointer overflow-hidden"
+          title="Click to inspect all enrolled units and examinations in your Admission Registry"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider font-mono">
+            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 group-hover:text-teal-800 dark:group-hover:text-teal-300 uppercase tracking-wider font-mono">
               Admission Registry
             </span>
-            <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-xl bg-indigo-600 group-hover:bg-teal-600 text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-all">
               <GraduationCap className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3">
-            <span className="text-lg font-bold font-mono text-slate-900 dark:text-white">
-              {studentBackendStats.studentNumber}
+          <div className="mt-3 flex items-baseline justify-between gap-2">
+            <span className="text-lg font-bold font-mono text-slate-900 dark:text-white truncate">
+              {student.studentNumber || studentBackendStats.studentNumber}
+            </span>
+            <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 shrink-0">
+              {studentExams.length} Exam(s)
             </span>
           </div>
-          <div className="mt-1 text-xs text-indigo-700 dark:text-indigo-300 font-medium truncate">
-            {studentBackendStats.program}
+          <div className="mt-1 text-xs text-indigo-700 dark:text-indigo-300 group-hover:text-teal-800 dark:group-hover:text-teal-200 font-semibold truncate">
+            Units: {student.enrolledCourseCodes.length > 0 ? student.enrolledCourseCodes.join(' · ') : 'None Assigned'}
           </div>
-          <div className="mt-2 pt-2 border-t border-indigo-100 dark:border-indigo-900 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-            <span>{student.enrolledCourseCodes.length} Enrolled Courses</span>
-            <span className="text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-0.5 group-hover:translate-x-1 transition-transform">
-              Registry <ChevronRight className="w-3.5 h-3.5" />
+          <div className="mt-2 pt-2 border-t border-indigo-100 dark:border-indigo-900 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400">
+            <span>{student.enrolledCourseCodes.length} Enrolled Unit(s)</span>
+            <span className="text-indigo-600 dark:text-indigo-400 group-hover:text-teal-700 dark:group-hover:text-teal-300 font-semibold flex items-center gap-0.5 group-hover:translate-x-1 transition-transform shrink-0">
+              Enrolled Units <ChevronRight className="w-3.5 h-3.5" />
             </span>
           </div>
         </button>
@@ -773,14 +825,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               setSelectedDiagnosticExam(firstExam);
             }
           }}
-          className="group p-5 bg-gradient-to-br from-emerald-50/90 via-white to-emerald-100/40 dark:from-emerald-950/40 dark:via-slate-900 dark:to-emerald-950/20 rounded-2xl border-2 border-emerald-200 dark:border-emerald-800/70 shadow-xs hover:shadow-lg hover:-translate-y-1 transition-all duration-200 text-left cursor-pointer overflow-hidden"
+          className="group p-5 bg-gradient-to-br from-emerald-50/90 via-white to-emerald-100/40 dark:from-emerald-950/40 dark:via-slate-900 dark:to-emerald-950/20 rounded-2xl border-2 border-emerald-200 dark:border-emerald-800/70 shadow-xs hover:bg-teal-50 hover:border-teal-500 dark:hover:bg-teal-950/40 dark:hover:border-teal-400 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 text-left cursor-pointer overflow-hidden"
           title="Click to test camera, microphone, and Safe Exam Browser diagnostics"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider font-mono">
+            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 group-hover:text-teal-800 dark:group-hover:text-teal-300 uppercase tracking-wider font-mono">
               Proctor Clearance
             </span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-xl bg-emerald-600 group-hover:bg-teal-600 text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-all">
               <ShieldCheck className="w-4 h-4" />
             </div>
           </div>
@@ -815,14 +867,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               setFilter('completed');
             }
           }}
-          className="group p-5 bg-gradient-to-br from-cyan-50/90 via-white to-cyan-100/40 dark:from-cyan-950/40 dark:via-slate-900 dark:to-cyan-950/20 rounded-2xl border-2 border-cyan-200 dark:border-cyan-800/70 shadow-xs hover:shadow-lg hover:-translate-y-1 transition-all duration-200 text-left cursor-pointer overflow-hidden"
+          className="group p-5 bg-gradient-to-br from-cyan-50/90 via-white to-cyan-100/40 dark:from-cyan-950/40 dark:via-slate-900 dark:to-cyan-950/20 rounded-2xl border-2 border-cyan-200 dark:border-cyan-800/70 shadow-xs hover:bg-teal-50 hover:border-teal-500 dark:hover:bg-teal-950/40 dark:hover:border-teal-400 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 text-left cursor-pointer overflow-hidden"
           title="Click to view certified results and official protected Times New Roman answer sheets"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-cyan-700 dark:text-cyan-400 uppercase tracking-wider font-mono">
+            <span className="text-xs font-bold text-cyan-700 dark:text-cyan-400 group-hover:text-teal-800 dark:group-hover:text-teal-300 uppercase tracking-wider font-mono">
               Committed Results
             </span>
-            <div className="w-8 h-8 rounded-xl bg-cyan-600 text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-xl bg-cyan-600 group-hover:bg-teal-600 text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-all">
               <FileText className="w-4 h-4" />
             </div>
           </div>
@@ -860,15 +912,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             </p>
           </div>
 
-          {/* Filter tabs */}
-          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1.5 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-800">
+          {/* Filter tabs & Transcript Action */}
+          <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1.5 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-800">
             <button
               type="button"
               onClick={() => setFilter('all')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer border ${
                 filter === 'all'
-                  ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+                  ? 'bg-[#556b2f] text-white border-[#3f5220] active-olive animate-olive-pulse font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
               }`}
             >
               All Enrolled ({studentExams.length})
@@ -878,8 +930,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               onClick={() => setFilter('ongoing')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer border ${
                 filter === 'ongoing'
-                  ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+                  ? 'bg-[#556b2f] text-white border-[#3f5220] active-olive animate-olive-pulse font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
               }`}
             >
               Active / Ready
@@ -889,8 +941,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               onClick={() => setFilter('upcoming')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer border ${
                 filter === 'upcoming'
-                  ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+                  ? 'bg-[#556b2f] text-white border-[#3f5220] active-olive animate-olive-pulse font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
               }`}
             >
               Upcoming
@@ -900,8 +952,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               onClick={() => setFilter('completed')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer border ${
                 filter === 'completed'
-                  ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+                  ? 'bg-[#556b2f] text-white border-[#3f5220] active-olive animate-olive-pulse font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
               }`}
             >
               Completed
@@ -911,8 +963,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               onClick={() => setFilter('pastpapers')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border ${
                 filter === 'pastpapers'
-                  ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] active-pear animate-pear-pulse font-bold shadow-xs'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/40 dark:hover:text-amber-200 border-transparent'
+                  ? 'bg-[#556b2f] text-white border-[#3f5220] active-olive animate-olive-pulse font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 border-transparent'
               }`}
             >
               <FolderArchive className="w-3.5 h-3.5" />
@@ -920,11 +972,20 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             </button>
             <button
               type="button"
+              onClick={() => setIsProvisionalTranscriptOpen(true)}
+              className="px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border border-teal-400 dark:border-teal-700 bg-teal-50 text-teal-900 dark:bg-teal-950/60 dark:text-teal-200 hover:bg-teal-600 hover:text-white hover:border-teal-600 text-xs font-bold shadow-xs"
+              title="Preview and download your official Provisional Academic Transcript as PDF"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Provisional Transcript (PDF)</span>
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setResitTargetExam(null);
                 setIsResitModalOpen(true);
               }}
-              className="px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border border-rose-300 dark:border-rose-800 bg-rose-50 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 hover:bg-rose-100 hover:text-rose-900 hover:border-rose-400 text-xs font-bold shadow-xs"
+              className="px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border border-rose-300 dark:border-rose-800 bg-rose-50 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 text-xs font-bold shadow-xs"
               title="Attach medical certificate (photo or PDF) or apply for clearance if you missed an examination"
             >
               <FileText className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
@@ -1016,16 +1077,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 onClick={() => handleToggleSelect()}
                 className={`exam-card rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col gap-4 transition-all duration-200 border-2 overflow-hidden ${
                   isExpired
-                    ? 'opacity-80 border-slate-300 dark:border-slate-700 border-l-[6px] border-l-rose-400 bg-slate-50/70 dark:bg-slate-900/60 cursor-pointer hover:border-amber-400 hover:bg-amber-50/40'
+                    ? 'opacity-80 border-slate-300 dark:border-slate-700 border-l-[6px] border-l-rose-400 bg-slate-50/70 dark:bg-slate-900/60 cursor-pointer hover:border-teal-500 hover:bg-teal-50/60'
                     : isSelected
-                    ? 'border-[#d1e231] ring-4 ring-[#d1e231]/40 bg-[#f8fce8] dark:bg-white shadow-xl selected animate-pear-pulse cursor-pointer border-l-[6px] border-l-[#d1e231]'
+                    ? 'border-[#556b2f] ring-4 ring-[#556b2f]/30 bg-[#f3f6e8] dark:bg-white shadow-xl selected animate-olive-pulse cursor-pointer border-l-[6px] border-l-[#556b2f]'
                     : statusType === 'active_now'
-                    ? 'border-slate-200 dark:border-slate-800 border-l-[6px] border-l-emerald-500 bg-white hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 hover:shadow-md cursor-pointer'
+                    ? 'border-slate-200 dark:border-slate-800 border-l-[6px] border-l-emerald-500 bg-white hover:border-teal-500 dark:hover:border-teal-400 hover:bg-teal-50/70 hover:shadow-md cursor-pointer'
                     : statusType === 'in_progress'
-                    ? 'border-slate-200 dark:border-slate-800 border-l-[6px] border-l-amber-500 bg-white hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 hover:shadow-md cursor-pointer'
+                    ? 'border-slate-200 dark:border-slate-800 border-l-[6px] border-l-amber-500 bg-white hover:border-teal-500 dark:hover:border-teal-400 hover:bg-teal-50/70 hover:shadow-md cursor-pointer'
                     : statusType === 'completed'
-                    ? 'border-slate-200 dark:border-slate-800 border-l-[6px] border-l-indigo-500 bg-white hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 hover:shadow-md cursor-pointer'
-                    : 'border-slate-200 dark:border-slate-800 border-l-[6px] border-l-sky-500 bg-white hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/70 hover:shadow-md cursor-pointer'
+                    ? 'border-slate-200 dark:border-slate-800 border-l-[6px] border-l-indigo-500 bg-white hover:border-teal-500 dark:hover:border-teal-400 hover:bg-teal-50/70 hover:shadow-md cursor-pointer'
+                    : 'border-slate-200 dark:border-slate-800 border-l-[6px] border-l-sky-500 bg-white hover:border-teal-500 dark:hover:border-teal-400 hover:bg-teal-50/70 hover:shadow-md cursor-pointer'
                 }`}
                 data-exam-card="true"
                 data-selected={isSelected ? 'true' : 'false'}
@@ -1189,13 +1250,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                       isExpired
                         ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-60'
                         : isSelected
-                        ? 'bg-[#d1e231] text-[#1a2200] border-[#a3b817] shadow-xs active-pear animate-pear-pulse font-bold cursor-pointer'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-amber-100 hover:text-amber-900 hover:border-amber-400 dark:hover:bg-amber-950/50 dark:hover:text-amber-200 cursor-pointer'
+                        ? 'bg-[#556b2f] text-white border-[#3f5220] shadow-xs active-olive animate-olive-pulse font-bold cursor-pointer'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-teal-100 hover:text-teal-900 hover:border-teal-500 dark:hover:bg-teal-950/50 dark:hover:text-teal-200 cursor-pointer'
                     }`}
                     title={isExpired ? 'Schedule timeframe has passed. Sittings disabled.' : 'Click to select this examination'}
                   >
-                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-[#1a2200] bg-[#d1e231]' : 'border-slate-400'}`}>
-                      {isSelected && <span className="w-2 h-2 rounded-full bg-[#1a2200]" />}
+                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-white bg-[#556b2f]' : 'border-slate-400'}`}>
+                      {isSelected && <span className="w-2 h-2 rounded-full bg-white" />}
                     </span>
                     <span>
                       {isExpired
@@ -1520,6 +1581,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           exam={viewingQuestionPaperExam}
           userRole="student"
           canDownload={false}
+          student={student}
         />
       )}
 
@@ -1533,6 +1595,348 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           canDownload={false}
         />
       )}
+
+      {/* Dedicated Modal: Academic Standing & Verified Academic Data */}
+      {isAcademicStandingModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                  <Award className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">Academic Standing &amp; Performance Data</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                    {student.name} &bull; {student.studentNumber}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const res = await downloadProvisionalTranscriptPdf(student, academicSummary);
+                    if (res.success) {
+                      triggerFlash({
+                        type: 'success',
+                        text: 'Provisional Transcript Downloaded (PDF)',
+                        subtext: `Saved ${res.fileName} with ${academicSummary.totalUnits} unit(s).`,
+                      });
+                    }
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-[#556b2f] hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Transcript (PDF)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAcademicStandingModalOpen(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-teal-800 hover:bg-teal-100 dark:hover:bg-teal-950 dark:hover:text-teal-200 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-5 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800">
+                  <div className="text-[10px] font-bold uppercase text-indigo-700 dark:text-indigo-300">Cumulative GPA</div>
+                  <div className="text-xl font-black font-mono text-slate-900 dark:text-white mt-0.5">
+                    {academicSummary.gpa}
+                  </div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+                  <div className="text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-300">Mean Score</div>
+                  <div className="text-xl font-black font-mono text-emerald-900 dark:text-emerald-200 mt-0.5">
+                    {academicSummary.averagePercentage}%
+                  </div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800">
+                  <div className="text-[10px] font-bold uppercase text-cyan-700 dark:text-cyan-300">Units Examined</div>
+                  <div className="text-xl font-black font-mono text-cyan-900 dark:text-cyan-200 mt-0.5">
+                    {academicSummary.totalUnits}
+                  </div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <div className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Credits Earned</div>
+                  <div className="text-xl font-black font-mono text-slate-900 dark:text-white mt-0.5">
+                    {academicSummary.totalCredits}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-teal-50/70 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 dark:text-teal-300 block">
+                    Current Academic Classification
+                  </span>
+                  <span className="text-sm font-extrabold text-slate-900 dark:text-white">
+                    {academicSummary.standing}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAcademicStandingModalOpen(false);
+                    setIsProvisionalTranscriptOpen(true);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-teal-400 text-teal-800 dark:text-teal-200 font-bold hover:bg-teal-600 hover:text-white transition-colors cursor-pointer"
+                >
+                  Open Full Transcript Preview &rarr;
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 text-[11px]">
+                  Recorded Academic Unit Results ({academicSummary.units.length})
+                </h4>
+                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold uppercase text-[10px]">
+                        <th className="py-2.5 px-3">Unit Code</th>
+                        <th className="py-2.5 px-3">Course / Examination Unit</th>
+                        <th className="py-2.5 px-3">Period</th>
+                        <th className="py-2.5 px-3 text-center">Score</th>
+                        <th className="py-2.5 px-3 text-center">%</th>
+                        <th className="py-2.5 px-3 text-center">Grade</th>
+                        <th className="py-2.5 px-3 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                      {academicSummary.units.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-6 text-center text-slate-500 italic">
+                            No examined academic unit records recorded yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        academicSummary.units.map((u, idx) => (
+                          <tr key={`${u.courseCode}-${idx}`} className="hover:bg-teal-50/70 dark:hover:bg-teal-950/30 transition-colors">
+                            <td className="py-2.5 px-3 font-mono font-bold text-indigo-700 dark:text-indigo-300">
+                              {u.courseCode}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="font-semibold text-slate-900 dark:text-white">{u.courseTitle}</div>
+                              {u.examTitle && u.examTitle !== u.courseTitle && (
+                                <div className="text-[11px] text-slate-500 dark:text-slate-400">{u.examTitle}</div>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-[11px] text-slate-500 dark:text-slate-400">{u.period}</td>
+                            <td className="py-2.5 px-3 text-center font-mono font-bold">
+                              {u.score}/{u.totalPoints}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono font-bold">{u.percentage}%</td>
+                            <td className="py-2.5 px-3 text-center font-mono font-black text-emerald-700 dark:text-emerald-300">
+                              {u.grade}
+                            </td>
+                            <td className="py-2.5 px-3 text-center uppercase text-[10px] font-bold">
+                              {u.status}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dedicated Modal: Admission Registry — Enrolled Units & Examinations */}
+      {isAdmissionRegistryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">Admission Registry &mdash; Enrolled Units &amp; Examinations</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                    Admission No: {student.studentNumber} &bull; Course: {studentCourseProgramCode} ({studentCourseProgram})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAdmissionRegistryModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-teal-800 hover:bg-teal-100 dark:hover:bg-teal-950 dark:hover:text-teal-200 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-5 text-xs">
+              {/* Registry Metadata */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                <div>
+                  <div className="text-[10px] font-bold uppercase text-slate-500">Admission No</div>
+                  <div className="font-mono font-bold text-slate-900 dark:text-white mt-0.5">{student.studentNumber}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase text-slate-500">Faculty</div>
+                  <div className="font-semibold text-slate-900 dark:text-white mt-0.5 truncate" title={student.faculty || ''}>
+                    {student.faculty || 'Faculty of Computing & IT'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase text-slate-500">Department</div>
+                  <div className="font-semibold text-slate-900 dark:text-white mt-0.5 truncate" title={student.department || ''}>
+                    {student.department || 'Computer Science'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase text-slate-500">Clearance Status</div>
+                  <div className="font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    {student.clearanceStatus || 'Financial & Academic Cleared'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Enrolled Units Summary */}
+              <div className="space-y-2">
+                <h4 className="font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 text-[11px] flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Enrolled Course Units ({student.enrolledCourseCodes.length})</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {student.enrolledCourseCodes.map((code) => {
+                    const courseInfo = allCourses.find((c) => c.code.toUpperCase() === code.toUpperCase());
+                    const unitExams = categorized.filter(
+                      (c) => c.exam.courseCode.toUpperCase() === code.toUpperCase()
+                    );
+                    return (
+                      <div
+                        key={code}
+                        className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 hover:border-teal-500 hover:bg-teal-50/50 dark:hover:bg-teal-950/30 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="px-2 py-0.5 rounded bg-slate-900 text-white font-mono font-bold text-[11px]">
+                            {code}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-500">
+                            {courseInfo?.credits ? `${courseInfo.credits} Credits` : 'Core Unit'} &bull; {unitExams.length} Exam(s)
+                          </span>
+                        </div>
+                        <div className="font-bold text-slate-900 dark:text-white mt-1.5">
+                          {courseInfo?.title || unitExams[0]?.exam.courseTitle || code}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Enrolled Unit Examinations Table */}
+              <div className="space-y-2">
+                <h4 className="font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 text-[11px] flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Enrolled Unit Examinations ({categorized.length})</span>
+                </h4>
+                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold uppercase text-[10px]">
+                        <th className="py-2.5 px-3">Unit Code</th>
+                        <th className="py-2.5 px-3">Course &amp; Examination Title</th>
+                        <th className="py-2.5 px-3">Invigilator</th>
+                        <th className="py-2.5 px-3">Window</th>
+                        <th className="py-2.5 px-3 text-center">Status</th>
+                        <th className="py-2.5 px-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                      {categorized.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-6 text-center text-slate-500 italic">
+                            No unit examinations currently scheduled for your enrolled courses.
+                          </td>
+                        </tr>
+                      ) : (
+                        categorized.map(({ exam, sub, statusType }) => (
+                          <tr key={exam.id} className="hover:bg-teal-50/70 dark:hover:bg-teal-950/30 transition-colors">
+                            <td className="py-2.5 px-3 font-mono font-bold text-indigo-700 dark:text-indigo-300">
+                              {exam.courseCode}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="font-bold text-slate-900 dark:text-white">{exam.title}</div>
+                              {exam.courseTitle && (
+                                <div className="text-[11px] text-slate-500 dark:text-slate-400">{exam.courseTitle}</div>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{exam.instructorName}</td>
+                            <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">
+                              {new Date(exam.scheduledStartTime).toLocaleDateString()} &bull; {exam.durationMinutes}m
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                  statusType === 'completed'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : statusType === 'active_now' || statusType === 'in_progress'
+                                    ? 'bg-[#556b2f] text-white'
+                                    : statusType === 'upcoming'
+                                    ? 'bg-sky-100 text-sky-800'
+                                    : 'bg-rose-100 text-rose-800'
+                                }`}
+                              >
+                                {statusType.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              {statusType === 'completed' && sub ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsAdmissionRegistryModalOpen(false);
+                                    setSelectedResultExam({ exam, submission: sub });
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-teal-700 text-white text-[11px] font-semibold cursor-pointer transition-colors"
+                                >
+                                  Scorecard
+                                </button>
+                              ) : statusType === 'active_now' || statusType === 'in_progress' || statusType === 'upcoming' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsAdmissionRegistryModalOpen(false);
+                                    setSelectedExamId(exam.id);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-[#556b2f] hover:bg-teal-700 text-white text-[11px] font-semibold cursor-pointer transition-colors"
+                                >
+                                  Select Exam
+                                </button>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 font-mono">Closed</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Official Provisional Academic Transcript Modal (Downloadable as PDF) */}
+      <ProvisionalTranscriptModal
+        isOpen={isProvisionalTranscriptOpen}
+        onClose={() => setIsProvisionalTranscriptOpen(false)}
+        student={student}
+        exams={exams}
+        submissions={submissions}
+      />
 
       {/* Verified Academic Profile Modal (Candidate or Invigilator) */}
       {selectedProfileModal && (
